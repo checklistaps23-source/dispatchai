@@ -1,5 +1,41 @@
 import { useState, useEffect, useRef } from "react";
 import React from "react";
+import { db } from "./firebase";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
+
+// Hook générique : synchronise un state React avec un document Firestore
+// (collection "dispatchai"), en temps réel, pour toutes les tablettes.
+// Même signature qu'un useState classique -> remplace facilement les
+// useState existants sans toucher au reste du code (setX(prev=>...) marche).
+function useFirestoreState(key, initialValue) {
+  const [value, setValue] = useState(initialValue);
+  const firstSnapshot = useRef(true);
+
+  useEffect(() => {
+    const ref = doc(db, "dispatchai", key);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        setValue(snap.data().data);
+      } else if (firstSnapshot.current) {
+        setDoc(ref, { data: initialValue }).catch(()=>{});
+      }
+      firstSnapshot.current = false;
+    }, (err)=>{ console.error("Firestore sync error ("+key+"):", err); });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  const update = (newValOrFn) => {
+    setValue(prev => {
+      const next = typeof newValOrFn === "function" ? newValOrFn(prev) : newValOrFn;
+      setDoc(doc(db, "dispatchai", key), { data: next }).catch((err)=>console.error("Firestore write error ("+key+"):", err));
+      return next;
+    });
+  };
+
+  return [value, update];
+}
+
 
 const DARK_THEME = {
   bg:"#07090f", panel:"#0d1117", panel2:"#111827", panel3:"#141f30",
@@ -3458,31 +3494,31 @@ function PlanningView({courses,setCourses,vehicles,patients,setPatients,categori
 }
 
 export default function App(){
-  const [vehicles,    setVehicles]    = useState(INIT_VEHICLES);
-  const [courses,     setCourses]     = useState(INIT_COURSES);
-  const [pending,     setPending]     = useState([]);
+  const [vehicles,    setVehicles]    = useFirestoreState("vehicles", INIT_VEHICLES);
+  const [courses,     setCourses]     = useFirestoreState("courses", INIT_COURSES);
+  const [pending,     setPending]     = useFirestoreState("pending", []);
   const pendingTodayCount = pending.filter(p=>(p.dateISO||todayISO())===todayISO()).length;
-  const [driversAmb,  setDriversAmb]  = useState(INIT_DRIVERS_AMB);
-  const [driversTpmr, setDriversTpmr] = useState(INIT_DRIVERS_TPMR);
-  const [stagiairesAmb,setStagiairesAmb] = useState(INIT_STAGIAIRES_AMB);
-  const [formationTpmr,setFormationTpmr] = useState(INIT_FORMATION_TPMR);
-  const [conventions, setConventions] = useState(INIT_CONVENTIONS);
-  const [equipements, setEquipements] = useState(INIT_EQUIPEMENTS);
-  const [transportTypes,setTransportTypes] = useState(INIT_TRANSPORT_TYPES);
-  const [bases,       setBases]       = useState(INIT_BASES);
-  const [contacts,    setContacts]    = useState(INIT_CONTACTS);
-  const [patientsHabituels, setPatientsHabituels] = useState([
+  const [driversAmb,  setDriversAmb]  = useFirestoreState("driversAmb", INIT_DRIVERS_AMB);
+  const [driversTpmr, setDriversTpmr] = useFirestoreState("driversTpmr", INIT_DRIVERS_TPMR);
+  const [stagiairesAmb,setStagiairesAmb] = useFirestoreState("stagiairesAmb", INIT_STAGIAIRES_AMB);
+  const [formationTpmr,setFormationTpmr] = useFirestoreState("formationTpmr", INIT_FORMATION_TPMR);
+  const [conventions, setConventions] = useFirestoreState("conventions", INIT_CONVENTIONS);
+  const [equipements, setEquipements] = useFirestoreState("equipements", INIT_EQUIPEMENTS);
+  const [transportTypes,setTransportTypes] = useFirestoreState("transportTypes", INIT_TRANSPORT_TYPES);
+  const [bases,       setBases]       = useFirestoreState("bases", INIT_BASES);
+  const [contacts,    setContacts]    = useFirestoreState("contacts", INIT_CONTACTS);
+  const [patientsHabituels, setPatientsHabituels] = useFirestoreState("patientsHabituels", [
     {id:"ph_test1",categorie:"Dialyse",nom:"Moreau",prenom:"Alice",telephone:"065 12 34 56",adresseDepart:"15 rue de la Paix, Mons",adresseArrivee:"CHU Mons — Dialyse",convention:"epicura",typeTransport:"dialyse",mobilite:"chaise_perso",equipSelected:[],litrageO2:2,notes:"Dialyse 3x/semaine — Lun/Mer/Ven",heureHabituelle:"08h00",statut:"actif"},
     {id:"ph_test2",categorie:"Radiothérapie",nom:"Petit",prenom:"Bernard",telephone:"065 98 76 54",adresseDepart:"42 chaussée de Bruxelles, Mons",adresseArrivee:"CHU Mons — Radiothérapie",convention:"partenamut",typeTransport:"radiotherapie",mobilite:"brancard",equipSelected:["oxygene"],litrageO2:4,notes:"Test — sous oxygène",heureHabituelle:"10h30",statut:"actif"},
     {id:"ph_test3",categorie:"Oncologie",nom:"Lambert",prenom:"Chantal",telephone:"065 45 67 89",adresseDepart:"8 rue du Parc, Frameries",adresseArrivee:"CHU Mons — Oncologie",convention:"home",typeTransport:"oncologie",mobilite:"assis",equipSelected:[],litrageO2:2,notes:"Test — patient hospitalisé actuellement",heureHabituelle:"13h00",statut:"hospitalise"},
   ]);
-  const [patientCategories, setPatientCategories] = useState(["Dialyse","Radiothérapie","Oncologie"]);
-  const [tarifs, setTarifs] = useState({
+  const [patientCategories, setPatientCategories] = useFirestoreState("patientCategories", ["Dialyse","Radiothérapie","Oncologie"]);
+  const [tarifs, setTarifs] = useFirestoreState("tarifs", {
     tpmr:{priseEnCharge:"0", kmAudela10:"0"},
     ambulance:{priseEnCharge:"0", km11_20:"0", km21plus:"0"},
   });
-  const [plans,       setPlans]       = useState(INIT_PLANS);
-  const [nextId,      setNextId]      = useState(100);
+  const [plans,       setPlans]       = useFirestoreState("plans", INIT_PLANS);
+  const [nextId,      setNextId]      = useFirestoreState("nextId", 100);
   const [appView,     setAppView]     = useState("menu");
   const [showPin,     setShowPin]     = useState(false);
   const [showDispMenu,setShowDispMenu] = useState(false);
@@ -3919,3 +3955,4 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
     </div>
   );
 }
+
