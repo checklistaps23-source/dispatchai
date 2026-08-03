@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { db } from "./firebase";
+import { dbChecklists } from "./firebaseChecklists";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import emailjs from "@emailjs/browser";
 
 // Hook générique : synchronise un state React avec un document Firestore
 // (collection "dispatchai"), en temps réel, pour toutes les tablettes.
@@ -36,6 +38,41 @@ function useFirestoreState(key, initialValue) {
   return [value, update];
 }
 
+// Hook dédié aux checklists : synchronise l'état de remplissage d'une
+// checklist (véhicule + semaine) via le projet Firebase "check-list-peremption"
+// (collection dispatchai_checklists). La clé inclut la semaine -> reset
+// automatique chaque lundi (nouvelle clé = document vide).
+function useChecklistDoc(docId, initialValue) {
+  const [value, setValue] = useState(initialValue);
+  const [loaded, setLoaded] = useState(false);
+  const firstSnapshot = useRef(true);
+
+  useEffect(() => {
+    setLoaded(false);
+    const ref = doc(dbChecklists, "dispatchai_checklists", docId);
+    const unsub = onSnapshot(ref, (snap) => {
+      if (snap.exists()) {
+        setValue({ ...initialValue, ...snap.data() });
+      } else if (firstSnapshot.current) {
+        setValue(initialValue);
+      }
+      firstSnapshot.current = false;
+      setLoaded(true);
+    }, (err)=>{ console.error("Firestore checklist sync error ("+docId+"):", err); setLoaded(true); });
+    return () => unsub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docId]);
+
+  const update = (patch) => {
+    setValue(prev => {
+      const next = { ...prev, ...(typeof patch === "function" ? patch(prev) : patch) };
+      setDoc(doc(dbChecklists, "dispatchai_checklists", docId), next, { merge: true }).catch((err)=>console.error("Firestore checklist write error ("+docId+"):", err));
+      return next;
+    });
+  };
+
+  return [value, update, loaded];
+}
 
 const DARK_THEME = {
   bg:"#07090f", panel:"#0d1117", panel2:"#111827", panel3:"#141f30",
@@ -303,7 +340,7 @@ function PinModal({onSuccess,onCancel}){
   );
 }
 
-function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,onBack}){
+function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,onBack,themeMode,toggleTheme}){
   const [tab,setTab]=useState("chauffeurs");
   const [newVal,setNewVal]=useState("");
   const [newVehName,setNewVehName]=useState("");
@@ -314,7 +351,39 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const [newTypeLabel,setNewTypeLabel]=useState("");
   const [newTypeIcon,setNewTypeIcon]=useState("🚑");
   const [subTab,setSubTab]=useState("amb");
-  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"stagiaires",icon:"🎓",label:"Stag/Form."},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"}];
+  const [editingChecklist,setEditingChecklist]=useState(null); // {key, isNew, norme, edition, sections}
+  const [confirmDeleteChecklist,setConfirmDeleteChecklist]=useState(null); // vehicle name pending delete
+  const [newEmail,setNewEmail]=useState("");
+
+  const openNewChecklist=()=>{
+    setEditingChecklist({key:"",origKey:null,isNew:true,norme:"",edition:"",sections:[]});
+  };
+  const openEditChecklist=(name)=>{
+    const d=checklistsData[name];
+    setEditingChecklist({key:name,origKey:name,isNew:false,norme:d.norme||"",edition:d.edition||"",sections:JSON.parse(JSON.stringify(d.sections||[]))});
+  };
+  const saveChecklist=()=>{
+    if(!editingChecklist||!editingChecklist.key.trim()) return;
+    const {key,origKey,norme,edition,sections}=editingChecklist;
+    setChecklistsData(prev=>{
+      const next={...prev};
+      if(origKey&&origKey!==key) delete next[origKey];
+      next[key]={norme,edition,sections};
+      return next;
+    });
+    setEditingChecklist(null);
+  };
+  const addSection=()=>setEditingChecklist(p=>({...p,sections:[...p.sections,{id:String.fromCharCode(65+p.sections.length),label:"Nouvelle section",color:"#f97316",shelves:[]}]}));
+  const removeSection=(sIdx)=>setEditingChecklist(p=>({...p,sections:p.sections.filter((_,i)=>i!==sIdx)}));
+  const updateSection=(sIdx,field,val)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,[field]:val}:s)}));
+  const addShelf=(sIdx)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:[...s.shelves,{id:`sh${s.shelves.length+1}`,label:"",items:[]}]}:s)}));
+  const removeShelf=(sIdx,shIdx)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.filter((_,j)=>j!==shIdx)}:s)}));
+  const updateShelf=(sIdx,shIdx,field,val)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,[field]:val}:sh)}:s)}));
+  const addItem=(sIdx,shIdx)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:[...sh.items,{n:"Nouvel article",q:1}]}:sh)}:s)}));
+  const removeItem=(sIdx,shIdx,itIdx)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.filter((_,k)=>k!==itIdx)}:sh)}:s)}));
+  const updateItem=(sIdx,shIdx,itIdx,field,val)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.map((it,k)=>k===itIdx?{...it,[field]:val}:it)}:sh)}:s)}));
+
+  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"stagiaires",icon:"🎓",label:"Stag/Form."},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"emails",icon:"✉️",label:"Emails"}];
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
@@ -324,7 +393,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
           <div style={{width:34,height:34,background:C.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>⚙️</div>
           <div><div style={{fontWeight:700,fontSize:14}}>Paramètres</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"1px"}}>Configuration</div></div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}><Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge><Clock/></div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge><Clock/><button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button></div>
       </div>
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         <div style={{width:180,background:C.panel,borderRight:`1px solid ${C.border}`,padding:"12px 8px",display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
@@ -615,6 +684,112 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                   ))}
                 </div>
               </div>
+            </div>
+          )}
+          {tab==="checklists"&&(
+            <div>
+              <SectionTitle icon="📋" title="Checklists véhicules"/>
+              {!editingChecklist?(
+                <>
+                  <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Ajoute, modifie ou supprime les checklists de contrôle matériel par véhicule.</div>
+                  <button onClick={openNewChecklist} style={{background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:9,color:C.accent,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Nouvelle checklist</button>
+                  {Object.keys(checklistsData).map(name=>(
+                    <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7}}>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:700}}>🚑 {name}</div>
+                        <div style={{fontSize:10,color:C.muted}}>Éd. {checklistsData[name].edition} · Norme {checklistsData[name].norme} · {(checklistsData[name].sections||[]).length} section(s)</div>
+                      </div>
+                      <div style={{display:"flex",gap:6}}>
+                        <button onClick={()=>openEditChecklist(name)} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,color:C.muted,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>✏️</button>
+                        <button onClick={()=>setConfirmDeleteChecklist(name)} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>🗑</button>
+                      </div>
+                    </div>
+                  ))}
+                </>
+              ):(
+                <div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:16}}>
+                    <div>
+                      <div style={{fontSize:10,color:C.mutedLight,marginBottom:5,textTransform:"uppercase"}}>Nom du véhicule</div>
+                      <input value={editingChecklist.key} onChange={e=>setEditingChecklist(p=>({...p,key:e.target.value}))} placeholder="ex: ALPHA 8" style={{width:"100%",background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"9px 12px",outline:"none"}}/>
+                    </div>
+                    <div>
+                      <div style={{fontSize:10,color:C.mutedLight,marginBottom:5,textTransform:"uppercase"}}>Norme</div>
+                      <input value={editingChecklist.norme} onChange={e=>setEditingChecklist(p=>({...p,norme:e.target.value}))} placeholder="ATNUP" style={{width:"100%",background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"9px 12px",outline:"none"}}/>
+                    </div>
+                    <div>
+                      <div style={{fontSize:10,color:C.mutedLight,marginBottom:5,textTransform:"uppercase"}}>Édition</div>
+                      <input value={editingChecklist.edition} onChange={e=>setEditingChecklist(p=>({...p,edition:e.target.value}))} placeholder="01/2026" style={{width:"100%",background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"9px 12px",outline:"none"}}/>
+                    </div>
+                  </div>
+
+                  {editingChecklist.sections.map((section,sIdx)=>(
+                    <div key={sIdx} style={{border:`1px solid ${C.border}`,borderRadius:10,padding:"12px",marginBottom:10,background:C.panel}}>
+                      <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10}}>
+                        <input value={section.id} onChange={e=>updateSection(sIdx,"id",e.target.value)} placeholder="ID" style={{width:44,background:C.bg,color:C.text,fontSize:12,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px",textAlign:"center"}}/>
+                        <input value={section.label} onChange={e=>updateSection(sIdx,"label",e.target.value)} placeholder="Nom de la section" style={{flex:1,background:C.bg,color:C.text,fontSize:12,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 10px"}}/>
+                        <button onClick={()=>removeSection(sIdx)} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"6px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                      </div>
+                      {section.shelves.map((shelf,shIdx)=>(
+                        <div key={shIdx} style={{marginLeft:10,marginBottom:8,paddingLeft:10,borderLeft:`2px solid ${C.border}`}}>
+                          <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:6}}>
+                            <input value={shelf.label} onChange={e=>updateShelf(sIdx,shIdx,"label",e.target.value)} placeholder="Nom de l'étagère (optionnel)" style={{flex:1,background:C.bg,color:C.text,fontSize:11,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 9px"}}/>
+                            <button onClick={()=>removeShelf(sIdx,shIdx)} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"5px 8px",fontSize:10,cursor:"pointer"}}>🗑</button>
+                          </div>
+                          {shelf.items.map((item,itIdx)=>(
+                            <div key={itIdx} style={{display:"flex",gap:6,alignItems:"center",marginBottom:5,flexWrap:"wrap"}}>
+                              <input value={item.n} onChange={e=>updateItem(sIdx,shIdx,itIdx,"n",e.target.value)} placeholder="Nom de l'article" style={{flex:2,minWidth:120,background:C.bg,color:C.text,fontSize:11,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 9px"}}/>
+                              <input type="number" value={item.q||1} onChange={e=>updateItem(sIdx,shIdx,itIdx,"q",parseInt(e.target.value)||1)} style={{width:50,background:C.bg,color:C.text,fontSize:11,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px"}}/>
+                              {[["t","TEST"],["s","SCELLÉ"],["p","PÉREMPT."],["okOnly","OK SEUL"]].map(([f,l])=>(
+                                <button key={f} onClick={()=>updateItem(sIdx,shIdx,itIdx,f,!item[f])} style={{padding:"4px 7px",borderRadius:5,border:`1px solid ${item[f]?C.accent:C.border}`,background:item[f]?C.accentSoft:"transparent",color:item[f]?C.accent:C.muted,fontSize:9,fontWeight:700,cursor:"pointer"}}>{l}</button>
+                              ))}
+                              <button onClick={()=>removeItem(sIdx,shIdx,itIdx)} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:5,color:C.danger,padding:"4px 7px",fontSize:10,cursor:"pointer"}}>✕</button>
+                            </div>
+                          ))}
+                          <button onClick={()=>addItem(sIdx,shIdx)} style={{background:"transparent",border:`1px dashed ${C.border}`,borderRadius:6,color:C.muted,padding:"5px 10px",fontSize:10,cursor:"pointer",marginTop:4}}>+ Article</button>
+                        </div>
+                      ))}
+                      <button onClick={()=>addShelf(sIdx)} style={{background:"transparent",border:`1px dashed ${C.border}`,borderRadius:6,color:C.muted,padding:"6px 10px",fontSize:11,cursor:"pointer",marginLeft:10}}>+ Étagère</button>
+                    </div>
+                  ))}
+                  <button onClick={addSection} style={{background:C.panel2,border:`1px dashed ${C.border}`,borderRadius:9,color:C.muted,padding:"9px 14px",fontSize:12,fontWeight:700,cursor:"pointer",marginBottom:20}}>+ Section</button>
+
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>setEditingChecklist(null)} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"11px",fontWeight:700,fontSize:13,cursor:"pointer"}}>Annuler</button>
+                    <button onClick={saveChecklist} disabled={!editingChecklist.key.trim()} style={{flex:1,background:editingChecklist.key.trim()?C.success:C.panel2,border:"none",borderRadius:9,color:editingChecklist.key.trim()?"white":C.muted,padding:"11px",fontWeight:700,fontSize:13,cursor:editingChecklist.key.trim()?"pointer":"not-allowed"}}>✅ Enregistrer</button>
+                  </div>
+                </div>
+              )}
+
+              {confirmDeleteChecklist&&(
+                <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:350}}>
+                  <div style={{background:C.panel,border:`1px solid ${C.danger}`,borderRadius:16,padding:"24px",width:360,maxWidth:"92vw"}}>
+                    <div style={{fontWeight:800,fontSize:16,marginBottom:10}}>🗑 Supprimer la checklist ?</div>
+                    <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Es-tu sûr de vouloir supprimer définitivement la checklist de <strong style={{color:C.text}}>{confirmDeleteChecklist}</strong> ? Cette action est irréversible.</div>
+                    <div style={{display:"flex",gap:8}}>
+                      <button onClick={()=>setConfirmDeleteChecklist(null)} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"11px",fontWeight:700,fontSize:13,cursor:"pointer"}}>Annuler</button>
+                      <button onClick={()=>{setChecklistsData(prev=>{const next={...prev};delete next[confirmDeleteChecklist];return next;});setConfirmDeleteChecklist(null);}} style={{flex:1,background:C.danger,border:"none",borderRadius:9,color:"white",padding:"11px",fontWeight:700,fontSize:13,cursor:"pointer"}}>🗑 Supprimer</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {tab==="emails"&&(
+            <div>
+              <SectionTitle icon="✉️" title="Emails — Rapports de manquants"/>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Ces adresses reçoivent un email listant le matériel manquant/périmé à chaque checklist complétée.</div>
+              <div style={{display:"flex",gap:8,marginBottom:16}}>
+                <input value={newEmail} onChange={e=>setNewEmail(e.target.value)} placeholder="exemple@aps.be" style={{flex:1,background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none"}}/>
+                <button onClick={()=>{if(newEmail.trim()&&newEmail.includes("@")){setChecklistEmails(p=>[...p,newEmail.trim()]);setNewEmail("");}}} style={{background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:9,color:C.accent,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+              </div>
+              {checklistEmails.length===0&&<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"20px 0"}}>Aucun destinataire configuré</div>}
+              {checklistEmails.map((em,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:7}}>
+                  <span style={{fontSize:13}}>✉️ {em}</span>
+                  <button onClick={()=>setChecklistEmails(p=>p.filter((_,j)=>j!==i))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"5px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                </div>
+              ))}
             </div>
           )}
           {tab==="bases"&&(
@@ -965,7 +1140,7 @@ function DevisModal({tarifs,onClose}){
   );
 }
 
-function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValidate,onRefuse,onBack,contacts,tarifs}){
+function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValidate,onRefuse,onBack,contacts,tarifs,themeMode,toggleTheme}){
   const [selectedV,setSelectedV]=useState(null);
   const [centerTab,setCenterTab]=useState("planning");
   const [filterType,setFilterType]=useState("tous");
@@ -1013,6 +1188,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
           <button onClick={()=>setShowContacts(true)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>📒 Contacts</button>
           <button onClick={()=>setShowDevis(true)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>💶 Devis</button>
           <Clock/>
+          <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
         </div>
       </div>
 
@@ -1278,7 +1454,7 @@ function ContactsPickerModal({contacts,onSelect,onClose,pickMode}){
   );
 }
 
-function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehicles,contacts,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,onBack,onEndService}){
+function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehicles,contacts,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,onBack,onEndService,themeMode,toggleTheme}){
   const [showBons,setShowBons]=useState(false);
   const [showContacts,setShowContacts]=useState(false);
   const [showPlans,setShowPlans]=useState(false);
@@ -1378,6 +1554,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
         {driver&&vehicle&&<div style={{textAlign:"right"}}><div style={{fontSize:12,fontWeight:700}}>{vIcon(vehicle.type)} {vehicle.name}</div><div style={{fontSize:10,color:C.muted}}>👤 {driver}</div></div>}
         <Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge>
         <Clock/>
+        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
         {showEnd&&<button onClick={onEndService} style={{background:C.danger,border:"none",borderRadius:7,color:"white",padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🔴 Fin de service</button>}
       </div>
     </div>
@@ -2005,7 +2182,7 @@ function BonView({bon,onSave,onBack,vehicle,driver,bases}){
 }
 
 
-const CK_C = {
+const CK_DARK = {
   bg:"#0b1120",panel:"#111827",panel2:"#1a2540",border:"#1f2f4a",
   accent:"#f97316",accentSoft:"rgba(249,115,22,0.1)",
   text:"#f0f4ff",muted:"#4d6a8a",
@@ -2014,6 +2191,18 @@ const CK_C = {
   warning:"#f59e0b",blue:"#38bdf8",
   red:"#dc2626",darkBlue:"#1d4ed8",
 };
+const CK_LIGHT = {
+  bg:"#f5f7fb",panel:"#ffffff",panel2:"#f0f3f9",border:"#dbe3f0",
+  accent:"#f97316",accentSoft:"rgba(249,115,22,0.10)",
+  text:"#101828",muted:"#8a96ab",
+  success:"#16a34a",successSoft:"rgba(22,163,74,0.10)",
+  danger:"#dc2626",dangerSoft:"rgba(220,38,38,0.08)",
+  warning:"#d97706",blue:"#0284c7",
+  red:"#dc2626",darkBlue:"#0284c7",
+};
+const CK_C = { ...CK_DARK };
+function applyCkThemeMode(mode){ Object.assign(CK_C, mode==="light"?CK_LIGHT:CK_DARK); }
+applyCkThemeMode(getStoredThemeMode());
 
 const CK_GS=`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap'); *{box-sizing:border-box;} button{cursor:pointer;font-family:inherit;} input,textarea{font-family:inherit;} input::placeholder{color:#4d6a8a;}`;
 
@@ -2021,7 +2210,7 @@ const CK_GS=`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@
 // DONNÉES DES 7 CHECKLISTS
 // ═══════════════════════════════════════════════
 
-const CHECKLISTS = {
+const INIT_CHECKLISTS = {
 
   // ── ALPHA 1 ──────────────────────────────────
   "ALPHA 1": {
@@ -2983,19 +3172,23 @@ const CHECKLISTS = {
 // ═══════════════════════════════════════════════
 // COMPOSANT CHECKLIST GÉNÉRIQUE
 // ═══════════════════════════════════════════════
-function ChecklistView({ vehicleName, onBack }) {
-  const data = CHECKLISTS[vehicleName];
-  const [checks, setChecks] = useState({});
+function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, toggleTheme }) {
+  const data = checklists[vehicleName];
+  const weekKey = getChecklistWeekKey();
+  const docId = `${vehicleName}_${weekKey}`;
+  const [doc_, updateDoc_, loaded] = useChecklistDoc(docId, { checks:{}, amb1:"", amb2:"", semaine:"", remarks:"" });
+  const checks = doc_.checks || {};
+  const amb1 = doc_.amb1 || "";
+  const amb2 = doc_.amb2 || "";
+  const semaine = doc_.semaine || "";
+  const remarks = doc_.remarks || "";
   const [expanded, setExpanded] = useState({ [data.sections[0]?.id]: true });
-  const [amb1, setAmb1] = useState("");
-  const [amb2, setAmb2] = useState("");
-  const [semaine, setSemaine] = useState("");
-  const [remarks, setRemarks] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [sending, setSending] = useState(false);
 
   const gk = (sId, shId, name) => `${sId}__${shId}__${name}`;
-  const setCF = (key, found, required) => setChecks(p => ({ ...p, [key]: { ...p[key], found, required } }));
-  const setC = (key, field, value) => setChecks(p => ({ ...p, [key]: { ...p[key], [field]: value } }));
+  const setCF = (key, found, required) => updateDoc_(prev=>({ checks:{ ...prev.checks, [key]:{ ...prev.checks?.[key], found, required } } }));
+  const setC = (key, field, value) => updateDoc_(prev=>({ checks:{ ...prev.checks, [key]:{ ...prev.checks?.[key], [field]:value } } }));
   const toggle = (id) => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
   const allItems = data.sections.flatMap(s => s.shelves.flatMap(sh => sh.items));
@@ -3003,6 +3196,35 @@ function ChecklistView({ vehicleName, onBack }) {
   const checkedItems = Object.values(checks).filter(c => c.found !== undefined).length;
   const nokItems = Object.entries(checks).filter(([, v]) => v.found !== undefined && v.found < v.required);
   const progress = totalItems > 0 ? Math.round((checkedItems / totalItems) * 100) : 0;
+  const firstWeek = isFirstWeekOfMonth();
+  const peremptionKeys = firstWeek ? checklistPeremptionKeys(checklists, vehicleName) : [];
+  const peremptionMissing = peremptionKeys.filter(k=>!checks?.[k]?.date);
+  const canSubmit = checkedItems>0 && (!firstWeek || peremptionMissing.length===0);
+
+  const sendMissingReport = async () => {
+    if(nokItems.length===0 || !emails || emails.length===0) return;
+    setSending(true);
+    const missingLines = nokItems.map(([key,val])=>{
+      const parts=key.split("__");
+      const itemName=parts.slice(2).join("__");
+      return `- ${itemName} : manque ${val.required-val.found}/${val.required}`;
+    }).join("\n");
+    try{
+      for(const to of emails){
+        await emailjs.send("service_mrs8v2l","template_2sxsq4j",{
+          to_email: to,
+          vehicle_name: vehicleName,
+          date: new Date().toLocaleDateString("fr-FR"),
+          missing_items: missingLines,
+        }, "Fhdx1kTE7vFmh4z07");
+      }
+    }catch(e){ console.error("Erreur envoi email checklist:", e); }
+    setSending(false);
+  };
+
+  if (!loaded) return (
+    <div style={{ minHeight:"100vh", background:CK_C.bg, display:"flex", alignItems:"center", justifyContent:"center", color:CK_C.muted, fontFamily:"'DM Sans',sans-serif" }}>Chargement…</div>
+  );
 
   if (submitted) return (
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text }}>
@@ -3045,7 +3267,9 @@ function ChecklistView({ vehicleName, onBack }) {
           </div>
         )}
         {remarks&&<div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:"16px", marginBottom:14 }}><div style={{ fontSize:11, fontWeight:700, color:CK_C.muted, textTransform:"uppercase", marginBottom:8 }}>Remarques</div><div style={{ fontSize:13 }}>{remarks}</div></div>}
-        <div style={{ background:CK_C.successSoft, border:`1px solid ${CK_C.success}`, borderRadius:10, padding:"14px", textAlign:"center", fontWeight:700, color:CK_C.success }}>✅ Rapport envoyé au responsable</div>
+        <div style={{ background:CK_C.successSoft, border:`1px solid ${CK_C.success}`, borderRadius:10, padding:"14px", textAlign:"center", fontWeight:700, color:CK_C.success }}>
+          {nokItems.length>0?(emails&&emails.length>0?`✅ Email de manquants envoyé (${emails.length} destinataire${emails.length>1?"s":""})`:"⚠️ Aucun email destinataire configuré (Paramètres)"):"✅ Checklist complète, rien à signaler"}
+        </div>
         <button onClick={onBack} style={{ width:"100%", marginTop:12, background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:10, color:CK_C.muted, padding:"12px", fontWeight:700, fontSize:14 }}>← Retour à la liste</button>
       </div>
     </div>
@@ -3063,9 +3287,12 @@ function ChecklistView({ vehicleName, onBack }) {
               <div style={{ fontSize:10, color:CK_C.muted, textTransform:"uppercase", letterSpacing:"0.8px" }}>Norme {data.norme} · Éd. {data.edition}</div>
             </div>
           </div>
-          <div style={{ textAlign:"right" }}>
-            <div style={{ fontSize:20, fontWeight:800, color:progress===100?CK_C.success:CK_C.accent }}>{progress}%</div>
-            <div style={{ fontSize:10, color:CK_C.muted }}>{checkedItems}/{totalItems}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <div style={{ textAlign:"right" }}>
+              <div style={{ fontSize:20, fontWeight:800, color:progress===100?CK_C.success:CK_C.accent }}>{progress}%</div>
+              <div style={{ fontSize:10, color:CK_C.muted }}>{checkedItems}/{totalItems}</div>
+            </div>
+            <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
           </div>
         </div>
         <div style={{ height:4, background:CK_C.border, borderRadius:4, overflow:"hidden" }}>
@@ -3073,10 +3300,16 @@ function ChecklistView({ vehicleName, onBack }) {
         </div>
       </div>
 
+      {firstWeek&&(
+        <div style={{ background:"#f59e0b20", borderBottom:`1px solid #f59e0b`, padding:"9px 16px", fontSize:12, fontWeight:700, color:"#fbbf24" }}>
+          📅 1ère semaine du mois — les dates de péremption sont obligatoires ({peremptionMissing.length} restante{peremptionMissing.length!==1?"s":""})
+        </div>
+      )}
+
       <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"12px 16px", display:"flex", gap:8 }}>
-        <input value={amb1} onChange={e=>setAmb1(e.target.value)} placeholder="Ambulancier 1" style={{ flex:1, background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"8px 12px", color:CK_C.text, fontSize:13 }}/>
-        <input value={amb2} onChange={e=>setAmb2(e.target.value)} placeholder="Ambulancier 2" style={{ flex:1, background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"8px 12px", color:CK_C.text, fontSize:13 }}/>
-        <input value={semaine} onChange={e=>setSemaine(e.target.value)} placeholder="Sem.N°" style={{ width:75, background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"8px 10px", color:CK_C.text, fontSize:13 }}/>
+        <input value={amb1} onChange={e=>updateDoc_({amb1:e.target.value})} placeholder="Ambulancier 1" style={{ flex:1, background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"8px 12px", color:CK_C.text, fontSize:13 }}/>
+        <input value={amb2} onChange={e=>updateDoc_({amb2:e.target.value})} placeholder="Ambulancier 2" style={{ flex:1, background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"8px 12px", color:CK_C.text, fontSize:13 }}/>
+        <input value={semaine} onChange={e=>updateDoc_({semaine:e.target.value})} placeholder="Sem.N°" style={{ width:75, background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"8px 10px", color:CK_C.text, fontSize:13 }}/>
       </div>
 
       <div style={{ flex:1, padding:"12px 12px 100px" }}>
@@ -3109,6 +3342,7 @@ function ChecklistView({ vehicleName, onBack }) {
                     const isMissing=isChecked&&found<item.q;
                     const isOk=isChecked&&found>=item.q;
                     const isBinary=item.t||item.s||item.okOnly;
+                    const peremptionMissingHere=item.p&&firstWeek&&!state.date;
                     return(
                       <div key={idx} style={{ background:isMissing?"rgba(239,68,68,0.06)":isOk?"rgba(34,197,94,0.04)":CK_C.panel, borderTop:`1px solid ${CK_C.border}`, padding:"11px 14px" }}>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
@@ -3117,13 +3351,13 @@ function ChecklistView({ vehicleName, onBack }) {
                               {item.n}
                               {item.t&&<span style={{ background:"#1d4ed820", border:"1px solid #1d4ed8", color:"#60a5fa", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>TEST</span>}
                               {item.s&&<span style={{ background:"#7c3aed20", border:"1px solid #7c3aed", color:"#a78bfa", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>SCELLÉ</span>}
-                              {item.p&&<span style={{ background:"#f59e0b20", border:"1px solid #f59e0b", color:"#fbbf24", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>PÉREMPTION</span>}
+                              {item.p&&<span style={{ background:peremptionMissingHere?"#ef444420":"#f59e0b20", border:`1px solid ${peremptionMissingHere?"#ef4444":"#f59e0b"}`, color:peremptionMissingHere?"#f87171":"#fbbf24", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>PÉREMPTION{peremptionMissingHere?" ⚠":""}</span>}
                             </div>
                             {!item.okOnly&&<div style={{ fontSize:11, color:CK_C.muted, marginTop:2, display:"flex", gap:8 }}>
                               <span>Requis : <strong style={{ color:CK_C.text }}>{item.q}</strong></span>
                               {isChecked&&!isBinary&&<span style={{ color:isOk?CK_C.success:CK_C.danger, fontWeight:700 }}>{isOk?"✓ Complet":`⚠ Manque ${item.q-found}`}</span>}
                             </div>}
-                            {item.p&&<input type="date" value={state.date||""} onChange={e=>setC(key,"date",e.target.value)} style={{ marginTop:5, background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:6, padding:"4px 8px", color:CK_C.text, fontSize:11, width:150 }}/>}
+                            {item.p&&<input type="date" value={state.date||""} onChange={e=>setC(key,"date",e.target.value)} style={{ marginTop:5, background:CK_C.bg, border:`1px solid ${firstWeek&&!state.date?"#ef4444":CK_C.border}`, borderRadius:6, padding:"4px 8px", color:CK_C.text, fontSize:11, width:150 }}/>}
                           </div>
                           <div style={{ display:"flex", gap:5, flexShrink:0 }}>
                             <button onClick={()=>setCF(key,state.found===item.q?undefined:item.q,item.q)} style={{ padding:"7px 12px", borderRadius:8, border:isOk?`2px solid ${CK_C.success}`:`1px solid ${CK_C.border}`, background:isOk?CK_C.successSoft:"transparent", color:isOk?CK_C.success:CK_C.muted, fontWeight:700, fontSize:12 }}>OK</button>
@@ -3145,21 +3379,22 @@ function ChecklistView({ vehicleName, onBack }) {
         })}
         <div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:"14px", marginTop:6 }}>
           <div style={{ fontSize:11, fontWeight:700, color:CK_C.muted, textTransform:"uppercase", letterSpacing:"1px", marginBottom:8 }}>📝 Remarques</div>
-          <textarea value={remarks} onChange={e=>setRemarks(e.target.value)} placeholder="Matériel manquant, observations..." rows={3} style={{ width:"100%", background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"10px 12px", color:CK_C.text, fontSize:13, resize:"none" }}/>
+          <textarea value={remarks} onChange={e=>updateDoc_({remarks:e.target.value})} placeholder="Matériel manquant, observations..." rows={3} style={{ width:"100%", background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"10px 12px", color:CK_C.text, fontSize:13, resize:"none" }}/>
         </div>
       </div>
       <div style={{ position:"fixed", bottom:0, left:0, right:0, background:CK_C.panel, borderTop:`1px solid ${CK_C.border}`, padding:"13px 16px" }}>
-        <button onClick={()=>{if(checkedItems>0){markChecklistDone(vehicleName);setSubmitted(true);}}} style={{ width:"100%", background:progress===100?CK_C.success:CK_C.accent, border:"none", borderRadius:10, color:"white", padding:"14px", fontWeight:800, fontSize:15, opacity:checkedItems>0?1:0.5 }}>
-          {progress===100?"✅ Envoyer au responsable":`📤 Envoyer (${progress}% complété)`}
+        <button disabled={!canSubmit||sending} onClick={()=>{if(canSubmit){sendMissingReport();setSubmitted(true);}}} style={{ width:"100%", background:!canSubmit?CK_C.border:progress===100?CK_C.success:CK_C.accent, border:"none", borderRadius:10, color:"white", padding:"14px", fontWeight:800, fontSize:15, opacity:checkedItems>0?1:0.5, cursor:canSubmit?"pointer":"not-allowed" }}>
+          {!canSubmit&&firstWeek&&peremptionMissing.length>0?`⚠ ${peremptionMissing.length} péremption(s) à dater`:progress===100?"✅ Envoyer au responsable":`📤 Envoyer (${progress}% complété)`}
         </button>
       </div>
     </div>
   );
 }
-function ChecklistsHome({ onBack }) {
+function ChecklistsHome({ onBack, checklists, emails, themeMode, toggleTheme }) {
   const [selected, setSelected] = useState(null);
+  const statuses = useChecklistsWeekStatus(checklists);
 
-  if (selected) return <ChecklistView vehicleName={selected} onBack={() => setSelected(null)} />;
+  if (selected) return <ChecklistView vehicleName={selected} onBack={() => setSelected(null)} checklists={checklists} emails={emails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return (
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
@@ -3173,23 +3408,37 @@ function ChecklistsHome({ onBack }) {
             <div style={{ fontSize:10, color:CK_C.muted, textTransform:"uppercase", letterSpacing:"1.2px" }}>Sélectionnez votre véhicule</div>
           </div>
         </div>
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
       </div>
+      {isFirstWeekOfMonth()&&(
+        <div style={{ background:"#f59e0b20", borderBottom:`1px solid #f59e0b`, padding:"9px 20px", fontSize:12, fontWeight:700, color:"#fbbf24", textAlign:"center" }}>
+          📅 1ère semaine du mois — les péremptions sont obligatoires
+        </div>
+      )}
       <div style={{ flex:1, padding:"24px 20px", maxWidth:480, margin:"0 auto", width:"100%" }}>
-        <div style={{ fontSize:13, color:CK_C.muted, marginBottom:20 }}>Scannez le QR code de votre véhicule ou sélectionnez-le manuellement :</div>
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {Object.keys(CHECKLISTS).map(name => (
+          {Object.keys(checklists).map(name => {
+            const st = statuses[name];
+            const dotColor = st?.complete ? CK_C.success : st?.started ? "#f59e0b" : CK_C.muted;
+            const dotLabel = st?.complete ? "✅ Complète" : st?.started ? `🟠 En cours (${st.progress}%)` : "Non commencée";
+            return(
             <button key={name} onClick={() => setSelected(name)}
-              style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:13, padding:"16px 20px", color:CK_C.text, textAlign:"left", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
+              style={{ background:CK_C.panel, border:`1px solid ${st?.complete?CK_C.success:st?.started?"#f59e0b":CK_C.border}`, borderRadius:13, padding:"16px 20px", color:CK_C.text, textAlign:"left", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
               <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-                <div style={{ width:42, height:42, background:CK_C.red, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>🚑</div>
+                <div style={{ width:42, height:42, background:CK_C.red, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, position:"relative" }}>
+                  🚑
+                  <div style={{ position:"absolute", bottom:-2, right:-2, width:14, height:14, borderRadius:"50%", background:dotColor, border:`2px solid ${CK_C.panel}` }}/>
+                </div>
                 <div>
                   <div style={{ fontWeight:800, fontSize:16 }}>{name}</div>
-                  <div style={{ fontSize:11, color:CK_C.muted }}>Éd. {CHECKLISTS[name].edition} · Norme {CHECKLISTS[name].norme}</div>
+                  <div style={{ fontSize:11, color:CK_C.muted }}>Éd. {checklists[name].edition} · Norme {checklists[name].norme}</div>
+                  <div style={{ fontSize:11, fontWeight:700, color:dotColor, marginTop:2 }}>{dotLabel}</div>
                 </div>
               </div>
               <span style={{ color:CK_C.muted, fontSize:20 }}>→</span>
             </button>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>
@@ -3229,22 +3478,63 @@ function getChecklistWeekKey(){
   monday.setHours(0,0,0,0);
   return monday.toISOString().slice(0,10);
 }
-function getChecklistsDoneThisWeek(){
-  try{
-    const raw=localStorage.getItem(`aps_checklists_done_${getChecklistWeekKey()}`);
-    return raw?JSON.parse(raw):[];
-  }catch(e){return [];}
+// Vrai si le lundi de la semaine en cours tombe dans les 7 premiers jours
+// du mois (= c'est la 1ère semaine du mois, où les péremptions deviennent
+// obligatoires).
+function isFirstWeekOfMonth(){
+  const monday=new Date(getChecklistWeekKey()+"T00:00:00");
+  return monday.getDate()<=7;
 }
-function markChecklistDone(vehicleName){
-  try{
-    const key=`aps_checklists_done_${getChecklistWeekKey()}`;
-    const done=getChecklistsDoneThisWeek();
-    if(!done.includes(vehicleName)){
-      done.push(vehicleName);
-      localStorage.setItem(key,JSON.stringify(done));
-    }
-  }catch(e){}
+function checklistTotalItems(checklistsData, vehicleName){
+  const data=checklistsData[vehicleName];
+  if(!data) return 0;
+  return data.sections.flatMap(s=>s.shelves.flatMap(sh=>sh.items)).length;
 }
+function checklistPeremptionKeys(checklistsData, vehicleName){
+  const data=checklistsData[vehicleName];
+  if(!data) return [];
+  const keys=[];
+  data.sections.forEach(s=>s.shelves.forEach(sh=>sh.items.forEach(item=>{
+    if(item.p) keys.push(`${s.id}__${sh.id}__${item.n}`);
+  })));
+  return keys;
+}
+// Calcule l'état d'une checklist (progression, complète ou non) à partir
+// des coches actuelles. "Complète" exige aussi, la 1ère semaine du mois,
+// que toutes les dates de péremption soient renseignées.
+function checklistStatus(checklistsData, vehicleName, checks){
+  const total=checklistTotalItems(checklistsData, vehicleName);
+  const checkedCount=Object.values(checks||{}).filter(c=>c.found!==undefined).length;
+  const progress=total>0?Math.round((checkedCount/total)*100):0;
+  let peremptionOk=true;
+  if(isFirstWeekOfMonth()){
+    const pkeys=checklistPeremptionKeys(checklistsData, vehicleName);
+    peremptionOk=pkeys.every(k=>checks?.[k]?.date);
+  }
+  const complete=progress===100&&peremptionOk;
+  const started=checkedCount>0;
+  return { progress, checkedCount, total, complete, started, peremptionOk };
+}
+// Abonnement temps réel au statut de la checklist de chaque véhicule pour
+// la semaine en cours (partagé entre toutes les tablettes via Firestore).
+function useChecklistsWeekStatus(checklistsData){
+  const weekKey=getChecklistWeekKey();
+  const vehicleNames=Object.keys(checklistsData);
+  const [statuses,setStatuses]=useState({});
+  useEffect(()=>{
+    const unsubs=vehicleNames.map(name=>{
+      const ref=doc(dbChecklists,"dispatchai_checklists",`${name}_${weekKey}`);
+      return onSnapshot(ref, snap=>{
+        const checks=snap.exists()?(snap.data().checks||{}):{};
+        setStatuses(prev=>({...prev, [name]: checklistStatus(checklistsData, name, checks)}));
+      }, ()=>{});
+    });
+    return ()=>unsubs.forEach(u=>u());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekKey, JSON.stringify(vehicleNames)]);
+  return statuses;
+}
+
 
 function PatientsHabituelsBody({patients,setPatients,categories,setCategories,conventions,transportTypes,equipements,onSchedule}){
   const [activeCat,setActiveCat]=useState(categories[0]||"");
@@ -3464,7 +3754,7 @@ function PatientsHabituelsBody({patients,setPatients,categories,setCategories,co
   );
 }
 
-function PlanningView({courses,setCourses,vehicles,patients,setPatients,categories,setCategories,conventions,transportTypes,equipements,pending,onAssignPending,onGoFormulaire,onBack,onSchedule}){
+function PlanningView({courses,setCourses,vehicles,patients,setPatients,categories,setCategories,conventions,transportTypes,equipements,pending,onAssignPending,onGoFormulaire,onBack,onSchedule,themeMode,toggleTheme}){
   const [tab,setTab]=useState("calendrier");
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -3482,6 +3772,7 @@ function PlanningView({courses,setCourses,vehicles,patients,setPatients,categori
             ))}
           </div>
           <Clock/>
+          <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
         </div>
       </div>
       {tab==="calendrier"?(
@@ -3519,13 +3810,14 @@ export default function App(){
   });
   const [plans,       setPlans]       = useFirestoreState("plans", INIT_PLANS);
   const [nextId,      setNextId]      = useFirestoreState("nextId", 100);
+  const [checklistsData, setChecklistsData] = useFirestoreState("checklistsData", INIT_CHECKLISTS);
+  const [checklistEmails, setChecklistEmails] = useFirestoreState("checklistEmails", []);
   const [appView,     setAppView]     = useState("menu");
   const [showPin,     setShowPin]     = useState(false);
   const [showDispMenu,setShowDispMenu] = useState(false);
-  const [checklistsDoneWeek,setChecklistsDoneWeek] = useState(()=>getChecklistsDoneThisWeek());
+  const checklistStatuses = useChecklistsWeekStatus(checklistsData);
   const [themeMode, setThemeMode] = useState(()=>getStoredThemeMode());
-
-  useEffect(()=>{ if(appView==="menu") setChecklistsDoneWeek(getChecklistsDoneThisWeek()); },[appView]);
+  const toggleTheme = () => { const next=themeMode==="light"?"dark":"light"; applyThemeMode(next); applyCkThemeMode(next); setThemeMode(next); };
 
   const [cDriver,   setCDriver]   = useState(null);
   const [cVehicle,  setCVehicle]  = useState(null);
@@ -3608,12 +3900,12 @@ export default function App(){
   const activeVehicles=vehicles.filter(v=>v.active);
 
   if(showPin) return <PinModal onSuccess={()=>{setShowPin(false);setAppView("parametres");}} onCancel={()=>setShowPin(false)}/>;
-  if(appView==="formulaire") return <FormulaireView onBack={backToSubMenu} onSubmit={submitCourse} conventions={conventions} equipements={equipements} transportTypes={transportTypes} contacts={contacts}/>;
-  if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} tarifs={tarifs}/>;
-  if(appView==="planning") return <PlanningView courses={courses} setCourses={setCourses} vehicles={vehicles} patients={patientsHabituels} setPatients={setPatientsHabituels} categories={patientCategories} setCategories={setPatientCategories} conventions={conventions} transportTypes={transportTypes} equipements={equipements} pending={pending} onAssignPending={validateCourse} onGoFormulaire={()=>setAppView("formulaire")} onBack={backToSubMenu} onSchedule={submitFromPatientHabituel}/>;
-  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setAppView("menu");}}/>;
-  if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")}/>;
-  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} onBack={()=>setAppView("menu")}/>;
+  if(appView==="formulaire") return <FormulaireView onBack={backToSubMenu} onSubmit={submitCourse} conventions={conventions} equipements={equipements} transportTypes={transportTypes} contacts={contacts} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} tarifs={tarifs} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="planning") return <PlanningView courses={courses} setCourses={setCourses} vehicles={vehicles} patients={patientsHabituels} setPatients={setPatientsHabituels} categories={patientCategories} setCategories={setPatientCategories} conventions={conventions} transportTypes={transportTypes} equipements={equipements} pending={pending} onAssignPending={validateCourse} onGoFormulaire={()=>setAppView("formulaire")} onBack={backToSubMenu} onSchedule={submitFromPatientHabituel} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -3637,7 +3929,7 @@ export default function App(){
             <div style={{fontSize:30,fontWeight:700,letterSpacing:"-0.5px"}}>Où souhaitez-vous aller ?</div>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:36}}>
-            {[{val:activeVehicles.length,label:"Véhicules actifs",color:C.accent},{val:courses.length,label:"Courses du jour",color:C.blue},{val:Math.max(0,7-checklistsDoneWeek.length),label:"Checklists restantes",color:(7-checklistsDoneWeek.length)===0?C.success:"#dc2626"}].map(s=>(
+            {[{val:activeVehicles.length,label:"Véhicules actifs",color:C.accent},{val:courses.length,label:"Courses du jour",color:C.blue},{val:Object.keys(checklistsData).filter(n=>!checklistStatuses[n]?.complete).length,label:"Checklists restantes",color:Object.keys(checklistsData).filter(n=>!checklistStatuses[n]?.complete).length===0?C.success:"#dc2626"}].map(s=>(
               <div key={s.label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px",textAlign:"center"}}>
                 <div style={{fontSize:24,fontWeight:800,color:s.color,fontFamily:"'IBM Plex Mono',monospace"}}>{s.val}</div>
                 <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginTop:3}}>{s.label}</div>
@@ -3734,7 +4026,7 @@ function validateF(form,step){
   return e;
 }
 
-function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,contacts}){
+function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,contacts,themeMode,toggleTheme}){
   const [step,setStep]=useState(1);
   const [form,setForm]=useState(()=>({...EMPTY_F,date:todayFR()}));
   const [touched,setTouched]=useState({});
@@ -3763,7 +4055,7 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
           <div style={{width:34,height:34,background:C.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📋</div>
           <div><div style={{fontWeight:700,fontSize:14}}>Nouvelle course</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"1px"}}>Formulaire de saisie</div></div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}><Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge><Clock/></div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge><Clock/><button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button></div>
       </div>
       <div style={{flex:1,padding:"24px 20px 100px",maxWidth:620,margin:"0 auto",width:"100%"}}>
         {done?(
@@ -3955,4 +4247,3 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
     </div>
   );
 }
-
