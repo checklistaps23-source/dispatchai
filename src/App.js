@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { db } from "./firebase";
 import { dbChecklists } from "./firebaseChecklists";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc, getDocs, deleteDoc, collection } from "firebase/firestore";
 import emailjs from "@emailjs/browser";
 
 // Hook générique : synchronise un state React avec un document Firestore
@@ -30,12 +30,25 @@ function useFirestoreState(key, initialValue) {
   const update = (newValOrFn) => {
     setValue(prev => {
       const next = typeof newValOrFn === "function" ? newValOrFn(prev) : newValOrFn;
-      setDoc(doc(db, "dispatchai", key), { data: next }).catch((err)=>console.error("Firestore write error ("+key+"):", err));
+      setDoc(doc(db, "dispatchai", key), { data: sanitizeUndefined(next) }).catch((err)=>console.error("Firestore write error ("+key+"):", err));
       return next;
     });
   };
 
   return [value, update];
+}
+
+// Firestore refuse les valeurs `undefined` n'importe où dans un document —
+// ça fait planter l'écriture. On les remplace récursivement par `null`
+// avant d'envoyer, pour ne jamais faire crasher l'app (ex: double-clic
+// rapide qui efface une valeur avant que l'état se soit stabilisé).
+function sanitizeUndefined(obj) {
+  if (obj === undefined) return null;
+  if (obj === null || typeof obj !== "object") return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeUndefined);
+  const clean = {};
+  for (const k in obj) clean[k] = sanitizeUndefined(obj[k]);
+  return clean;
 }
 
 // Hook dédié aux checklists : synchronise l'état de remplissage d'une
@@ -66,7 +79,7 @@ function useChecklistDoc(docId, initialValue) {
   const update = (patch) => {
     setValue(prev => {
       const next = { ...prev, ...(typeof patch === "function" ? patch(prev) : patch) };
-      setDoc(doc(dbChecklists, "dispatchai_checklists", docId), next, { merge: true }).catch((err)=>console.error("Firestore checklist write error ("+docId+"):", err));
+      setDoc(doc(dbChecklists, "dispatchai_checklists", docId), sanitizeUndefined(next), { merge: true }).catch((err)=>console.error("Firestore checklist write error ("+docId+"):", err));
       return next;
     });
   };
@@ -340,7 +353,7 @@ function PinModal({onSuccess,onCancel}){
   );
 }
 
-function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,onBack,themeMode,toggleTheme}){
+function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,onBack,themeMode,toggleTheme}){
   const [tab,setTab]=useState("chauffeurs");
   const [newVal,setNewVal]=useState("");
   const [newVehName,setNewVehName]=useState("");
@@ -354,6 +367,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const [editingChecklist,setEditingChecklist]=useState(null); // {key, isNew, norme, edition, sections}
   const [confirmDeleteChecklist,setConfirmDeleteChecklist]=useState(null); // vehicle name pending delete
   const [newEmail,setNewEmail]=useState("");
+  const [newO2Email,setNewO2Email]=useState("");
 
   const openNewChecklist=()=>{
     setEditingChecklist({key:"",origKey:null,isNew:true,norme:"",edition:"",sections:[]});
@@ -389,7 +403,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
       <style>{GS}</style>
       <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:13,cursor:"pointer"}}>← Menu</button>
+          <button onClick={()=>{if(editingChecklist){setEditingChecklist(null);}else{onBack();}}} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:13,cursor:"pointer"}}>← Menu</button>
           <div style={{width:34,height:34,background:C.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>⚙️</div>
           <div><div style={{fontWeight:700,fontSize:14}}>Paramètres</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"1px"}}>Configuration</div></div>
         </div>
@@ -693,7 +707,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                 <>
                   <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Ajoute, modifie ou supprime les checklists de contrôle matériel par véhicule.</div>
                   <button onClick={openNewChecklist} style={{background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:9,color:C.accent,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",marginBottom:16}}>+ Nouvelle checklist</button>
-                  {Object.keys(checklistsData).map(name=>(
+                  {Object.keys(checklistsData).sort((a,b)=>a.localeCompare(b)).map(name=>(
                     <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7}}>
                       <div>
                         <div style={{fontSize:13,fontWeight:700}}>🚑 {name}</div>
@@ -790,6 +804,22 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                   <button onClick={()=>setChecklistEmails(p=>p.filter((_,j)=>j!==i))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"5px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
                 </div>
               ))}
+
+              <div style={{marginTop:28,paddingTop:20,borderTop:`1px solid ${C.border}`}}>
+                <SectionTitle icon="🅾️" title="Emails — Alerte stock oxygène"/>
+                <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Ces adresses reçoivent un email dès qu'une taille de bouteille (B2/B5/B10) tombe à 2, 1 ou 0 pleines en réserve. Liste séparée de celle des checklists.</div>
+                <div style={{display:"flex",gap:8,marginBottom:16}}>
+                  <input value={newO2Email} onChange={e=>setNewO2Email(e.target.value)} placeholder="exemple@aps.be" style={{flex:1,background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none"}}/>
+                  <button onClick={()=>{if(newO2Email.trim()&&newO2Email.includes("@")){setO2Emails(p=>[...p,newO2Email.trim()]);setNewO2Email("");}}} style={{background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:9,color:C.accent,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+                </div>
+                {o2Emails.length===0&&<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"20px 0"}}>Aucun destinataire configuré</div>}
+                {o2Emails.map((em,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:7}}>
+                    <span style={{fontSize:13}}>🅾️ {em}</span>
+                    <button onClick={()=>setO2Emails(p=>p.filter((_,j)=>j!==i))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"5px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           {tab==="bases"&&(
@@ -2211,967 +2241,240 @@ const CK_GS=`@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@
 // ═══════════════════════════════════════════════
 
 const INIT_CHECKLISTS = {
-
-  // ── ALPHA 1 ──────────────────────────────────
-  "ALPHA 1": {
-    edition: "12/2025", norme: "ATNUP",
-    sections: [
-      { id:1, label:"Soins et oxygénothérapie", color:CK_C.red, shelves:[
-        { id:"A", label:"Étagère A", items:[
-          {n:"Set de pansement",q:1},{n:"Rouleau de sparadrap",q:2},{n:"Couverture Isotherme",q:5},
-          {n:"Bandage triangulaire + épingle",q:4},{n:"Esculape",q:1},
-        ]},
-        { id:"B", label:"Étagère B", items:[
-          {n:"Compresse 5x5cm",q:10},{n:"Compresse 7,5x7,5cm",q:10},{n:"Compresse 10x10cm",q:10},
-          {n:"Compresse absorbante 20x10cm",q:5},{n:"Solution désinfectante Hibidil®",q:10},
-          {n:"Sérum physiologique unidose",q:10},{n:"Iso-Bétadine® dermique 10%",q:5,p:true},
-          {n:"Champ stérile 90x70",q:4},{n:"Kit pansement autocollant",q:1},
-        ]},
-        { id:"CK_C", label:"Étagère CK_C", items:[
-          {n:"Bandage élastique 5 ou 7cm",q:5},{n:"Bandage élastique 10cm",q:5},
-          {n:"Bandage élastique 15cm",q:4},{n:"Cool Pack",q:5},
-        ]},
-        { id:"D", label:"Oxygénothérapie Adulte", items:[
-          {n:"Masque O² 100% Adulte",q:1},{n:"Lunette O² Adulte",q:2},
-          {n:"Masque aérosol Adulte",q:1},{n:"Tubulure + Raccord Biconique",q:1},
-        ]},
-        { id:"E", label:"Oxygénothérapie Enfant", items:[
-          {n:"Masque O² 100% Enfant",q:1},{n:"Lunette O² Enfant",q:2},{n:"Masque aérosol Enfant",q:1},
-        ]},
-        { id:"F", label:"Aspiration", items:[
-          {n:"Sac récupérateur de mucosité",q:1},{n:"Tubulure aspirateur de mucosité",q:1},
-          {n:"Bassin réniforme UU",q:10},{n:"Sac vomitoire",q:5},
-        ]},
-      ]},
-      { id:2, label:"Paramétrage suite", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Glucomètre",q:1,t:true},{n:"Lancettes",q:10},{n:"Tigettes",q:10},
-          {n:"Compresse 5x5cm",q:7},{n:"Pille AA 4",q:4},{n:"Pille AAA",q:4},
-          {n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1},
-        ]},
-      ]},
-      { id:3, label:"Divers", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[{n:"Couverture anti feu",q:1}] },
-      ]},
-      { id:4, label:"Eau potable", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[{n:"Bouteille d'eau potable 50cl",q:6}] },
-      ]},
-      { id:5, label:"Hygiène — Spray", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[{n:"Spray désinfectant surface",q:2}] },
-      ]},
-      { id:7, label:"Hygiène", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Spray désodorisant citron",q:1},{n:"Rouleau sac poubelle ambulance",q:1},
-          {n:"Sac à linge jaune",q:2},{n:"Sac à linge blanc",q:2},{n:"Alèze UU",q:2},
-          {n:"Lange adulte",q:3},{n:"Paquet de lingette désinfectante",q:1},{n:"Microfibres",q:4},
-        ]},
-      ]},
-      { id:8, label:"Ballon REA et canules", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Ballon REA adulte complet UU",q:1},{n:"Masque pour ballon N°4",q:1},
-          {n:"Masque pour ballon N°5",q:1},{n:"Filtre antibactérien ballon REA",q:1},
-          {n:"Set de 9 canules de T000 à T5",q:1},
-        ]},
-      ]},
-      { id:9, label:"RDOH", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[{n:"Pane",q:1},{n:"Urinal",q:1}] },
-      ]},
-      { id:10, label:"Kits Burning", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[{n:"Kit Burning",q:1,s:true}] },
-      ]},
-      { id:"P", label:"Paramétrage", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},
-          {n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},
-          {n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},
-        ]},
-      ]},
-    ]
-  },
-
-  // ── ALPHA 2 ──────────────────────────────────
-  "ALPHA 2": {
-    edition: "12/2024", norme: "112/ATNUP",
-    sections: [
-      { id:1, label:"Soin et Oxygénothérapie", color:CK_C.red, shelves:[
-        { id:"A", label:"Étagère A", items:[
-          {n:"Compresse 5x5cm",q:10},{n:"Compresse 7,5x7,5cm",q:10},{n:"Compresse 10x10cm",q:10},
-          {n:"Compresse absorbante 20x10cm",q:5},{n:"Bandage élastique 15cm",q:2},
-          {n:"Bandage élastique 20cm",q:2},{n:"Rouleau de sparadrap 2cm",q:1},
-        ]},
-        { id:"B", label:"Étagère B", items:[
-          {n:"Bandage triangulaire + épingle",q:4},{n:"Couverture Isotherme",q:5},{n:"Esculape",q:1},
-          {n:"Kit pansement autocollant",q:1},{n:"Bandage élastique 5 ou 7cm",q:5},
-          {n:"Bandage élastique 10cm",q:5},{n:"Champ stérile 90x71",q:4},{n:"Bande pansement autocollant",q:1},
-        ]},
-        { id:"CK_C", label:"Étagère CK_C", items:[
-          {n:"Set de pansement",q:1},{n:"Rouleau Urgoderme",q:1},{n:"Bouchon fermeture robinet 3 voies",q:1},
-          {n:"Solution désinfectante Hibidil®",q:10},{n:"Sérum physiologique unidose",q:10},
-          {n:"Bétadine® dermique 10%",q:5,p:true},{n:"Cold Pack",q:5},
-        ]},
-        { id:"D", label:"Oxygénothérapie Adulte", items:[
-          {n:"Masque O² 100% Adulte",q:1},{n:"Lunette O² Adulte",q:2},
-          {n:"Masque aérosol Adulte",q:1},{n:"Tubulure + Raccord Biconique",q:1},
-        ]},
-        { id:"E", label:"Oxygénothérapie Enfant", items:[
-          {n:"Masque O² 100% Enfant",q:1},{n:"Lunette O² Enfant",q:2},{n:"Masque aérosol Enfant",q:1},
-        ]},
-        { id:"F", label:"Divers", items:[
-          {n:"Bassin réniforme UU",q:10},{n:"Sac vomitoire",q:5},
-          {n:"Sac récupérateur de mucosité",q:1},{n:"Tubulure aspirateur de mucosité",q:1},
-          {n:"Bouteille d'eau potable 50cl",q:6},
-        ]},
-      ]},
-      { id:2, label:"Oxygénothérapie — Ballons", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Ballon REA adulte complet UU",q:1},{n:"Ballon REA Junior complet UU",q:1},
-          {n:"Ballon REA baby complet UU",q:1},{n:"Filtre antibactérien ballon REA",q:1},
-          {n:"Set de 9 canules de T000 à T6",q:1},
-        ]},
-      ]},
-      { id:3, label:"Electrode DEA + Divers", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[{n:"Electrode DEA réserve",q:1}] },
-      ]},
-      { id:4, label:"Kits: Linge brancard / Padding", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Kit de linge brancard",q:3},{n:"Kit Padding",q:1},{n:"Oreiller de réserve (lavable)",q:1},
-        ]},
-      ]},
-      { id:5, label:"Pochette paramétrage", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},
-          {n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},
-          {n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},
-          {n:"Glucomètre",q:1,t:true},{n:"Lancette",q:10},{n:"Tigette",q:10},
-          {n:"Compresse 5x5cm",q:10},{n:"Pille AA4 / Pille AAA4",q:1},
-          {n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1},{n:"Détecteur CO",q:1},
-        ]},
-      ]},
-      { id:9, label:"Kits: Burning", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[{n:"Kit Burning",q:1,s:true}] },
-      ]},
-      { id:10, label:"Set de perfusions", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Poche Sérum Physiologique 500ml",q:4,p:true},{n:"Trousse à perfusion",q:2,p:true},
-          {n:"Cathéter 16G",q:2,p:true},{n:"Cathéter 18G",q:2,p:true},
-          {n:"Cathéter 20G",q:2,p:true},{n:"Cathéter 22G",q:2,p:true},
-          {n:"Tégaderme",q:2},{n:"Garrot",q:1},
-          {n:"Gants stériles 6,5",q:2},{n:"Gants stériles 7,5",q:2},{n:"Gants stériles 8,5",q:2},
-        ]},
-      ]},
-      { id:13, label:"Hygiène", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Spray désinfectant surface",q:2},{n:"Spray désodorisant citron",q:1},
-          {n:"Rouleau sac poubelle ambulance",q:1},{n:"Sac à linge blanc",q:2},{n:"Sac à linge jaune",q:2},
-          {n:"Alèze UU",q:3},{n:"Lange adulte",q:3},{n:"Paquet de lingette désinfectante",q:1},
-          {n:"Microfibres",q:4},{n:"Mouchoir UU (boite)",q:1},{n:"Blouse d'opéré",q:1},
-        ]},
-      ]},
-      { id:15, label:"Aspirateur de mucosité", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[{n:"Aspirateur de mucosité",q:1,t:true}] },
-      ]},
-      { id:16, label:"Sac: KATA et Pédiatrique", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Sac KATA (Rouge)",q:1,s:true},{n:"Sac Pédia./Accou.(bleu)",q:1,s:true},
-        ]},
-      ]},
-      { id:17, label:"Matelas à dépression", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Matelas à dépression",q:1,t:true},{n:"Pompe pour matelas",q:1},
-        ]},
-      ]},
-      { id:18, label:"RDOH / Kit protection / Speed Block", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"RDOH", items:[{n:"Pane",q:1},{n:"Urinal",q:1}] },
-        { id:"B", label:"Kit de protection individuelle", items:[
-          {n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},
-          {n:"Charlotte",q:2},{n:"Masque chirurgical",q:5},{n:"Masque KN95 / FFP3",q:5},
-        ]},
-        { id:"CK_C", label:"Kit Speed Block", items:[{n:"Kit Speed Block",q:1}] },
-      ]},
-      { id:19, label:"Oxygène", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Bouteille O² 10L",q:1},{n:"Bouteille O² 10L (2)",q:1},{n:"Bouteille O² 2L",q:1},
-        ]},
-      ]},
-      { id:20, label:"Cabine sanitaire", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},
-          {n:"Gel hydroalcoolique",q:1},{n:"Sonde d'aspiration CH 6 ou 8",q:3},
-          {n:"Sonde d'aspiration CH 10 ou 12",q:2},{n:"Sonde d'aspiration CH 14 ou 16",q:2},
-          {n:"Appareil multi paramétrage",q:1,t:true},{n:"Tarif ATNUP",q:1},
-          {n:"Couverture anti feu",q:1},{n:"Planche d'Olivier + base Speed Block",q:1},
-          {n:"Collier cervical adulte",q:1},{n:"Collier cervical pédiatrique",q:1},
-          {n:"Gant nitrile taille S (boite)",q:1},{n:"Gant nitrile taille M (boite)",q:1},
-          {n:"Gant nitrile taille L (boite)",q:1},{n:"Gant nitrile taille XL (boite)",q:1},
-          {n:"Container à aiguille",q:1},{n:"Tensiomètre mural",q:1},
-          {n:"Ciseau multifonctions d'urgence",q:1},{n:"Sac Intervention + DEA",q:1,t:true},
-        ]},
-      ]},
-      { id:21, label:"Porte Ext. Arrière — Traumatologie", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Scoop",q:1,t:true},{n:"Chaise d'évacuation",q:1,t:true},{n:"Sac d'atèle",q:1},
-          {n:"Atèle grande",q:1,t:true},{n:"Atèle moyenne",q:1,t:true},{n:"Atèle petite",q:1,t:true},
-          {n:"Pompe (pour atèle)",q:1,t:true},{n:"Bouteille O² 2L",q:1},{n:"Sangle araignée",q:1},
-          {n:"KED",q:1,t:true},{n:"Marche pieds",q:1,t:true},{n:"Extincteur 6Kg",q:1},
-          {n:"Corde semi statique",q:1},{n:"Pelle pliable (US)",q:1},
-          {n:"Gant de sécurité",q:1},{n:"Pied de biche",q:1},
-        ]},
-      ]},
-      { id:22, label:"Cabine chauffeur", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Casque",q:2},{n:"Lampe pour casque",q:2,t:true},
-          {n:"Coupe ceinture",q:1},{n:"Brise vitre",q:1},
-          {n:"Carte routière Hainaut",q:1},{n:"Carte ADR",q:1},
-        ]},
-      ]},
-    ]
-  },
-
-  // ── ALPHA 3 ──────────────────────────────────
-  "ALPHA 3": {
-    edition: "07/2025", norme: "112/ATNUP",
-    sections: [
-      { id:1, label:"Soin et Oxygénothérapie", color:CK_C.red, shelves:[
-        { id:"A", label:"Étagère A", items:[
-          {n:"Set de pansement",q:1},{n:"Rouleau de sparadrap",q:2},{n:"Couverture Isotherme",q:5},
-          {n:"Bandage triangulaire + épingle",q:4},{n:"Compresse 5x5cm",q:10},
-          {n:"Compresse 7,5x7,5cm",q:10},{n:"Compresse 10x10cm",q:10},
-          {n:"Compresse absorbante 20x10cm",q:5},{n:"Bandage élastique 5 ou 7cm",q:5},
-          {n:"Tubulure aspirateur de mucosité",q:1},{n:"Cool Pack",q:5},
-        ]},
-        { id:"B", label:"Étagère B", items:[
-          {n:"Bandage élastique 10cm",q:5},{n:"Bandage élastique 15cm ou 20cm",q:8},
-          {n:"Rouleau Urgoderme",q:1},{n:"Solution désinfectante Hibidil®",q:10},
-          {n:"Sérum physiologique unidose",q:10},{n:"Iso-Bétadine® dermique 10%",q:5,p:true},
-          {n:"Champ stérile 90x69",q:4},{n:"Kit pansement autocollant",q:1},
-          {n:"Bande pansement autocollant",q:1},{n:"Container à aiguille",q:1},
-        ]},
-        { id:"CK_C", label:"Oxygénothérapie Adulte", items:[
-          {n:"Masque O² 100% Adulte",q:1},{n:"Lunette O² Adulte",q:2},
-          {n:"Masque aérosol Adulte",q:1},{n:"Tubulure + Raccord Biconique",q:1},
-        ]},
-        { id:"D", label:"Oxygénothérapie Enfant", items:[
-          {n:"Masque O² 100% Enfant",q:1},{n:"Lunette O129 Enfant",q:2},{n:"Masque aérosol Enfant",q:1},
-        ]},
-        { id:"E", label:"Divers", items:[
-          {n:"Bassin réniforme UU",q:10},{n:"Bouchon fermeture robinet 3 voies",q:3},
-          {n:"Sac vomitoire",q:5},
-        ]},
-        { id:"F", label:"Ballons REA", items:[
-          {n:"Ballon REA adulte complet UU",q:1},{n:"Masque pour ballon N°4",q:1},
-          {n:"Masque pour ballon N°5",q:1},{n:"Filtre antibactérien ballon REA",q:1},
-          {n:"Set de 9 canules de T000 à T5",q:1},{n:"Sac récupérateur de mucosité",q:1},
-        ]},
-      ]},
-      { id:2, label:"Divers", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Manchette à pression",q:1},{n:"Bouteille d'eau potable 50cl",q:6},
-        ]},
-      ]},
-      { id:3, label:"Pochette paramétrage", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},
-          {n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},
-          {n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},
-          {n:"Glucomètre",q:1,t:true},{n:"Lancette",q:10},{n:"Tigettes",q:10},
-          {n:"Compresse 5x5cm",q:7},{n:"Pille AA4 / Pille AAA4",q:8},
-          {n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1},{n:"Détecteur CO",q:1},
-        ]},
-      ]},
-      { id:4, label:"Set de perfusions", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Poche Sérum Physiologique 500ml",q:4,p:true},{n:"Trousse à perfusion",q:2,p:true},
-          {n:"Cathéter 16G",q:2,p:true},{n:"Cathéter 18G",q:2,p:true},
-          {n:"Cathéter 20G",q:2,p:true},{n:"Cathéter 22G",q:2,p:true},
-          {n:"Tégaderme",q:2},{n:"Garrot",q:1},
-          {n:"Gants stériles 6,5",q:2},{n:"Gants stériles 7,5",q:2},{n:"Gants stériles 8,5",q:2},
-        ]},
-      ]},
-      { id:5, label:"Kit de protection individuelle", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},
-          {n:"Charlotte",q:2},{n:"Masque chirurgical",q:5},{n:"Masque KN95 / FFP2",q:5},
-        ]},
-      ]},
-      { id:6, label:"Kits Burning / Electrode DEA", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[{n:"Kit Burning",q:1,s:true}] },
-      ]},
-      { id:"7-8", label:"Kits: Linge brancard / Padding", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Kit de linge brancard",q:3},{n:"Kit Padding",q:1},
-        ]},
-      ]},
-      { id:9, label:"Poubelle / Frigo", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[] },
-      ]},
-      { id:11, label:"Support monitoring / Sac KATA / Oreiller", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Support monitoring 'Pack-Rac'",q:1},{n:"Oreiller lavable",q:1},{n:"Sac KATA",q:1,s:true},
-        ]},
-      ]},
-      { id:12, label:"Gant nitrile / Mouchoir UU", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Gant nitrile taille S (boite)",q:1},{n:"Gant nitrile taille M (boite)",q:1},
-          {n:"Gant nitrile taille L (boite)",q:1},{n:"Gant nitrile taille XL (boite)",q:1},
-          {n:"Mouchoir UU (boite)",q:1},
-        ]},
-      ]},
-      { id:13, label:"Kit COVID Colliers cervicaux", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Kit COVID",q:1},{n:"Collier cervical adulte",q:1},{n:"Collier cervical pédiatrique",q:1},
-        ]},
-      ]},
-      { id:14, label:"Sac d'Intervention + DEA / sac Pédiatrique", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Sac d'Intervention",q:1,s:true},{n:"DEA + Electrode",q:1,t:true},
-          {n:"Electrode de réserve",q:1},{n:"Sac Pédiatrique",q:2,s:true},
-        ]},
-      ]},
-      { id:15, label:"Hygiène", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Spray désinfectant surface",q:2},{n:"Spray désodorisant citron",q:2},
-          {n:"Rouleau sac poubelle ambulance",q:1},{n:"Sac à linge blanc",q:2},
-          {n:"Sac à linge jaune",q:2},{n:"Alèze UU",q:3},{n:"Lange adulte",q:3},
-          {n:"Paquet de lingette désinfectante",q:1},{n:"Microfibres",q:4},
-        ]},
-      ]},
-      { id:16, label:"RDOH", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[{n:"Pane",q:1},{n:"Urinal",q:1}] },
-      ]},
-      { id:17, label:"Oxygène", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Bouteille O² 10L",q:1},{n:"Bouteille O² 10L (2)",q:1},{n:"Bouteille O² 2L",q:1},
-        ]},
-      ]},
-      { id:18, label:"Cabine sanitaire", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},
-          {n:"Gel hydroalcoolique",q:1},{n:"Sonde d'aspiration CH 8",q:3},
-          {n:"Sonde d'aspiration CH 12",q:3},{n:"Sonde d'aspiration CH 14",q:3},
-          {n:"Aspirateur de mucosité",q:1,t:true},{n:"Appareil multi paramétrage",q:1,t:true},
-          {n:"Tarif TMS",q:1},{n:"Couverture anti feu",q:1},
-        ]},
-      ]},
-      { id:19, label:"Porte Ext. Arrière — Traumatologie", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Matelas à dépression",q:1,t:true},{n:"Pompe pour matelas",q:1},
-          {n:"Scoop",q:1,t:true},{n:"Planche d'Olivier",q:1},{n:"Chaise d'évacuation",q:1,t:true},
-          {n:"KED",q:1},{n:"Speed block complet",q:1},{n:"Sac d'atèle",q:1},
-          {n:"Atèle grande",q:1,t:true},{n:"Atèle moyenne",q:1,t:true},{n:"Atèle petite",q:1,t:true},
-          {n:"Pompe (pour atèle)",q:1,t:true},{n:"Sangle araignée",q:1},{n:"Marche pieds",q:1,t:true},
-        ]},
-      ]},
-      { id:20, label:"Porte Ext. Avant — Matériels divers", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"Planche A (petit matériel)", items:[
-          {n:"Corde semi statique",q:1},{n:"Pelle pliable (US)",q:1},{n:"Casque",q:2},
-          {n:"Lampe pour casque",q:2,t:true},{n:"Gant de sécurité",q:1},{n:"Pied de biche",q:1},
-        ]},
-        { id:"CK_C", label:"Planche CK_C + Extincteur", items:[
-          {n:"Extincteur 6Kg",q:1},{n:"Bouteille O² 2L",q:1},
-        ]},
-      ]},
-      { id:"CC", label:"Cabine chauffeur", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Lampe de présignalisation",q:2,t:true},{n:"Coupe ceinture / Brise glace",q:1},
-        ]},
-      ]},
-    ]
-  },
-
-  // ── ALPHA 4 ──────────────────────────────────
-  "ALPHA 4": {
-    edition: "09/2025", norme: "112/ATNUP",
-    sections: [
-      { id:1, label:"Soin", color:CK_C.red, shelves:[
-        { id:"A", label:"Étagère A", items:[
-          {n:"Bandage triangulaire + épingle",q:4},{n:"Couverture Isotherme",q:5},{n:"Esculape",q:1},
-          {n:"Rouleau Urgoderme",q:1},{n:"Rouleau de sparadrap 2cm",q:2},
-          {n:"Solution désinfectante Hibidil®",q:10},{n:"Sérum physiologique unidose",q:10},
-          {n:"Iso-Bétadine® dermique 10%",q:5,p:true},{n:"Cold Pack",q:5},{n:"Kit pansement autocollant",q:1},
-        ]},
-        { id:"B", label:"Étagère B", items:[
-          {n:"Compresse 10x10cm",q:10},{n:"Compresse absorbante 20x10cm",q:5},
-          {n:"Compresse 5x5cm",q:10},{n:"Compresse 7,5x7,5cm",q:10},
-          {n:"Bandage élastique 5 ou 7cm",q:5},{n:"Bandage élastique 10cm",q:5},
-        ]},
-        { id:"CK_C", label:"Étagère CK_C", items:[
-          {n:"Bandage élastique 15cm",q:2},{n:"Bandage élastique 20cm",q:2},{n:"Champ stérile 75x90cm",q:4},
-        ]},
-      ]},
-      { id:2, label:"Oxygénothérapie", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"Adulte", items:[
-          {n:"Masque O² 100% Adulte",q:1},{n:"Lunette O² Adulte",q:2},
-          {n:"Masque aérosol Adulte",q:1},{n:"Tubulure + Raccord Biconique",q:1},
-        ]},
-        { id:"B", label:"Enfant", items:[
-          {n:"Masque O² 100% Enfant",q:1},{n:"Lunette O² Enfant",q:2},{n:"Masque aérosol Enfant",q:1},
-        ]},
-      ]},
-      { id:3, label:"BR, Sac vomitoir, Bt. Mouchoir UU", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Bassin réniforme UU",q:10},{n:"Sac vomitoire",q:5},{n:"Mouchoir UU (boite)",q:1},
-        ]},
-      ]},
-      { id:4, label:"Bouteille eau", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[{n:"Bouteille d'eau potable 50cl",q:6}] },
-      ]},
-      { id:5, label:"Kit paramétrage / Kit Burning", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},
-          {n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},
-          {n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},
-          {n:"Glucomètre",q:1,t:true},{n:"Lancette",q:10},{n:"Tigette",q:2},
-          {n:"Compresse 5x5cm",q:8},{n:"Pille AA4 / Pille AAA4",q:1},
-          {n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1},{n:"Kit Burning",q:1,s:true},
-        ]},
-      ]},
-      { id:7, label:"Kits Padding / Divers", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Kit Padding",q:1},{n:"Spray désinfectant surface",q:2},
-          {n:"Oreiller de réserve (lavable)",q:1},{n:"Blouse d'opéré",q:1},
-        ]},
-      ]},
-      { id:8, label:"Set de perfusions", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Poche Sérum Physiologique 500ml",q:4,p:true},{n:"Trousse à perfusion",q:2,p:true},
-          {n:"Cathéter 16G",q:2,p:true},{n:"Cathéter 18G",q:2,p:true},
-          {n:"Cathéter 20G",q:2,p:true},{n:"Cathéter 22G",q:2,p:true},
-          {n:"Tégaderme",q:2},{n:"Garrot",q:1},
-          {n:"Gants stériles 6,5",q:2},{n:"Gants stériles 7,5",q:2},{n:"Gants stériles 8,5",q:2},
-          {n:"Bouchon robinet 3 voies",q:3},
-        ]},
-      ]},
-      { id:9, label:"Kits: Linge brancard / Jeu d'Atèle", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Kit de linge brancard",q:3},{n:"Sac d'atèle",q:1},
-          {n:"Atèle grande",q:1,t:true},{n:"Atèle moyenne",q:1,t:true},
-          {n:"Atèle petite",q:1,t:true},{n:"Pompe (pour atèle)",q:1,t:true},
-        ]},
-      ]},
-      { id:10, label:"Hygiène", color:CK_C.red, shelves:[
-        { id:"A", label:"Étagère A", items:[
-          {n:"Spray désodorisant citron",q:1},{n:"Rouleau sac poubelle ambulance",q:1},
-          {n:"Sac à linge blanc",q:2},{n:"Sac à linge jaune",q:2},{n:"Alèze UU",q:3},
-          {n:"Lange adulte",q:3},{n:"Paquet de lingette désinfectante",q:1},{n:"Microfibres",q:4},
-        ]},
-        { id:"B", label:"Étagère B", items:[
-          {n:"Ballon REA adulte complet UU",q:1},{n:"Masque ballon N°4",q:1},
-          {n:"Masque ballon N°5",q:1},{n:"Filtre antibactérien ballon REA",q:1},
-          {n:"Set de 8 canules de T000 à T5",q:1},{n:"Sac récupérateur de mucosité",q:1},
-          {n:"Tubulure aspirateur de mucosité",q:1},
-        ]},
-      ]},
-      { id:11, label:"Kit de protection individuel", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"Étagère A", items:[
-          {n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},
-          {n:"Charlotte",q:5},{n:"Masque chirurgical",q:5},{n:"Masque KN95 / FFP3",q:5},
-        ]},
-      ]},
-      { id:12, label:"Matelas à dépression", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Matelas à dépression",q:1,t:true},{n:"Pompe pour matelas",q:1},
-        ]},
-      ]},
-      { id:13, label:"RDOH", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[{n:"Pane",q:1},{n:"Urinal",q:1}] },
-      ]},
-      { id:14, label:"Sac Intervention", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Sac Intervention",q:1},{n:"DEA + Electrodes",q:1,t:true},
-          {n:"Electrodes de réserve",q:1},{n:"Détecteur CO",q:1},
-          {n:"Ciseau multifonction d'URGENCE",q:1},
-        ]},
-      ]},
-      { id:15, label:"Sac: KATA et Pédiatrique", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Sac KATA (rouge)",q:1,s:true},{n:"Sac Pédia./Accou.(bleu)",q:1,s:true},
-        ]},
-      ]},
-      { id:16, label:"Scoop", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[{n:"Scoop + 3 sangles velcro",q:1,t:true}] },
-      ]},
-      { id:17, label:"Porte Ext. Traumatologie / O²", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"Étagère A", items:[
-          {n:"Planche d'Olivier",q:1},{n:"Chaise d'évacuation",q:1},{n:"Extincteur 6kg",q:1,t:true},
-          {n:"Sangle araignée",q:1},{n:"KED",q:1,t:true},
-        ]},
-        { id:"B", label:"Étagère B", items:[
-          {n:"Corde semi statique",q:1},{n:"Pelle pliable (US)",q:1},{n:"Pied de sécurité",q:1},
-          {n:"Casque",q:1},{n:"Lampe pour casque",q:2,t:true},{n:"Kit Speed Block",q:1,t:true},
-          {n:"Bouteille O² 10L",q:1},{n:"Bouteille O² 10L (2)",q:1},{n:"Bouteille O² 2L",q:1},
-          {n:"Marche pieds",q:1,t:true},
-        ]},
-      ]},
-      { id:18, label:"Cabine sanitaire", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},
-          {n:"Gel hydroalcoolique",q:1},{n:"Sonde d'aspiration CH 8",q:3},
-          {n:"Sonde d'aspiration CH 12",q:3},{n:"Sonde d'aspiration CH 14",q:3},
-          {n:"Appareil multi paramétrage",q:1,t:true},{n:"Aspirateur de mucosité",q:1,t:true},
-          {n:"Gant nitrile taille S (boite)",q:1},{n:"Gant nitrile taille M (boite)",q:1},
-          {n:"Gant nitrile taille L (boite)",q:1},{n:"Gant nitrile taille XL (boite)",q:1},
-          {n:"Container à aiguille",q:1},{n:"Poubelle",q:1},{n:"Tarif ATNUP",q:1},
-          {n:"Couverture anti feu",q:1},{n:"Bouteille O² 2L",q:1},
-        ]},
-      ]},
-      { id:19, label:"Cabine chauffeur", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Lampe de présignalisation",q:2,t:true},{n:"Coupe ceinture",q:1},
-          {n:"Brise vitre",q:1},{n:"Carte routière Hainaut",q:1},{n:"Carte ADR",q:1},
-        ]},
-      ]},
-    ]
-  },
-
-  // ── ALPHA 5 ──────────────────────────────────
-  "ALPHA 5": {
-    edition: "09/2025", norme: "112/ATNUP",
-    sections: [
-      { id:1, label:"Container à aiguille", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[{n:"Container à aiguille",q:1}] },
-      ]},
-      { id:2, label:"Bouteilles d'eau potable", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[{n:"Bouteille d'eau potable 50cl",q:6}] },
-      ]},
-      { id:3, label:"Frigo", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[] },
-      ]},
-      { id:4, label:"Kits de linge brancard", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[{n:"Kit de linge brancard",q:3}] },
-      ]},
-      { id:6, label:"Appareil multi paramétrage", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[{n:"Appareil multi paramétrage",q:1,t:true}] },
-      ]},
-      { id:9, label:"Soin", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"Étagère A", items:[
-          {n:"Solution désinfectante Hibidil®",q:10},{n:"Sérum physiologique unidose",q:10},
-          {n:"Iso-Bétadine® dermique 10%",q:5,p:true},{n:"Compresse 5x5cm",q:10},
-          {n:"Compresse 7,5x7,5cm",q:10},{n:"Compresse 10x10cm",q:10},{n:"Esculape",q:1},
-          {n:"Rouleau Urgoderme",q:1},{n:"Rouleau de sparadrap 2cm",q:2},
-          {n:"Bandage élastique 5cm",q:5},{n:"Bandage élastique 7cm",q:5},
-          {n:"Bandage élastique 10cm",q:5},{n:"Bandage élastique 15cm",q:4},
-          {n:"Bandage triangulaire + épingle",q:4},{n:"Couverture Isotherme",q:5},
-          {n:"Sac vomitoir",q:5},{n:"Cold Pack",q:5},{n:"Kit pansement autocollant",q:1},
-          {n:"Compresse absorbante 20x10cm",q:5},{n:"Champ stérile 40x45cm",q:4},
-        ]},
-        { id:"B", label:"Étagère B", items:[
-          {n:"Rouleau Urgoderme",q:1},{n:"Rouleau de sparadrap 2cm",q:2},
-        ]},
-      ]},
-      { id:10, label:"Oxygénothérapie / Balons", color:CK_C.red, shelves:[
-        { id:"A", label:"Adulte", items:[
-          {n:"Masque O² 100% Adulte",q:1},{n:"Lunette O² Adulte",q:2},
-          {n:"Masque aérosol Adulte",q:1},{n:"Tubulure + Raccord Biconique",q:1},
-        ]},
-        { id:"B", label:"Enfant", items:[
-          {n:"Masque O² 100% Enfant",q:1},{n:"Lunette O² Enfant",q:2},{n:"Masque aérosol Enfant",q:1},
-        ]},
-        { id:"CK_C", label:"Ballons REA", items:[
-          {n:"Ballon REA adulte complet UU",q:1},{n:"Masque REA N°4 Rouge",q:1},
-          {n:"Masque REA N°5 Bleu",q:1},{n:"Filtre antibactérien ballon REA",q:1},
-          {n:"Set de 8 canules de T000 à T5",q:1},
-        ]},
-      ]},
-      { id:11, label:"Set de perfusions", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Poche Sérum Physiologique 500ml",q:4,p:true},{n:"Trousse à perfusion",q:2,p:true},
-          {n:"Cathéter 16G",q:2,p:true},{n:"Cathéter 18G",q:2,p:true},
-          {n:"Cathéter 20G",q:2,p:true},{n:"Cathéter 22G",q:2,p:true},
-          {n:"Tégaderme",q:2},{n:"Garrot",q:1},
-          {n:"Gants stériles 6,5",q:2},{n:"Gants stériles 7,5",q:2},{n:"Gants stériles 8,5",q:2},
-          {n:"Bouchon robinet 3 voies",q:4},
-        ]},
-      ]},
-      { id:12, label:"Kit padding", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[{n:"Kit Padding 3 pièces",q:1}] },
-      ]},
-      { id:13, label:"Divers", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Bassin réniforme UU",q:10},{n:"Sac récupérateur de mucosité",q:1},
-          {n:"Tubulure aspirateur de mucosité",q:1},
-        ]},
-      ]},
-      { id:14, label:"Kit d'atèles / Pochette paramétrage", color:CK_C.red, shelves:[
-        { id:"A", label:"Atèles", items:[
-          {n:"Sac d'attelle + pompe",q:1},{n:"Attelle grande",q:1,t:true},
-          {n:"Attelle moyenne",q:1,t:true},{n:"Attelle petite",q:1,t:true},
-        ]},
-        { id:"B", label:"Paramétrage", items:[
-          {n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},
-          {n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},
-          {n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},
-          {n:"Glucomètre",q:1,t:true},{n:"Lancette",q:5},{n:"Tigette minimum",q:10},
-          {n:"Compresse 5x5cm",q:2},{n:"Sérum physiologique unidose",q:1},
-          {n:"Pille AA4 / Pille AAA4",q:8},{n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1},
-        ]},
-      ]},
-      { id:16, label:"Hygiène", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Spray désinfectant surface",q:2},{n:"Paquet de lingette désinfectante",q:1},
-          {n:"Spray désodorisant citron",q:1},{n:"Rouleau sac poubelle ambulance",q:2},
-          {n:"Sac à linge blanc",q:2},{n:"Sac à linge jaune",q:2},{n:"Alèze UU",q:4},
-          {n:"Lange adulte",q:4},{n:"Microfibres",q:1},{n:"Mouchoir UU (boite)",q:1},
-          {n:"Blouse d'opéré",q:1},
-        ]},
-      ]},
-      { id:17, label:"Kit de protection individuel", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},
-          {n:"Charlotte",q:5},{n:"Masque chirurgical",q:5},{n:"Masque KN95 / FFP3",q:5},
-        ]},
-      ]},
-      { id:18, label:"RDOH", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Pane + 2 sacs récupérateurs UU",q:1},{n:"Urinal + 2 sacs récupérateurs UU",q:1},
-          {n:"Oreiller de réserve (lavable)",q:1},
-        ]},
-      ]},
-      { id:19, label:"Cabine sanitaire", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},
-          {n:"Gel hydroalcoolique",q:2},{n:"Sonde d'aspiration CH 8",q:3},
-          {n:"Sonde d'aspiration CH 12",q:3},{n:"Sonde d'aspiration CH 14",q:3},
-          {n:"Aspirateur de mucosité",q:1,t:true},{n:"Gant nitrile taille S (boite)",q:1},
-          {n:"Gant nitrile taille M (boite)",q:1},{n:"Gant nitrile taille L (boite)",q:1},
-          {n:"Gant nitrile taille XL (boite)",q:1},{n:"Tarif ATNUP",q:1},{n:"Couverture anti feu",q:1},
-          {n:"DEA",q:1,t:true},{n:"Brise vitre et coupe ceinture",q:1},
-          {n:"Ciseau multifonction d'URGENCE",q:1},{n:"Sac Intervention",q:1,s:true},
-          {n:"DEA + Electrodes",q:1,t:true},{n:"Electrodes de réserve",q:1},{n:"Détecteur CO",q:1},
-        ]},
-      ]},
-      { id:20, label:"Face arrière portes ouvertes", color:CK_C.darkBlue, shelves:[
-        { id:"B", label:"", items:[{n:"Chaise d'évacuation",q:1}] },
-        { id:"CK_C", label:"", items:[{n:"Sac Pédia. / Accou. (bleu)",q:1,s:true}] },
-        { id:"E", label:"", items:[{n:"Sac KATA (rouge)",q:1,s:true}] },
-        { id:"F", label:"", items:[{n:"Bouteille O² 2L",q:1},{n:"Bouteille O² 2L (2)",q:1}] },
-      ]},
-      { id:21, label:"Porte Ext. Traumatologie / O²", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Scoop + 3 sangles velcro",q:1},{n:"Planche d'Olivier",q:1},
-          {n:"KED",q:1,t:true},{n:"Matelas à dépression",q:1,t:true},
-          {n:"Pompe pour matelas",q:1,t:true},{n:"Sangle araignée",q:1},
-          {n:"Corde semi statique",q:1},{n:"Pelle pliable (US)",q:1},{n:"Gant de sécurité",q:1},
-          {n:"Pied de biche",q:1},{n:"Kit HEAD Block",q:1},
-          {n:"Bouteille O² 5L",q:1},{n:"Bouteille O² 5L (2)",q:1},{n:"Extincteur 6Kg",q:1},
-          {n:"Marche pieds",q:1,t:true},{n:"Planche de transfert Rollbord®",q:1},
-        ]},
-      ]},
-      { id:22, label:"Cabine chauffeur", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Casque",q:2},{n:"Lampe pour casque",q:2,t:true},
-          {n:"Lampe de présignalisation",q:2,t:true},{n:"Brise vitre / Coupe ceinture",q:1},
-          {n:"Carte routière Hainaut",q:1},{n:"Carte ADR",q:1},
-        ]},
-      ]},
-    ]
-  },
-
-  // ── ALPHA 6 ──────────────────────────────────
-  "ALPHA 6": {
-    edition: "09/2025", norme: "112/ATNUP",
-    sections: [
-      { id:1, label:"Divers", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Sac récupérateur de mucosité",q:1},{n:"Tubulure aspirateur de mucosité",q:1},
-        ]},
-      ]},
-      { id:2, label:"Soins et Oxygénothérapie", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"Étagère A", items:[
-          {n:"Bandage élastique 5cm",q:5},{n:"Bandage élastique 7cm",q:5},
-          {n:"Bandage élastique 10cm",q:5},{n:"Bandage élastique 15cm",q:5},
-          {n:"Bandage élastique 20cm",q:2},{n:"Cold Pack",q:2},{n:"Pansement autocollant",q:1},
-        ]},
-        { id:"B", label:"Étagère B", items:[
-          {n:"Solution désinfectante Hibidil®",q:10},{n:"Sérum physiologique unidose",q:10},
-          {n:"Iso-Bétadine® dermique 10%",q:5,p:true},{n:"Compresse 5x5cm",q:10},
-          {n:"Compresse 7,5x7,5cm",q:10},{n:"Compresse 10x10cm",q:10},
-          {n:"Esculape",q:1},{n:"Compresse absorbante 20x10cm",q:5},{n:"Rouleau Urgoderme",q:1},
-          {n:"Rouleau de sparadrap 2cm",q:2},{n:"Bandage triangulaire + épingle",q:4},
-          {n:"Couverture Isotherme",q:5},
-        ]},
-        { id:"CK_C", label:"Bassin / Vomitoire", items:[
-          {n:"Bassin réniforme UU",q:10},{n:"Sac vomitoire",q:5},{n:"Champ stérile 75x90cm",q:4},
-        ]},
-        { id:"D", label:"Oxygénothérapie Adulte", items:[
-          {n:"Masque O² 100% Adulte",q:1},{n:"Lunette O² Adulte",q:2},
-          {n:"Masque aérosol Adulte",q:1},{n:"Tubulure + Raccord Biconique",q:1},
-        ]},
-        { id:"E", label:"Oxygénothérapie Enfant + Ballons REA", items:[
-          {n:"Masque O² 100% Enfant",q:1},{n:"Lunette O² Enfant",q:2},{n:"Masque aérosol Enfant",q:1},
-          {n:"Ballon REA adulte complet UU",q:1},{n:"Masque REA N°4 rouge",q:1},
-          {n:"Masque REA N°5 bleu",q:1},{n:"Filtre antibactérien ballon REA",q:1},
-          {n:"Set de 8 canules de T000 à T5",q:1},
-        ]},
-        { id:"F", label:"Eau potable", items:[
-          {n:"Bouteille d'eau potable 50cl",q:6},
-        ]},
-      ]},
-      { id:3, label:"Kits de linge brancard / Padding", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Kit de linge brancard",q:3},{n:"Kit Padding 3 pièces",q:1},
-          {n:"Oreiller de réserve (lavable)",q:1},
-        ]},
-      ]},
-      { id:4, label:"Kit paramétrage", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},
-          {n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},
-          {n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},
-          {n:"Glucomètre",q:1,t:true},{n:"Lancette",q:10},{n:"Tigette",q:10},
-          {n:"Compresse 5x5cm",q:2},{n:"Sérum physiologique unidose",q:1},
-          {n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1},{n:"Pille AA4 / Pille AAA2",q:6},
-        ]},
-      ]},
-      { id:5, label:"Set de perfusions", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Poche Sérum Physiologique 500ml",q:4,p:true},{n:"Trousse à perfusion",q:2,p:true},
-          {n:"Cathéter 16G",q:2,p:true},{n:"Cathéter 18G",q:2,p:true},
-          {n:"Cathéter 20G",q:2,p:true},{n:"Cathéter 22G",q:2,p:true},
-          {n:"Tégaderme",q:2},{n:"Garrot",q:1},
-          {n:"Gants stériles 6,5 ou S",q:2},{n:"Gants stériles 7,5 ou M",q:2},
-          {n:"Gants stériles 8,5 ou L",q:2},{n:"Bouchon robinet 3 voies",q:3},
-        ]},
-      ]},
-      { id:6, label:"Kit de protection individuelle", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},
-          {n:"Charlotte",q:2},{n:"Masque chirurgical",q:5},{n:"Masque KN95 / FFP3",q:5},
-        ]},
-      ]},
-      { id:7, label:"Kit Burning Electrode DEA réserve", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[{n:"Kit Burning",q:1,s:true}] },
-      ]},
-      { id:8, label:"RDOH / Kit Burning", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[{n:"Pane + 2 sacs UU",q:1},{n:"Urinal + 2 sacs UU",q:1}] },
-      ]},
-      { id:9, label:"Hygiène", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Spray désodorisant citron",q:1},{n:"Rouleau sac poubelle ambulance",q:1},
-          {n:"Sac à linge blanc",q:2},{n:"Sac à linge jaune",q:2},{n:"Alèze UU",q:3},
-          {n:"Lange adulte",q:3},{n:"Paquet de lingette désinfectante",q:1},
-          {n:"Microfibres",q:4},{n:"Spray désinfectant surface",q:2},{n:"Blouse d'opéré",q:1},
-        ]},
-      ]},
-      { id:13, label:"Gant nitrile / Mouchoir UU", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Gant nitrile taille S (boite)",q:1},{n:"Gant nitrile taille M (boite)",q:1},
-          {n:"Gant nitrile taille L (boite)",q:1},{n:"Gant nitrile taille XL (boite)",q:1},
-          {n:"Mouchoir UU (boite)",q:1},
-        ]},
-      ]},
-      { id:15, label:"Sac Pédia. / Accou.", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[{n:"Sac Pédia./Accou.(bleu)",q:1,s:true}] },
-      ]},
-      { id:16, label:"Sac Intervention + DEA / Sac KATA", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Sac Intervention",q:1,s:true},{n:"Détecteur CO",q:1},
-          {n:"DEA + Electrodes",q:1,t:true},{n:"Electrodes de réserve",q:1},
-          {n:"Ciseau multifonction d'URGENCE",q:1},{n:"Sac KATA (rouge)",q:1,s:true},
-          {n:"Bouteille O² 2L",q:1},
-        ]},
-      ]},
-      { id:17, label:"Cabine sanitaire", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},
-          {n:"Gel hydroalcoolique",q:1},{n:"Sonde d'aspiration CH 8",q:3},
-          {n:"Sonde d'aspiration CH 12",q:3},{n:"Sonde d'aspiration CH 14",q:3},
-          {n:"Container à aiguille",q:1},{n:"Poubelle",q:1},{n:"Tarif ATNUP",q:1},
-          {n:"Couverture anti feu",q:1},{n:"Ciseau multifonction d'URGENCE",q:1},
-          {n:"Appareil multi paramétrage",q:1,t:true},{n:"Aspirateur de mucosité",q:1,t:true},
-        ]},
-      ]},
-      { id:18, label:"HEAD B-LOCK", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"Boite", items:[
-          {n:"HEAD B-LOCK",q:1},{n:"Corde semi statique",q:1},{n:"Pelle pliable (US)",q:1},
-          {n:"Gant de sécurité",q:1},{n:"Sangle araignée",q:1},
-        ]},
-      ]},
-      { id:19, label:"O² / Extincteur 6Kg", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Bouteille O² 10L",q:1},{n:"Bouteille O² 10L (2)",q:1},
-          {n:"Bouteille O² 2L",q:1},{n:"Extincteur 6Kg",q:1},
-        ]},
-      ]},
-      { id:20, label:"Porte Ext. Traumatologie", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Chaise d'évacuation",q:1,t:true},{n:"Matelas à dépression",q:1,t:true},
-          {n:"Pompe pour matelas",q:1},{n:"KED",q:1},{n:"Sac d'atèle",q:1},
-          {n:"Atèle grande",q:1,t:true},{n:"Atèle moyenne",q:1,t:true},{n:"Atèle petite",q:1,t:true},
-          {n:"Pompe (pour atèle)",q:1,t:true},{n:"Scoop + 3 sangles velcro",q:1,t:true},
-          {n:"Pied de biche",q:1},
-        ]},
-      ]},
-      { id:21, label:"Porte arrière", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[{n:"Planche d'Olivier",q:1}] },
-      ]},
-      { id:22, label:"Cabine chauffeur", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Lampe de présignalisation",q:2,t:true},{n:"Brise vitre / Coupe ceinture",q:1},
-          {n:"Carte routière Hainaut",q:1},{n:"Carte ADR",q:1},{n:"Casque",q:2},
-          {n:"Lampe pour casque F2",q:2,t:true},
-        ]},
-      ]},
-    ]
-  },
-
-  // ── ALPHA 7 ──────────────────────────────────
-  "ALPHA 7": {
-    edition: "Nov/2025", norme: "112/ATNUP",
-    sections: [
-      { id:1, label:"Oxygénothérapie / Divers", color:CK_C.red, shelves:[
-        { id:"A", label:"Étagère A — Ballons REA", items:[
-          {n:"Ballon REA adulte complet UU4",q:1},{n:"Masque REA N°5",q:1},
-          {n:"Filtre antibactérien ballon REA",q:1},{n:"Set de 8 canules de T000 à T5",q:1},
-        ]},
-        { id:"B", label:"Étagère B — Oxygénothérapie Adulte", items:[
-          {n:"Masque O² 100% Adulte",q:1},{n:"Lunette O² Adulte",q:2},
-          {n:"Masque aérosol Adulte",q:1},{n:"Tubulure + Raccord Biconique",q:1},
-        ]},
-        { id:"CK_C", label:"Étagère CK_C — Oxygénothérapie Enfant + Eau", items:[
-          {n:"Bouteille d'eau potable 50cl",q:6},
-          {n:"Sac récupérateur de mucosité",q:1},{n:"Tubulure aspirateur de mucosité",q:1},
-        ]},
-        { id:"D", label:"Étagère D — Oxygénothérapie Enfant", items:[
-          {n:"Masque O² 100% Enfant",q:1},{n:"Lunette O² Enfant",q:2},{n:"Masque aérosol Enfant",q:1},
-        ]},
-        { id:"E", label:"Divers", items:[
-          {n:"Bassin réniforme UU",q:10},{n:"Sac vomitoire",q:5},
-        ]},
-      ]},
-      { id:2, label:"Soins", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"Étagère A", items:[
-          {n:"Solution désinfectante Hibidil®",q:10},{n:"Sérum physiologique unidose",q:10},
-          {n:"Iso-Bétadine® dermique 10%",q:5,p:true},{n:"Compresse 5x5cm",q:10},
-          {n:"Compresse 7,5x7,5cm",q:10},{n:"Compresse 10x10cm",q:10},
-          {n:"Compresse absorbante 20x10cm",q:5},
-        ]},
-        { id:"B", label:"Étagère B", items:[
-          {n:"Rouleau Urgoderme",q:1},{n:"Rouleau de sparadrap 2cm",q:2},
-          {n:"Kit pansement autocollant",q:1},{n:"Bandage élastique 5cm",q:5},
-          {n:"Esculape",q:1},{n:"Bandage élastique 7cm",q:5},{n:"Bandage élastique 10cm",q:5},
-        ]},
-        { id:"CK_C", label:"Étagère CK_C", items:[
-          {n:"Bandage élastique 15cm",q:2},{n:"Bandage élastique 20cm",q:2},{n:"Champ stérile 75x90cm",q:4},
-        ]},
-        { id:"D", label:"Étagère D", items:[
-          {n:"Bandage triangulaire + épingle",q:4},{n:"Couverture Isotherme",q:5},{n:"Cold Pack",q:5},
-        ]},
-      ]},
-      { id:3, label:"Kits de linge brancard / Padding", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Kit de linge brancard",q:3},{n:"Kit Padding 3 pièces",q:1},
-          {n:"Oreiller de réserve (lavable)",q:1},
-        ]},
-      ]},
-      { id:4, label:"Kit paramétrage", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},
-          {n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},
-          {n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},
-          {n:"Glucomètre",q:1,t:true},{n:"Lancette",q:10},{n:"Tigette",q:10},
-          {n:"Compresse 5x5cm",q:2},{n:"Sérum physiologique unidose",q:1},
-          {n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1},{n:"Pille AA4 / Pille AAA2",q:6},
-        ]},
-      ]},
-      { id:5, label:"Set de perfusions", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Poche Sérum Physiologique 500ml",q:4,p:true},{n:"Trousse à perfusion",q:2,p:true},
-          {n:"Cathéter 16G",q:2,p:true},{n:"Cathéter 18G",q:2,p:true},
-          {n:"Cathéter 20G",q:2,p:true},{n:"Cathéter 22G",q:2,p:true},
-          {n:"Tégaderme",q:2},{n:"Garrot",q:1},
-          {n:"Gants stériles 6,5 ou S",q:2},{n:"Gants stériles 7,5 ou M",q:2},
-          {n:"Gants stériles 8,5 ou L",q:2},{n:"Bouchon robinet 3 voies",q:3},
-        ]},
-      ]},
-      { id:8, label:"Sac d'atèles", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Atèle grande",q:1,t:true},{n:"Atèle moyenne",q:1,t:true},
-          {n:"Atèle petite",q:1,t:true},{n:"Pompe (pour atèle)",q:1,t:true},
-        ]},
-      ]},
-      { id:9, label:"Hygiène", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Spray désodorisant citron",q:1},{n:"Rouleau sac poubelle ambulance",q:1},
-          {n:"Sac à linge blanc",q:2},{n:"Sac à linge jaune",q:2},{n:"Alèze UU",q:3},
-          {n:"Lange adulte",q:3},{n:"Paquet de lingette désinfectante",q:1},
-          {n:"Microfibres",q:1},{n:"Mouchoir UU (boite)",q:1},{n:"Blouse d'opéré",q:1},
-          {n:"Spray désinfectant surface",q:2},
-        ]},
-      ]},
-      { id:10, label:"Sacs Pédia. / Accou. / KATA / Inter.", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Sac KATA (rouge)",q:1,s:true},{n:"Sac Pédia./Accou.(bleu)",q:1,s:true},
-        ]},
-        { id:"B", label:"Boite", items:[
-          {n:"Corde semi statique",q:1},{n:"Pelle pliable (US)",q:1},
-          {n:"Gant de sécurité",q:1},{n:"Sangle araignée",q:1},
-        ]},
-      ]},
-      { id:11, label:"Sac Intervention / O² / Inter.", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Sac Intervention avec DEA",q:1},{n:"DEA",q:1,t:true},
-          {n:"Electrode DEA réserve",q:1},{n:"Détecteur CO",q:1},
-          {n:"Ciseau multifonction d'URGENCE",q:1},{n:"Bouteille O² 2L",q:1},{n:"Pied de biche",q:1},
-        ]},
-      ]},
-      { id:12, label:"Cabine sanitaire", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},
-          {n:"Gel hydroalcoolique",q:1},{n:"Sonde d'aspiration CH 8",q:3},
-          {n:"Sonde d'aspiration CH 12",q:3},{n:"Sonde d'aspiration CH 14",q:3},
-          {n:"Appareil multi paramétrage",q:1,t:true},{n:"Aspirateur de mucosité",q:1,t:true},
-          {n:"Gant nitrile taille S (boite)",q:1},{n:"Gant nitrile taille M (boite)",q:1},
-          {n:"Gant nitrile taille L (boite)",q:1},{n:"Gant nitrile taille XL (boite)",q:1},
-          {n:"Container à aiguille",q:1},{n:"Poubelle",q:1},{n:"Tarif ATNUP",q:1},
-          {n:"Couverture anti feu",q:1},{n:"Ciseau multifonction d'URGENCE",q:1},
-        ]},
-      ]},
-      { id:13, label:"Kit protec. Indiv. / HEAD B-LOCK", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},
-          {n:"Charlotte",q:2},{n:"Masque chirurgical",q:5},{n:"Masque KN95 / FFP3",q:5},
-          {n:"HEAD B-LOCK",q:1},
-        ]},
-      ]},
-      { id:14, label:"RDOH / Kit Burning", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Pane + 2 sacs UU",q:1},{n:"Urinal + 2 sacs UU",q:1},{n:"Kit Burning",q:1,s:true},
-        ]},
-      ]},
-      { id:15, label:"O²", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Bouteille O² 2L",q:1},{n:"Pompe à matelas à dépression",q:1},
-        ]},
-      ]},
-      { id:16, label:"Divers", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[{n:"Matelas à dépression",q:1}] },
-      ]},
-      { id:17, label:"Porte Ext. Traumatologie", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Planche d'Olivier",q:1},{n:"Chaise d'évacuation",q:1,t:true},
-          {n:"KED",q:1},{n:"Bouteille O² 5L",q:1},{n:"Bouteille O² 5L (2)",q:1},
-          {n:"Extincteur 6Kg",q:1},{n:"Scoop + 3 sangles velcro",q:1,t:true},{n:"Pied de biche",q:1},
-        ]},
-      ]},
-      { id:18, label:"Cabine chauffeur", color:CK_C.darkBlue, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Lampe de présignalisation",q:2,t:true},{n:"Brise vitre / Coupe ceinture",q:1},
-          {n:"Carte routière Hainaut",q:1},{n:"Carte ADR",q:1},
-          {n:"Casque F2",q:2},{n:"Lampe pour casque F2",q:2,t:true},
-        ]},
-      ]},
-      { id:20, label:"Couverture", color:CK_C.red, shelves:[
-        { id:"A", label:"", items:[
-          {n:"Couverture",q:0,okOnly:true},
-        ]},
-      ]},
-    ]
-  },
+"ALPHA 1":{edition:"12/2025",norme:"ATNUP",sections:[
+{id:1,label:"Soins et oxygénothérapie",color:"#dc2626",shelves:[
+{id:"A",label:"Étagère A",items:[{n:"Set de pansement",q:1,p:true},{n:"Rouleau de sparadrap",q:2},{n:"Couverture Isotherme",q:5},{n:"Bandage triangulaire + épingle",q:4},{n:"Esculape",q:1}]},
+{id:"B",label:"Étagère B",items:[{n:"Compresse 5x5cm",q:10,p:true},{n:"Compresse 7,5x7,5cm",q:10,p:true},{n:"Compresse 10x10cm",q:10,p:true},{n:"Compresse absorbante 20x10cm",q:5,p:true},{n:"Solution désinfectante Hibidil®",q:10,p:true},{n:"Sérum physiologique unidose",q:10,p:true},{n:"Iso-Bétadine® dermique 10%",q:5,p:true},{n:"Champ stérile 90x70",q:4,p:true},{n:"Kit pansement autocollant",q:1}]},
+{id:"C",label:"Étagère C",items:[{n:"Bandage élastique 5 ou 7cm",q:5,p:true},{n:"Bandage élastique 10cm",q:5,p:true},{n:"Bandage élastique 15cm",q:4,p:true},{n:"Cool Pack",q:5}]},
+{id:"D",label:"Oxygénothérapie Adulte",items:[{n:"Masque O² 100% Adulte",q:1,p:true},{n:"Lunette O² Adulte",q:2,p:true},{n:"Masque aérosol Adulte",q:1,p:true},{n:"Tubulure + Raccord Biconique",q:1,p:true}]},
+{id:"E",label:"Oxygénothérapie Enfant",items:[{n:"Masque O² 100% Enfant",q:1,p:true},{n:"Lunette O² Enfant",q:2,p:true},{n:"Masque aérosol Enfant",q:1,p:true}]},
+{id:"F",label:"Aspiration",items:[{n:"Sac récupérateur de mucosité",q:1},{n:"Tubulure aspirateur de mucosité",q:1},{n:"Bassin réniforme UU",q:10},{n:"Sac vomitoire",q:5}]},
+]},
+{id:2,label:"Paramétrage",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},{n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},{n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},{n:"Glucomètre",q:1,t:true},{n:"Lancettes",q:10},{n:"Tigettes",q:10,p:true},{n:"Compresse 5x5cm",q:2,p:true},{n:"Pile AA / AAA",q:8},{n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1}]}]},
+{id:3,label:"Divers",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Couverture anti feu",q:1}]}]},
+{id:4,label:"Eau potable",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Bouteille d'eau potable 50cl",q:6,p:true}]}]},
+{id:5,label:"Hygiène — Spray",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Spray désinfectant surface",q:2,p:true}]}]},
+{id:7,label:"Hygiène",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Spray désodorisant citron",q:1},{n:"Rouleau sac poubelle ambulance",q:1},{n:"Sac à linge jaune",q:2},{n:"Sac à linge blanc",q:2},{n:"Alèze UU",q:2},{n:"Lange adulte",q:3},{n:"Paquet de lingette désinfectante",q:1,p:true},{n:"Microfibres",q:4}]}]},
+{id:8,label:"Ballon REA et canules",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Ballon REA adulte complet UU",q:1,p:true},{n:"Masque pour ballon N°4",q:1,p:true},{n:"Masque pour ballon N°5",q:1,p:true},{n:"Filtre antibactérien ballon REA",q:1,p:true},{n:"Set de 9 canules de T000 à T5",q:1}]}]},
+{id:9,label:"RDOH",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Pane",q:1},{n:"Urinal",q:1}]}]},
+{id:10,label:"Kits Burning",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Kit Burning",q:1,s:true,p:true}]}]},
+{id:11,label:"Kit de protection individuel",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},{n:"Charlotte",q:2},{n:"Masque chirurgical",q:5},{n:"Masque KN95/FFP2",q:5}]}]},
+{id:12,label:"Kit de rechange brancard",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Kit de linge brancard",q:3}]}]},
+{id:13,label:"Cabine sanitaire",color:"#dc2626",shelves:[
+{id:"A",label:"Cabine sanitaire",items:[{n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},{n:"Gel hydroalcoolique",q:2,p:true},{n:"Sonde d'aspiration CH 8",q:3,p:true},{n:"Sonde d'aspiration CH 12",q:3,p:true},{n:"Sonde d'aspiration CH 14",q:3,p:true},{n:"Aspirateur de mucosité",q:1,t:true},{n:"Appareil multi paramétrage",q:1,t:true},{n:"Oxylog",q:1,t:true},{n:"Gant nitrile taille M (boite)",q:1},{n:"Gant nitrile taille L (boite)",q:1},{n:"Gant nitrile taille XL (boite)",q:1},{n:"Sac d'Intervention",q:1,s:true,p:true},{n:"DEA + Electrode",q:1,t:true,p:true},{n:"Electrode de réserve",q:1,p:true},{n:"Collier cervical adulte",q:1},{n:"Collier cervical pédiatrique",q:1}]},
+{id:"B",label:"Cabine sanitaire suite",items:[{n:"Bouteille O² 2L",q:1,bar:true},{n:"Extincteur 6Kg",q:1,p:true},{n:"Planche Rollboard",q:1},{n:"Tarif TMS",q:1},{n:"Tablette support monitoring",q:1}]},
+]},
+{id:14,label:"Porte Extérieur — Traumatologie",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Matelas à dépression",q:1,t:true},{n:"Pompe pour matelas",q:1},{n:"Scoop",q:1,t:true},{n:"Planche d'Olivier",q:1},{n:"Chaise d'évacuation",q:1,t:true},{n:"KED",q:1},{n:"Head block complet",q:1},{n:"Sac d'atèle",q:1},{n:"Atèle grande",q:1,t:true},{n:"Atèle moyenne",q:1,t:true},{n:"Atèle petite",q:1,t:true},{n:"Pompe pour atèle",q:1},{n:"Marche pieds",q:1,t:true},{n:"Bouteille O² 2L",q:1,bar:true},{n:"Bouteille O² 10L",q:1,bar:true},{n:"Bouteille O² 10L (2)",q:1,bar:true}]}]},
+{id:15,label:"Cabine chauffeur",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Lampe de pré signalisation",q:2,t:true},{n:"Coupe ceinture / Brise glace",q:1},{n:"Carte ADR",q:1},{n:"Carte Hainaut",q:1}]}]},
+]},
+"ALPHA 2":{edition:"12/2024",norme:"112/ATNUP",sections:[
+{id:1,label:"Soin et Oxygénothérapie",color:"#dc2626",shelves:[
+{id:"A",label:"Étagère A",items:[{n:"Compresse 5x5cm",q:10,p:true},{n:"Compresse 7,5x7,5cm",q:10,p:true},{n:"Compresse 10x10cm",q:10,p:true},{n:"Compresse absorbante 20x10cm",q:5,p:true},{n:"Bandage élastique 15cm",q:2,p:true},{n:"Bandage élastique 20cm",q:2,p:true},{n:"Rouleau de sparadrap 2cm",q:2}]},
+{id:"B",label:"Étagère B",items:[{n:"Bandage triangulaire + épingle",q:4},{n:"Couverture Isotherme",q:5},{n:"Esculape",q:1},{n:"Kit pansement autocollant",q:1},{n:"Bandage élastique 5 ou 7cm",q:5,p:true},{n:"Bandage élastique 10cm",q:5,p:true},{n:"Champ stérile 90x71",q:4,p:true},{n:"Bande pansement autocollant",q:1}]},
+{id:"C",label:"Étagère C",items:[{n:"Set de pansement",q:1,p:true},{n:"Rouleau Urgoderme",q:1},{n:"Bouchon fermeture robinet 3 voies",q:1,p:true},{n:"Solution désinfectante Hibidil®",q:10,p:true},{n:"Sérum physiologique unidose",q:10,p:true},{n:"Bétadine® dermique 10%",q:5,p:true},{n:"Cold Pack",q:5}]},
+{id:"D",label:"Oxygénothérapie Adulte",items:[{n:"Masque O² 100% Adulte",q:1,p:true},{n:"Lunette O² Adulte",q:2,p:true},{n:"Masque aérosol Adulte",q:1,p:true},{n:"Tubulure + Raccord Biconique",q:1,p:true}]},
+{id:"E",label:"Oxygénothérapie Enfant",items:[{n:"Masque O² 100% Enfant",q:1,p:true},{n:"Lunette O² Enfant",q:2,p:true},{n:"Masque aérosol Enfant",q:1,p:true}]},
+{id:"F",label:"Divers",items:[{n:"Bassin réniforme UU",q:10},{n:"Sac vomitoire",q:5},{n:"Sac récupérateur de mucosité",q:1},{n:"Tubulure aspirateur de mucosité",q:1},{n:"Bouteille d'eau potable 50cl",q:6,p:true}]},
+]},
+{id:2,label:"Oxygénothérapie — Ballons",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Ballon REA adulte complet UU",q:1,p:true},{n:"Filtre antibactérien ballon REA",q:1,p:true},{n:"Set de 9 canules de T000 à T6",q:1}]}]},
+{id:3,label:"Electrode DEA + Divers",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Electrode DEA réserve",q:1,p:true}]}]},
+{id:4,label:"Kits: Linge brancard / Padding",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Kit de linge brancard",q:3},{n:"Kit Padding",q:1},{n:"Oreiller de réserve (lavable)",q:1}]}]},
+{id:5,label:"Pochette paramétrage",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},{n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},{n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},{n:"Glucomètre",q:1,t:true},{n:"Lancette",q:10},{n:"Tigette",q:10,p:true},{n:"Compresse 5x5cm",q:2,p:true},{n:"Pile AA / AAA",q:8},{n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1},{n:"Détecteur CO",q:1,p:true}]}]},
+{id:9,label:"Kits: Burning",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Kit Burning",q:1,s:true,p:true}]}]},
+{id:10,label:"Set de perfusions",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Poche Sérum Physiologique 500ml",q:4,p:true},{n:"Trousse à perfusion",q:2,p:true},{n:"Cathéter 16G",q:2,p:true},{n:"Cathéter 18G",q:2,p:true},{n:"Cathéter 20G",q:2,p:true},{n:"Cathéter 22G",q:2,p:true},{n:"Tégaderme",q:2,p:true},{n:"Garrot",q:1},{n:"Gants stériles 6,5",q:2,p:true},{n:"Gants stériles 7,5",q:2,p:true},{n:"Gants stériles 8,5",q:2,p:true}]}]},
+{id:13,label:"Hygiène",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Spray désinfectant surface",q:2,p:true},{n:"Spray désodorisant citron",q:1},{n:"Rouleau sac poubelle ambulance",q:1},{n:"Sac à linge blanc",q:2},{n:"Sac à linge jaune",q:2},{n:"Alèze UU",q:3},{n:"Lange adulte",q:3},{n:"Paquet de lingette désinfectante",q:1,p:true},{n:"Microfibres",q:4},{n:"Mouchoir UU (boite)",q:1},{n:"Blouse d'opéré",q:1}]}]},
+{id:15,label:"Aspirateur de mucosité",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Aspirateur de mucosité",q:1,t:true}]}]},
+{id:16,label:"Sac: KATA et Pédiatrique",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Sac KATA (Rouge)",q:1,s:true,p:true},{n:"Sac Pédia./Accou.(bleu)",q:1,s:true,p:true}]}]},
+{id:17,label:"Matelas à dépression",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Matelas à dépression",q:1,t:true},{n:"Pompe pour matelas",q:1}]}]},
+{id:18,label:"RDOH / Kit protection / Speed Block",color:"#dc2626",shelves:[
+{id:"A",label:"RDOH",items:[{n:"Pane",q:1},{n:"Urinal",q:1}]},
+{id:"B",label:"Kit de protection individuelle",items:[{n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},{n:"Charlotte",q:2},{n:"Masque chirurgical",q:5},{n:"Masque KN95 / FFP3",q:5}]},
+{id:"C",label:"Kit Speed Block",items:[{n:"Kit Speed Block",q:1}]},
+]},
+{id:19,label:"Oxygène",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Bouteille O² 10L",q:1,bar:true},{n:"Bouteille O² 10L (2)",q:1,bar:true},{n:"Bouteille O² 2L",q:1,bar:true}]}]},
+{id:20,label:"Cabine sanitaire",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},{n:"Gel hydroalcoolique",q:1,p:true},{n:"Sonde d'aspiration CH 6 ou 8",q:3,p:true},{n:"Sonde d'aspiration CH 10 ou 12",q:2,p:true},{n:"Sonde d'aspiration CH 14 ou 16",q:2,p:true},{n:"Appareil multi paramétrage",q:1,t:true},{n:"Tarif ATNUP",q:1},{n:"Couverture anti feu",q:1},{n:"Planche d'Olivier + base Speed Block",q:1},{n:"Collier cervical adulte",q:1},{n:"Collier cervical pédiatrique",q:1},{n:"Gant nitrile taille S (boite)",q:1},{n:"Gant nitrile taille M (boite)",q:1},{n:"Gant nitrile taille L (boite)",q:1},{n:"Gant nitrile taille XL (boite)",q:1},{n:"Container à aiguille",q:1},{n:"Tensiomètre mural",q:1},{n:"Ciseau multifonctions d'urgence",q:1},{n:"Sac Intervention + DEA",q:1,t:true,p:true}]}]},
+{id:21,label:"Porte Ext. Arrière — Traumatologie",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Scoop",q:1,t:true},{n:"Chaise d'évacuation",q:1,t:true},{n:"Sac d'atèle",q:1},{n:"Atèle grande",q:1,t:true},{n:"Atèle moyenne",q:1,t:true},{n:"Atèle petite",q:1,t:true},{n:"Pompe (pour atèle)",q:1,t:true},{n:"Bouteille O² 2L",q:1,bar:true},{n:"Sangle araignée",q:1},{n:"KED",q:1,t:true},{n:"Marche pieds",q:1,t:true},{n:"Extincteur 6Kg",q:1,p:true},{n:"Corde semi statique",q:1},{n:"Pelle pliable (US)",q:1},{n:"Gant de sécurité",q:1},{n:"Pied de biche",q:1}]}]},
+{id:22,label:"Cabine chauffeur",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Casque",q:2},{n:"Lampe pour casque",q:2,t:true},{n:"Coupe ceinture",q:1},{n:"Brise vitre",q:1},{n:"Carte routière Hainaut",q:1},{n:"Carte ADR",q:1}]}]},
+]},
+"ALPHA 3":{edition:"07/2025",norme:"112/ATNUP",sections:[
+{id:1,label:"Soin et Oxygénothérapie",color:"#dc2626",shelves:[
+{id:"A",label:"Étagère A",items:[{n:"Set de pansement",q:1,p:true},{n:"Rouleau de sparadrap",q:2},{n:"Couverture Isotherme",q:5},{n:"Bandage triangulaire + épingle",q:4},{n:"Compresse 5x5cm",q:10,p:true},{n:"Compresse 7,5x7,5cm",q:10,p:true},{n:"Compresse 10x10cm",q:10,p:true},{n:"Compresse absorbante 20x10cm",q:5,p:true},{n:"Bandage élastique 5 ou 7cm",q:5,p:true}]},
+{id:"B",label:"Étagère B",items:[{n:"Bandage élastique 10cm",q:5,p:true},{n:"Bandage élastique 15cm ou 20cm",q:5},{n:"Rouleau Urgoderme",q:1},{n:"Solution désinfectante Hibidil®",q:10,p:true},{n:"Sérum physiologique unidose",q:10,p:true},{n:"Iso-Bétadine® dermique 10%",q:5,p:true},{n:"Champ stérile 90x69",q:4,p:true},{n:"Kit pansement autocollant",q:1},{n:"Bande pansement autocollant",q:1}]},
+{id:"C",label:"Oxygénothérapie Adulte",items:[{n:"Masque O² 100% Adulte",q:1,p:true},{n:"Lunette O² Adulte",q:2,p:true},{n:"Masque aérosol Adulte",q:1,p:true},{n:"Tubulure + Raccord Biconique",q:1,p:true}]},
+{id:"D",label:"Oxygénothérapie Enfant",items:[{n:"Masque O² 100% Enfant",q:1,p:true},{n:"Lunette O² Enfant",q:2,p:true},{n:"Masque aérosol Enfant",q:1,p:true},{n:"Bouchon fermeture robinet 3 voies",q:3,p:true},{n:"Bassin réniforme UU",q:10},{n:"Sac vomitoire",q:5},{n:"Container à aiguille",q:1}]},
+{id:"E",label:"Ballons REA",items:[{n:"Ballon REA adulte complet UU",q:1,p:true},{n:"Masque pour ballon N°4",q:1,p:true},{n:"Masque pour ballon N°5",q:1,p:true},{n:"Filtre antibactérien ballon REA",q:1,p:true},{n:"Set de 9 canules de T000 à T5",q:1}]},
+{id:"F",label:"Divers",items:[{n:"Sac récupérateur de mucosité",q:1},{n:"Tubulure aspirateur de mucosité",q:1},{n:"Cool Pack",q:5}]},
+]},
+{id:2,label:"Divers",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Manchette à pression",q:1},{n:"Bouteille d'eau potable 50cl",q:6,p:true}]}]},
+{id:3,label:"Pochette paramétrage",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},{n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},{n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},{n:"Glucomètre",q:1,t:true},{n:"Lancette",q:10},{n:"Tigettes",q:10,p:true},{n:"Compresse 5x5cm",q:2,p:true},{n:"Pile AA / AAA",q:8},{n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1},{n:"Détecteur CO",q:1,p:true}]}]},
+{id:4,label:"Set de perfusions",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Poche Sérum Physiologique 500ml",q:4,p:true},{n:"Trousse à perfusion",q:2,p:true},{n:"Cathéter 16G",q:2,p:true},{n:"Cathéter 18G",q:2,p:true},{n:"Cathéter 20G",q:2,p:true},{n:"Cathéter 22G",q:2,p:true},{n:"Tégaderme",q:2,p:true},{n:"Garrot",q:1},{n:"Gants stériles 6,5",q:2,p:true},{n:"Gants stériles 7,5",q:2,p:true},{n:"Gants stériles 8,5",q:2,p:true}]}]},
+{id:5,label:"Kit de protection individuelle",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},{n:"Charlotte",q:2},{n:"Masque chirurgical",q:5},{n:"Masque KN95 / FFP2",q:5}]}]},
+{id:6,label:"Kits Burning",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Kit Burning",q:1,s:true,p:true}]}]},
+{id:"7-8",label:"Kits: Linge brancard / Padding",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Kit de linge brancard",q:3},{n:"Kit Padding",q:1}]}]},
+{id:11,label:"Sac KATA / Oreiller",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Oreiller lavable",q:1},{n:"Sac KATA",q:1,s:true,p:true}]}]},
+{id:12,label:"Gant nitrile / Mouchoir UU",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Gant nitrile taille S (boite)",q:1},{n:"Gant nitrile taille M (boite)",q:1},{n:"Gant nitrile taille L (boite)",q:1},{n:"Gant nitrile taille XL (boite)",q:1},{n:"Mouchoir UU (boite)",q:1}]}]},
+{id:13,label:"Kit COVID Colliers cervicaux",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Kit COVID",q:1},{n:"Collier cervical adulte",q:1},{n:"Collier cervical pédiatrique",q:1}]}]},
+{id:14,label:"Sac Intervention + DEA / Pédiatrique",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Sac d'Intervention",q:1,s:true,p:true},{n:"DEA + Electrode",q:1,t:true,p:true},{n:"Electrode de réserve",q:1,p:true},{n:"Sac Pédiatrique",q:2,s:true,p:true}]}]},
+{id:15,label:"Hygiène",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Spray désinfectant surface",q:2,p:true},{n:"Spray désodorisant citron",q:2},{n:"Rouleau sac poubelle ambulance",q:1},{n:"Sac à linge blanc",q:2},{n:"Sac à linge jaune",q:2},{n:"Alèze UU",q:3},{n:"Lange adulte",q:3},{n:"Paquet de lingette désinfectante",q:1,p:true},{n:"Microfibres",q:4}]}]},
+{id:16,label:"RDOH",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Pane",q:1},{n:"Urinal",q:1}]}]},
+{id:17,label:"Oxygène",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Bouteille O² 10L",q:1,bar:true},{n:"Bouteille O² 10L (2)",q:1,bar:true},{n:"Bouteille O² 2L",q:1,bar:true}]}]},
+{id:18,label:"Cabine sanitaire",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},{n:"Gel hydroalcoolique",q:1,p:true},{n:"Sonde d'aspiration CH 8",q:3,p:true},{n:"Sonde d'aspiration CH 12",q:3,p:true},{n:"Sonde d'aspiration CH 14",q:3,p:true},{n:"Aspirateur de mucosité",q:1,t:true},{n:"Appareil multi paramétrage",q:1,t:true},{n:"Tarif TMS",q:1},{n:"Couverture anti feu",q:1}]}]},
+{id:19,label:"Porte Ext. — Traumatologie",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Matelas à dépression",q:1,t:true},{n:"Pompe pour matelas",q:1},{n:"Scoop",q:1,t:true},{n:"Planche d'Olivier",q:1},{n:"Chaise d'évacuation",q:1,t:true},{n:"KED",q:1},{n:"Speed block complet",q:1},{n:"Sac d'atèle",q:1},{n:"Atèle grande",q:1,t:true},{n:"Atèle moyenne",q:1,t:true},{n:"Atèle petite",q:1,t:true},{n:"Pompe (pour atèle)",q:1,t:true},{n:"Sangle araignée",q:1},{n:"Marche pieds",q:1,t:true}]}]},
+{id:20,label:"Porte Ext. Avant — Matériels divers",color:"#1d4ed8",shelves:[
+{id:"A",label:"Planche A",items:[{n:"Corde semi statique",q:1},{n:"Pelle pliable (US)",q:1},{n:"Casque",q:2},{n:"Lampe pour casque",q:2,t:true},{n:"Gant de sécurité",q:1},{n:"Pied de biche",q:1}]},
+{id:"C",label:"Planche C + Extincteur",items:[{n:"Extincteur 6Kg",q:1,p:true},{n:"Bouteille O² 2L",q:1,bar:true}]},
+]},
+{id:"CC",label:"Cabine chauffeur",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Lampe de présignalisation",q:2,t:true},{n:"Coupe ceinture / Brise glace",q:1}]}]},
+]},
+"ALPHA 4":{edition:"09/2025",norme:"112/ATNUP",sections:[
+{id:1,label:"Soin",color:"#dc2626",shelves:[
+{id:"A",label:"Étagère A",items:[{n:"Bandage triangulaire + épingle",q:4},{n:"Couverture Isotherme",q:5},{n:"Esculape",q:1},{n:"Rouleau Urgoderme",q:1},{n:"Rouleau de sparadrap 2cm",q:2},{n:"Solution désinfectante Hibidil®",q:10,p:true},{n:"Sérum physiologique unidose",q:10,p:true},{n:"Iso-Bétadine® dermique 10%",q:5,p:true},{n:"Cold Pack",q:5},{n:"Kit pansement autocollant",q:1}]},
+{id:"B",label:"Étagère B",items:[{n:"Compresse 10x10cm",q:10,p:true},{n:"Compresse absorbante 20x10cm",q:5,p:true},{n:"Compresse 5x5cm",q:10,p:true},{n:"Compresse 7,5x7,5cm",q:10,p:true},{n:"Bandage élastique 5 ou 7cm",q:5,p:true},{n:"Bandage élastique 10cm",q:5,p:true}]},
+{id:"C",label:"Étagère C",items:[{n:"Bandage élastique 15cm",q:2,p:true},{n:"Bandage élastique 20cm",q:2,p:true},{n:"Champ stérile 75x90cm",q:4,p:true}]},
+]},
+{id:2,label:"Oxygénothérapie",color:"#1d4ed8",shelves:[
+{id:"A",label:"Adulte",items:[{n:"Masque O² 100% Adulte",q:1,p:true},{n:"Lunette O² Adulte",q:2,p:true},{n:"Masque aérosol Adulte",q:1,p:true},{n:"Tubulure + Raccord Biconique",q:1,p:true}]},
+{id:"B",label:"Enfant",items:[{n:"Masque O² 100% Enfant",q:1,p:true},{n:"Lunette O² Enfant",q:2,p:true},{n:"Masque aérosol Enfant",q:1,p:true}]},
+]},
+{id:3,label:"BR, Sac vomitoir, Mouchoir UU",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Bassin réniforme UU",q:10},{n:"Sac vomitoire",q:5},{n:"Mouchoir UU (boite)",q:1}]}]},
+{id:4,label:"Bouteille eau",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Bouteille d'eau potable 50cl",q:6,p:true}]}]},
+{id:5,label:"Kit paramétrage / Kit Burning",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},{n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},{n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},{n:"Glucomètre",q:1,t:true},{n:"Lancette",q:10},{n:"Tigette",q:2,p:true},{n:"Compresse 5x5cm",q:2,p:true},{n:"Pile AA / AAA",q:8},{n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1},{n:"Kit Burning",q:1,s:true,p:true}]}]},
+{id:7,label:"Kits Padding / Divers",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Kit Padding",q:1},{n:"Spray désinfectant surface",q:2,p:true},{n:"Oreiller de réserve (lavable)",q:1},{n:"Blouse d'opéré",q:1}]}]},
+{id:8,label:"Set de perfusions",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Poche Sérum Physiologique 500ml",q:4,p:true},{n:"Trousse à perfusion",q:2,p:true},{n:"Cathéter 16G",q:2,p:true},{n:"Cathéter 18G",q:2,p:true},{n:"Cathéter 20G",q:2,p:true},{n:"Cathéter 22G",q:2,p:true},{n:"Tégaderme",q:2,p:true},{n:"Garrot",q:1},{n:"Gants stériles 6,5",q:2,p:true},{n:"Gants stériles 7,5",q:2,p:true},{n:"Gants stériles 8,5",q:2,p:true},{n:"Bouchon robinet 3 voies",q:3,p:true}]}]},
+{id:9,label:"Kits: Linge brancard / Jeu d'Atèle",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Kit de linge brancard",q:3},{n:"Sac d'atèle",q:1},{n:"Atèle grande",q:1,t:true},{n:"Atèle moyenne",q:1,t:true},{n:"Atèle petite",q:1,t:true},{n:"Pompe (pour atèle)",q:1,t:true}]}]},
+{id:10,label:"Hygiène",color:"#dc2626",shelves:[
+{id:"A",label:"Étagère A",items:[{n:"Spray désodorisant citron",q:1},{n:"Rouleau sac poubelle ambulance",q:1},{n:"Sac à linge blanc",q:2},{n:"Sac à linge jaune",q:2},{n:"Alèze UU",q:3},{n:"Lange adulte",q:3},{n:"Paquet de lingette désinfectante",q:1,p:true},{n:"Microfibres",q:4}]},
+{id:"B",label:"Étagère B",items:[{n:"Ballon REA adulte complet UU",q:1,p:true},{n:"Masque ballon N°4",q:1,p:true},{n:"Masque ballon N°5",q:1,p:true},{n:"Filtre antibactérien ballon REA",q:1,p:true},{n:"Set de 8 canules de T000 à T5",q:1},{n:"Sac récupérateur de mucosité",q:1},{n:"Tubulure aspirateur de mucosité",q:1}]},
+]},
+{id:11,label:"Kit de protection individuel",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},{n:"Charlotte",q:2},{n:"Masque chirurgical",q:5},{n:"Masque KN95 / FFP3",q:5}]}]},
+{id:12,label:"Matelas à dépression",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Matelas à dépression",q:1,t:true},{n:"Pompe pour matelas",q:1}]}]},
+{id:13,label:"RDOH",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Pane",q:1},{n:"Urinal",q:1}]}]},
+{id:14,label:"Sac Intervention",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Sac Intervention",q:1,p:true},{n:"DEA + Electrodes",q:1,t:true,p:true},{n:"Electrodes de réserve",q:1,p:true},{n:"Détecteur CO",q:1,p:true},{n:"Ciseau multifonction d'URGENCE",q:1}]}]},
+{id:15,label:"Sac: KATA et Pédiatrique",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Sac KATA (rouge)",q:1,s:true,p:true},{n:"Sac Pédia./Accou.(bleu)",q:1,s:true,p:true}]}]},
+{id:16,label:"Scoop",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Scoop + 3 sangles velcro",q:1,t:true}]}]},
+{id:17,label:"Porte Ext. Traumatologie / O²",color:"#1d4ed8",shelves:[
+{id:"A",label:"Étagère A",items:[{n:"Planche d'Olivier",q:1},{n:"Chaise d'évacuation",q:1,t:true},{n:"Extincteur 6kg",q:1,t:true},{n:"Sangle araignée",q:1},{n:"KED",q:1,t:true}]},
+{id:"B",label:"Étagère B",items:[{n:"Corde semi statique",q:1},{n:"Pelle pliable (US)",q:1},{n:"Pied de sécurité",q:1},{n:"Casque",q:2},{n:"Lampe pour casque",q:2,t:true},{n:"Kit Speed Block",q:1,t:true},{n:"Bouteille O² 10L",q:1,bar:true},{n:"Bouteille O² 10L (2)",q:1,bar:true},{n:"Bouteille O² 2L",q:1,bar:true},{n:"Marche pieds",q:1,t:true}]},
+]},
+{id:18,label:"Cabine sanitaire",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},{n:"Gel hydroalcoolique",q:1,p:true},{n:"Sonde d'aspiration CH 8",q:3,p:true},{n:"Sonde d'aspiration CH 12",q:3,p:true},{n:"Sonde d'aspiration CH 14",q:3,p:true},{n:"Appareil multi paramétrage",q:1,t:true},{n:"Aspirateur de mucosité",q:1,t:true},{n:"Gant nitrile taille S (boite)",q:1},{n:"Gant nitrile taille M (boite)",q:1},{n:"Gant nitrile taille L (boite)",q:1},{n:"Gant nitrile taille XL (boite)",q:1},{n:"Container à aiguille",q:1},{n:"Poubelle",q:1},{n:"Tarif ATNUP",q:1},{n:"Couverture anti feu",q:1},{n:"Bouteille O² 2L",q:1,bar:true}]}]},
+{id:19,label:"Cabine chauffeur",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Lampe de présignalisation",q:2,t:true},{n:"Coupe ceinture",q:1},{n:"Brise vitre",q:1},{n:"Carte routière Hainaut",q:1},{n:"Carte ADR",q:1}]}]},
+]},
+"ALPHA 5":{edition:"09/2025",norme:"112/ATNUP",sections:[
+{id:1,label:"Container à aiguille",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Container à aiguille",q:1}]}]},
+{id:2,label:"Bouteilles d'eau potable",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Bouteille d'eau potable 50cl",q:6,p:true}]}]},
+{id:4,label:"Kits de linge brancard",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Kit de linge brancard",q:3}]}]},
+{id:6,label:"Appareil multi paramétrage",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Appareil multi paramétrage",q:1,t:true}]}]},
+{id:9,label:"Soin",color:"#1d4ed8",shelves:[{id:"A",label:"Étagère A",items:[{n:"Solution désinfectante Hibidil®",q:10,p:true},{n:"Sérum physiologique unidose",q:10,p:true},{n:"Iso-Bétadine® dermique 10%",q:5,p:true},{n:"Compresse 5x5cm",q:10,p:true},{n:"Compresse 7,5x7,5cm",q:10,p:true},{n:"Compresse 10x10cm",q:10,p:true},{n:"Esculape",q:1},{n:"Rouleau Urgoderme",q:1},{n:"Rouleau de sparadrap 2cm",q:2},{n:"Bandage élastique 5cm",q:5,p:true},{n:"Bandage élastique 7cm",q:5,p:true},{n:"Bandage élastique 10cm",q:5,p:true},{n:"Bandage élastique 15cm",q:4,p:true},{n:"Bandage triangulaire + épingle",q:4},{n:"Couverture Isotherme",q:5},{n:"Sac vomitoir",q:5},{n:"Cold Pack",q:5},{n:"Kit pansement autocollant",q:1},{n:"Compresse absorbante 20x10cm",q:5,p:true},{n:"Champ stérile 40x45cm",q:4,p:true}]}]},
+{id:10,label:"Oxygénothérapie / Ballons",color:"#dc2626",shelves:[
+{id:"A",label:"Adulte",items:[{n:"Masque O² 100% Adulte",q:1,p:true},{n:"Lunette O² Adulte",q:2,p:true},{n:"Masque aérosol Adulte",q:1,p:true},{n:"Tubulure + Raccord Biconique",q:1,p:true}]},
+{id:"B",label:"Enfant",items:[{n:"Masque O² 100% Enfant",q:1,p:true},{n:"Lunette O² Enfant",q:2,p:true},{n:"Masque aérosol Enfant",q:1,p:true}]},
+{id:"C",label:"Ballons REA",items:[{n:"Ballon REA adulte complet UU",q:1,p:true},{n:"Masque REA N°4 Rouge",q:1,p:true},{n:"Masque REA N°5 Bleu",q:1,p:true},{n:"Filtre antibactérien ballon REA",q:1,p:true},{n:"Set de 8 canules de T000 à T5",q:1}]},
+]},
+{id:11,label:"Set de perfusions",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Poche Sérum Physiologique 500ml",q:4,p:true},{n:"Trousse à perfusion",q:2,p:true},{n:"Cathéter 16G",q:2,p:true},{n:"Cathéter 18G",q:2,p:true},{n:"Cathéter 20G",q:2,p:true},{n:"Cathéter 22G",q:2,p:true},{n:"Tégaderme",q:2,p:true},{n:"Garrot",q:1},{n:"Gants stériles 6,5",q:2,p:true},{n:"Gants stériles 7,5",q:2,p:true},{n:"Gants stériles 8,5",q:2,p:true},{n:"Bouchon robinet 3 voies",q:4}]}]},
+{id:12,label:"Kit padding",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Kit Padding 3 pièces",q:1}]}]},
+{id:13,label:"Divers",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Bassin réniforme UU",q:10},{n:"Sac récupérateur de mucosité",q:1},{n:"Tubulure aspirateur de mucosité",q:1}]}]},
+{id:14,label:"Kit d'atèles / Pochette paramétrage",color:"#dc2626",shelves:[
+{id:"A",label:"Atèles",items:[{n:"Sac d'attelle + pompe",q:1},{n:"Attelle grande",q:1,t:true},{n:"Attelle moyenne",q:1,t:true},{n:"Attelle petite",q:1,t:true}]},
+{id:"B",label:"Paramétrage",items:[{n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},{n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},{n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},{n:"Glucomètre",q:1,t:true},{n:"Lancette",q:5},{n:"Tigette minimum",q:10,p:true},{n:"Compresse 5x5cm",q:2,p:true},{n:"Sérum physiologique unidose",q:1,p:true},{n:"Pile AA / AAA",q:8},{n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1}]},
+]},
+{id:16,label:"Hygiène",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Spray désinfectant surface",q:2,p:true},{n:"Paquet de lingette désinfectante",q:1,p:true},{n:"Spray désodorisant citron",q:1},{n:"Rouleau sac poubelle ambulance",q:2},{n:"Sac à linge blanc",q:2},{n:"Sac à linge jaune",q:2},{n:"Alèze UU",q:4},{n:"Lange adulte",q:3},{n:"Microfibres",q:4},{n:"Mouchoir UU (boite)",q:1},{n:"Blouse d'opéré",q:1}]}]},
+{id:17,label:"Kit de protection individuel",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},{n:"Charlotte",q:2},{n:"Masque chirurgical",q:5},{n:"Masque KN95 / FFP3",q:5}]}]},
+{id:18,label:"RDOH",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Pane + 2 sacs récupérateurs UU",q:1},{n:"Urinal + 2 sacs récupérateurs UU",q:1},{n:"Oreiller de réserve (lavable)",q:1}]}]},
+{id:19,label:"Cabine sanitaire",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},{n:"Gel hydroalcoolique",q:2,p:true},{n:"Sonde d'aspiration CH 8",q:3,p:true},{n:"Sonde d'aspiration CH 12",q:3,p:true},{n:"Sonde d'aspiration CH 14",q:3,p:true},{n:"Aspirateur de mucosité",q:1,t:true},{n:"Gant nitrile taille S (boite)",q:1},{n:"Gant nitrile taille M (boite)",q:1},{n:"Gant nitrile taille L (boite)",q:1},{n:"Gant nitrile taille XL (boite)",q:1},{n:"Tarif ATNUP",q:1},{n:"Couverture anti feu",q:1},{n:"Brise vitre et coupe ceinture",q:1},{n:"Ciseau multifonction d'URGENCE",q:1},{n:"Sac Intervention",q:1,s:true,p:true},{n:"DEA + Electrodes",q:1,t:true,p:true},{n:"Electrodes de réserve",q:1,p:true},{n:"Détecteur CO",q:1,p:true}]}]},
+{id:20,label:"Face arrière portes ouvertes",color:"#1d4ed8",shelves:[
+{id:"B",label:"",items:[{n:"Chaise d'évacuation",q:1,t:true}]},
+{id:"C",label:"",items:[{n:"Sac Pédia. / Accou. (bleu)",q:1,s:true,p:true}]},
+{id:"E",label:"",items:[{n:"Sac KATA (rouge)",q:1,s:true,p:true}]},
+{id:"F",label:"",items:[{n:"Bouteille O² 2L",q:1,bar:true},{n:"Bouteille O² 2L (2)",q:1,bar:true}]},
+]},
+{id:21,label:"Porte Ext. Traumatologie / O²",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Scoop + 3 sangles velcro",q:1},{n:"Planche d'Olivier",q:1},{n:"KED",q:1,t:true},{n:"Matelas à dépression",q:1,t:true},{n:"Pompe pour matelas",q:1,t:true},{n:"Sangle araignée",q:1},{n:"Corde semi statique",q:1},{n:"Pelle pliable (US)",q:1},{n:"Gant de sécurité",q:1},{n:"Pied de biche",q:1},{n:"Kit HEAD Block",q:1},{n:"Bouteille O² 5L",q:1,bar:true},{n:"Bouteille O² 5L (2)",q:1,bar:true},{n:"Extincteur 6Kg",q:1,p:true},{n:"Marche pieds",q:1,t:true},{n:"Planche de transfert Rollbord®",q:1}]}]},
+{id:22,label:"Cabine chauffeur",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Casque",q:2},{n:"Lampe pour casque",q:2,t:true},{n:"Lampe de présignalisation",q:2,t:true},{n:"Brise vitre / Coupe ceinture",q:1},{n:"Carte routière Hainaut",q:1},{n:"Carte ADR",q:1}]}]},
+]},
+"ALPHA 6":{edition:"09/2025",norme:"112/ATNUP",sections:[
+{id:2,label:"Soins et Oxygénothérapie",color:"#1d4ed8",shelves:[
+{id:"A",label:"Étagère A",items:[{n:"Bandage élastique 5cm",q:5,p:true},{n:"Bandage élastique 7cm",q:5,p:true},{n:"Bandage élastique 10cm",q:5,p:true},{n:"Bandage élastique 15cm",q:5,p:true},{n:"Bandage élastique 20cm",q:2,p:true},{n:"Cold Pack",q:5},{n:"Pansement autocollant",q:1}]},
+{id:"B",label:"Étagère B",items:[{n:"Solution désinfectante Hibidil®",q:10,p:true},{n:"Sérum physiologique unidose",q:10,p:true},{n:"Iso-Bétadine® dermique 10%",q:5,p:true},{n:"Compresse 5x5cm",q:10,p:true},{n:"Compresse 7,5x7,5cm",q:10,p:true},{n:"Compresse 10x10cm",q:10,p:true},{n:"Esculape",q:1},{n:"Compresse absorbante 20x10cm",q:5,p:true},{n:"Rouleau Urgoderme",q:1},{n:"Rouleau de sparadrap 2cm",q:2},{n:"Bandage triangulaire + épingle",q:4},{n:"Couverture Isotherme",q:5}]},
+{id:"C",label:"Étagère C",items:[{n:"Bassin réniforme UU",q:10},{n:"Sac vomitoire",q:5},{n:"Champ stérile 75x90cm",q:4,p:true}]},
+{id:"D",label:"Oxygénothérapie Adulte",items:[{n:"Masque O² 100% Adulte",q:1,p:true},{n:"Lunette O² Adulte",q:2,p:true},{n:"Masque aérosol Adulte",q:1,p:true},{n:"Tubulure + Raccord Biconique",q:1,p:true}]},
+{id:"EE",label:"Oxygénothérapie Enfant + Ballons REA",items:[{n:"Masque O² 100% Enfant",q:1,p:true},{n:"Lunette O² Enfant",q:2,p:true},{n:"Masque aérosol Enfant",q:1,p:true},{n:"Ballon REA adulte complet UU",q:1,p:true},{n:"Masque REA N°4 rouge",q:1,p:true},{n:"Masque REA N°5 bleu",q:1,p:true},{n:"Filtre antibactérien ballon REA",q:1,p:true}]},
+{id:"F",label:"Étagère F",items:[{n:"Bouteille d'eau potable 50cl",q:6,p:true},{n:"Sac récupérateur de mucosité",q:1},{n:"Tubulure aspirateur de mucosité",q:1}]},
+]},
+{id:3,label:"Kits de linge brancard / Padding",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Kit de linge brancard",q:3},{n:"Kit Padding 3 pièces",q:1},{n:"Oreiller de réserve (lavable)",q:1}]}]},
+{id:4,label:"Kit paramétrage",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},{n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},{n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},{n:"Glucomètre",q:1,t:true},{n:"Lancette",q:10},{n:"Tigette",q:10,p:true},{n:"Compresse 5x5cm",q:2,p:true},{n:"Sérum physiologique unidose",q:1,p:true},{n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1},{n:"Pile AA / AAA",q:8}]}]},
+{id:5,label:"Set de perfusions",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Poche Sérum Physiologique 500ml",q:4,p:true},{n:"Trousse à perfusion",q:2,p:true},{n:"Cathéter 16G",q:2,p:true},{n:"Cathéter 18G",q:2,p:true},{n:"Cathéter 20G",q:2,p:true},{n:"Cathéter 22G",q:2,p:true},{n:"Tégaderme",q:2,p:true},{n:"Garrot",q:1},{n:"Gants stériles 6,5 ou S",q:2,p:true},{n:"Gants stériles 7,5 ou M",q:2,p:true},{n:"Gants stériles 8,5 ou L",q:2,p:true},{n:"Bouchon robinet 3 voies",q:3,p:true}]}]},
+{id:6,label:"Kit de protection individuelle",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},{n:"Charlotte",q:2},{n:"Masque chirurgical",q:5},{n:"Masque KN95 / FFP3",q:5}]}]},
+{id:7,label:"Kit Burning",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Kit Burning",q:1,s:true,p:true}]}]},
+{id:8,label:"RDOH",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Pane + 2 sacs UU",q:1},{n:"Urinal + 2 sacs UU",q:1}]}]},
+{id:9,label:"Hygiène",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Spray désodorisant citron",q:1},{n:"Rouleau sac poubelle ambulance",q:1},{n:"Sac à linge blanc",q:2},{n:"Sac à linge jaune",q:2},{n:"Alèze UU",q:3},{n:"Lange adulte",q:3},{n:"Paquet de lingette désinfectante",q:1,p:true},{n:"Microfibres",q:4},{n:"Spray désinfectant surface",q:2,p:true},{n:"Blouse d'opéré",q:1}]}]},
+{id:13,label:"Gant nitrile / Mouchoir UU",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Gant nitrile taille S (boite)",q:1},{n:"Gant nitrile taille M (boite)",q:1},{n:"Gant nitrile taille L (boite)",q:1},{n:"Gant nitrile taille XL (boite)",q:1},{n:"Mouchoir UU (boite)",q:1}]}]},
+{id:15,label:"Sac Pédia. / Accou.",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Sac Pédia./Accou.(bleu)",q:1,s:true,p:true}]}]},
+{id:16,label:"Sac Intervention + DEA / Sac KATA",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Sac Intervention",q:1,s:true,p:true},{n:"Détecteur CO",q:1,p:true},{n:"DEA + Electrodes",q:1,t:true,p:true},{n:"Electrodes de réserve",q:1,p:true},{n:"Ciseau multifonction d'URGENCE",q:1},{n:"Sac KATA (rouge)",q:1,s:true,p:true},{n:"Bouteille O² 2L",q:1,bar:true}]}]},
+{id:17,label:"Cabine sanitaire",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},{n:"Gel hydroalcoolique",q:1,p:true},{n:"Sonde d'aspiration CH 8",q:3,p:true},{n:"Sonde d'aspiration CH 12",q:3,p:true},{n:"Sonde d'aspiration CH 14",q:3,p:true},{n:"Container à aiguille",q:1},{n:"Poubelle",q:1},{n:"Tarif ATNUP",q:1},{n:"Couverture anti feu",q:1},{n:"Appareil multi paramétrage",q:1,t:true},{n:"Aspirateur de mucosité",q:1,t:true}]}]},
+{id:19,label:"O² / Extincteur 6Kg",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Bouteille O² 10L",q:1,bar:true},{n:"Bouteille O² 10L (2)",q:1,bar:true},{n:"Bouteille O² 2L",q:1,bar:true},{n:"Extincteur 6Kg",q:1,p:true}]}]},
+{id:20,label:"Porte Ext. Traumatologie",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Chaise d'évacuation",q:1,t:true},{n:"Matelas à dépression",q:1,t:true},{n:"Pompe pour matelas",q:1},{n:"KED",q:1},{n:"Sac d'atèle",q:1},{n:"Atèle grande",q:1,t:true},{n:"Atèle moyenne",q:1,t:true},{n:"Atèle petite",q:1,t:true},{n:"Pompe (pour atèle)",q:1,t:true},{n:"Scoop + 3 sangles velcro",q:1,t:true},{n:"Pied de biche",q:1}]}]},
+{id:21,label:"Porte arrière",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Planche d'Olivier",q:1}]}]},
+{id:22,label:"Cabine chauffeur",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Lampe de présignalisation",q:2,t:true},{n:"Brise vitre / Coupe ceinture",q:1},{n:"Carte routière Hainaut",q:1},{n:"Carte ADR",q:1},{n:"Casque",q:2},{n:"Lampe pour casque F2",q:2,t:true}]}]},
+]},
+"ALPHA 7":{edition:"Nov/2025",norme:"112/ATNUP",sections:[
+{id:1,label:"Oxygénothérapie / Divers",color:"#dc2626",shelves:[
+{id:"A",label:"Étagère A — Ballons REA",items:[{n:"Ballon REA adulte complet UU4",q:1},{n:"Masque REA N°5",q:1},{n:"Filtre antibactérien ballon REA",q:1,p:true},{n:"Set de 8 canules de T000 à T5",q:1}]},
+{id:"B",label:"Étagère B — Oxygénothérapie Adulte",items:[{n:"Masque O² 100% Adulte",q:1,p:true},{n:"Lunette O² Adulte",q:2,p:true},{n:"Masque aérosol Adulte",q:1,p:true},{n:"Tubulure + Raccord Biconique",q:1,p:true}]},
+{id:"C",label:"Étagère C — Eau + Divers",items:[{n:"Bouteille d'eau potable 50cl",q:6,p:true},{n:"Sac récupérateur de mucosité",q:1},{n:"Tubulure aspirateur de mucosité",q:1}]},
+{id:"D",label:"Étagère D — Oxygénothérapie Enfant",items:[{n:"Masque O² 100% Enfant",q:1,p:true},{n:"Lunette O² Enfant",q:2,p:true},{n:"Masque aérosol Enfant",q:1,p:true}]},
+{id:"E",label:"Divers",items:[{n:"Bassin réniforme UU",q:10},{n:"Sac vomitoire",q:5}]},
+]},
+{id:2,label:"Soins",color:"#1d4ed8",shelves:[
+{id:"A",label:"Étagère A",items:[{n:"Solution désinfectante Hibidil®",q:10,p:true},{n:"Sérum physiologique unidose",q:10,p:true},{n:"Iso-Bétadine® dermique 10%",q:5,p:true},{n:"Compresse 5x5cm",q:10,p:true},{n:"Compresse 7,5x7,5cm",q:10,p:true},{n:"Compresse 10x10cm",q:10,p:true},{n:"Compresse absorbante 20x10cm",q:5,p:true}]},
+{id:"B",label:"Étagère B",items:[{n:"Rouleau Urgoderme",q:1},{n:"Rouleau de sparadrap 2cm",q:2},{n:"Kit pansement autocollant",q:1},{n:"Bandage élastique 5cm",q:5,p:true},{n:"Esculape",q:1},{n:"Bandage élastique 7cm",q:5,p:true},{n:"Bandage élastique 10cm",q:5,p:true}]},
+{id:"C",label:"Étagère C",items:[{n:"Bandage élastique 15cm",q:2,p:true},{n:"Bandage élastique 20cm",q:2,p:true},{n:"Champ stérile 75x90cm",q:4,p:true}]},
+{id:"D",label:"Étagère D",items:[{n:"Bandage triangulaire + épingle",q:4},{n:"Couverture Isotherme",q:5},{n:"Cold Pack",q:5}]},
+]},
+{id:3,label:"Kits de linge brancard / Padding",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Kit de linge brancard",q:3},{n:"Kit Padding 3 pièces",q:1},{n:"Oreiller de réserve (lavable)",q:1}]}]},
+{id:4,label:"Kit paramétrage",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Tensiomètre manuel",q:1,t:true},{n:"Stéthoscope",q:1,t:true},{n:"Pulsoxymètre filaire",q:1,t:true},{n:"Thermomètre auriculaire",q:1,t:true},{n:"Recharge d'embouts jetable",q:1},{n:"Thermomètre digitale",q:1,t:true},{n:"Glucomètre",q:1,t:true},{n:"Lancette",q:10},{n:"Tigette",q:10,p:true},{n:"Compresse 5x5cm",q:2,p:true},{n:"Sérum physiologique unidose",q:1,p:true},{n:"Lampe diagnostique",q:1},{n:"Marqueur indélébile",q:1},{n:"Pile AA / AAA",q:8}]}]},
+{id:5,label:"Set de perfusions",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Poche Sérum Physiologique 500ml",q:4,p:true},{n:"Trousse à perfusion",q:2,p:true},{n:"Cathéter 16G",q:2,p:true},{n:"Cathéter 18G",q:2,p:true},{n:"Cathéter 20G",q:2,p:true},{n:"Cathéter 22G",q:2,p:true},{n:"Tégaderme",q:2,p:true},{n:"Garrot",q:1},{n:"Gants stériles 6,5 ou S",q:2,p:true},{n:"Gants stériles 7,5 ou M",q:2,p:true},{n:"Gants stériles 8,5 ou L",q:2,p:true},{n:"Bouchon robinet 3 voies",q:3,p:true}]}]},
+{id:8,label:"Sac d'atèles",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Atèle grande",q:1,t:true},{n:"Atèle moyenne",q:1,t:true},{n:"Atèle petite",q:1,t:true},{n:"Pompe (pour atèle)",q:1,t:true}]}]},
+{id:9,label:"Hygiène",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Spray désodorisant citron",q:1},{n:"Rouleau sac poubelle ambulance",q:1},{n:"Sac à linge blanc",q:2},{n:"Sac à linge jaune",q:2},{n:"Alèze UU",q:3},{n:"Lange adulte",q:3},{n:"Paquet de lingette désinfectante",q:1,p:true},{n:"Microfibres",q:1},{n:"Mouchoir UU (boite)",q:1},{n:"Blouse d'opéré",q:1},{n:"Spray désinfectant surface",q:2,p:true}]}]},
+{id:10,label:"Sacs Pédia. / Accou. / KATA",color:"#1d4ed8",shelves:[
+{id:"A",label:"",items:[{n:"Sac KATA (rouge)",q:1,s:true,p:true},{n:"Sac Pédia./Accou.(bleu)",q:1,s:true,p:true}]},
+{id:"B",label:"Boite",items:[{n:"Corde semi statique",q:1},{n:"Pelle pliable (US)",q:1},{n:"Gant de sécurité",q:1},{n:"Sangle araignée",q:1}]},
+]},
+{id:11,label:"Sac Intervention / O²",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Sac Intervention avec DEA",q:1,s:true,p:true},{n:"DEA",q:1,t:true,p:true},{n:"Electrode DEA réserve",q:1,p:true},{n:"Détecteur CO",q:1,p:true},{n:"Ciseau multifonction d'URGENCE",q:1},{n:"Bouteille O² 2L",q:1,bar:true},{n:"Pied de biche",q:1}]}]},
+{id:12,label:"Cabine sanitaire",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Brancard avec sangles",q:1},{n:"Toile de glisse",q:1},{n:"Distributeur de papier UU",q:1},{n:"Gel hydroalcoolique",q:1,p:true},{n:"Sonde d'aspiration CH 8",q:3,p:true},{n:"Sonde d'aspiration CH 12",q:3,p:true},{n:"Sonde d'aspiration CH 14",q:3,p:true},{n:"Appareil multi paramétrage",q:1,t:true},{n:"Aspirateur de mucosité",q:1,t:true},{n:"Gant nitrile taille S (boite)",q:1},{n:"Gant nitrile taille M (boite)",q:1},{n:"Gant nitrile taille L (boite)",q:1},{n:"Gant nitrile taille XL (boite)",q:1},{n:"Container à aiguille",q:1},{n:"Poubelle",q:1},{n:"Tarif ATNUP",q:1},{n:"Couverture anti feu",q:1},{n:"Ciseau multifonction d'URGENCE",q:1}]}]},
+{id:13,label:"Kit protec. Indiv. / HEAD B-LOCK",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Salopette UU",q:2},{n:"Blouse UU",q:2},{n:"Lunette de protection",q:2},{n:"Charlotte",q:2},{n:"Masque chirurgical",q:5},{n:"Masque KN95 / FFP3",q:5},{n:"HEAD B-LOCK",q:1}]}]},
+{id:14,label:"RDOH / Kit Burning",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Pane + 2 sacs UU",q:1},{n:"Urinal + 2 sacs UU",q:1},{n:"Kit Burning",q:1,s:true,p:true}]}]},
+{id:15,label:"O²",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Bouteille O² 2L",q:1,bar:true},{n:"Pompe à matelas à dépression",q:1}]}]},
+{id:16,label:"Divers",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Matelas à dépression",q:1,t:true}]}]},
+{id:17,label:"Porte Ext. Traumatologie",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Planche d'Olivier",q:1},{n:"Chaise d'évacuation",q:1,t:true},{n:"KED",q:1,t:true},{n:"Bouteille O² 5L",q:1,bar:true},{n:"Bouteille O² 5L (2)",q:1,bar:true},{n:"Extincteur 6Kg",q:1,p:true},{n:"Scoop + 3 sangles velcro",q:1,t:true},{n:"Pied de biche",q:1}]}]},
+{id:18,label:"Cabine chauffeur",color:"#1d4ed8",shelves:[{id:"A",label:"",items:[{n:"Lampe de présignalisation",q:2,t:true},{n:"Brise vitre / Coupe ceinture",q:1},{n:"Carte routière Hainaut",q:1},{n:"Carte ADR",q:1},{n:"Casque F2",q:2},{n:"Lampe pour casque F2",q:2,t:true}]}]},
+{id:20,label:"Couverture",color:"#dc2626",shelves:[{id:"A",label:"",items:[{n:"Couverture",q:0,okOnly:true}]}]},
+]},
 };
 
 // ═══════════════════════════════════════════════
 // COMPOSANT CHECKLIST GÉNÉRIQUE
 // ═══════════════════════════════════════════════
+// Sélecteur mois/année ultra-rapide (2 menus déroulants), remplace le
+// calendrier complet — utilisé pour les dates de péremption/scellé.
+function MonthYearPicker({ value, onChange, danger }){
+  const now=new Date();
+  const [y,m]=value?value.split("-"):["",""];
+  const years=Array.from({length:8},(_,i)=>now.getFullYear()-1+i);
+  const months=[["01","Jan"],["02","Fév"],["03","Mar"],["04","Avr"],["05","Mai"],["06","Jun"],["07","Jul"],["08","Aoû"],["09","Sep"],["10","Oct"],["11","Nov"],["12","Déc"]];
+  const selStyle={ background:danger?CK_C.dangerSoft:CK_C.bg, border:`1px solid ${danger?CK_C.danger:CK_C.border}`, borderRadius:6, padding:"5px 6px", color:danger?CK_C.danger:CK_C.text, fontSize:11, fontWeight:danger?700:400 };
+  return(
+    <div style={{ display:"flex", gap:5 }}>
+      <select value={m} onChange={e=>onChange(`${y||now.getFullYear()}-${e.target.value}`)} style={selStyle}>
+        <option value="">Mois</option>
+        {months.map(([mm,lbl])=>(<option key={mm} value={mm}>{lbl}</option>))}
+      </select>
+      <select value={y} onChange={e=>onChange(`${e.target.value}-${m||String(now.getMonth()+1).padStart(2,"0")}`)} style={selStyle}>
+        <option value="">Année</option>
+        {years.map(yy=>(<option key={yy} value={yy}>{yy}</option>))}
+      </select>
+    </div>
+  );
+}
+
 function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, toggleTheme }) {
   const data = checklists[vehicleName];
   const weekKey = getChecklistWeekKey();
@@ -3180,42 +2483,166 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
   const checks = doc_.checks || {};
   const amb1 = doc_.amb1 || "";
   const amb2 = doc_.amb2 || "";
-  const semaine = doc_.semaine || "";
+  const semaine = doc_.semaine || String(getChecklistWeekNumber());
   const remarks = doc_.remarks || "";
   const [expanded, setExpanded] = useState({ [data.sections[0]?.id]: true });
   const [submitted, setSubmitted] = useState(false);
   const [sending, setSending] = useState(false);
 
+  // "YYYY-MM" <= mois actuel ? (périmé ou en cours = à considérer comme expiré)
+  const isMonthExpired = (ym) => {
+    if(!ym) return false;
+    const now=new Date();
+    const cur=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+    return ym<=cur;
+  };
+
   const gk = (sId, shId, name) => `${sId}__${shId}__${name}`;
-  const setCF = (key, found, required) => updateDoc_(prev=>({ checks:{ ...prev.checks, [key]:{ ...prev.checks?.[key], found, required } } }));
+  // Présence : si le nombre trouvé < requis, on considère l'article "NOK" et
+  // on bascule automatiquement test/scellé sur NOK (impossible à vérifier
+  // si l'article n'est pas là).
+  const setCF = (key, found, required, item) => updateDoc_(prev=>{
+    const isMissing = found!=null && found<required;
+    const next = { ...prev.checks?.[key], found, required };
+    if(isMissing){
+      if(item?.t) next.testOk=false;
+      if(item?.s) next.sealOk=false;
+    }
+    return { checks:{ ...prev.checks, [key]: next } };
+  });
   const setC = (key, field, value) => updateDoc_(prev=>({ checks:{ ...prev.checks, [key]:{ ...prev.checks?.[key], [field]:value } } }));
+  const setTest = (key, val) => updateDoc_(prev=>({ checks:{ ...prev.checks, [key]:{ ...prev.checks?.[key], testOk:val } } }));
+  const setSeal = (key, val) => updateDoc_(prev=>({ checks:{ ...prev.checks, [key]:{ ...prev.checks?.[key], sealOk:val } } }));
+  // Date de péremption ou de scellé : si le mois saisi est dépassé/actuel,
+  // l'article passe direct en NOK au chiffre max (found=0), modifiable ensuite.
+  const setDateField = (key, field, value, item) => updateDoc_(prev=>{
+    const next = { ...prev.checks?.[key], [field]: value };
+    if(isMonthExpired(value)){ next.found=0; next.required=item.q; }
+    return { checks:{ ...prev.checks, [key]: next } };
+  });
   const toggle = (id) => setExpanded(p => ({ ...p, [id]: !p[id] }));
 
-  const allItems = data.sections.flatMap(s => s.shelves.flatMap(sh => sh.items));
-  const totalItems = allItems.length;
-  const checkedItems = Object.values(checks).filter(c => c.found !== undefined).length;
-  const nokItems = Object.entries(checks).filter(([, v]) => v.found !== undefined && v.found < v.required);
-  const progress = totalItems > 0 ? Math.round((checkedItems / totalItems) * 100) : 0;
   const firstWeek = isFirstWeekOfMonth();
-  const peremptionKeys = firstWeek ? checklistPeremptionKeys(checklists, vehicleName) : [];
-  const peremptionMissing = peremptionKeys.filter(k=>!checks?.[k]?.date);
-  const canSubmit = checkedItems>0 && (!firstWeek || peremptionMissing.length===0);
+
+  // Nombre de "cases" à valider pour un article : présence (+1), test (+1 si
+  // TEST), scellé (+1 si SCELLÉ), péremption (+1 si PÉREMPTION, seulement
+  // pendant la 1ère semaine du mois).
+  const itemSlots = (item) => {
+    if(item.okOnly) return 1;
+    let n=1;
+    if(item.t) n++;
+    if(item.s) n++;
+    if(item.p && firstWeek) n++;
+    return n;
+  };
+  const itemCheckedSlots = (item, state) => {
+    if(item.okOnly) return state?.found!=null?1:0;
+    let n=0;
+    if(state?.found!=null) n++;
+    if(item.t && state?.testOk!=null) n++;
+    if(item.s && state?.sealOk!=null) n++;
+    if(item.p && firstWeek && state?.date) n++;
+    return n;
+  };
+
+  let totalItems=0, checkedItems=0;
+  data.sections.forEach(sec=>sec.shelves.forEach(sh=>sh.items.forEach(item=>{
+    const key=gk(sec.id,sh.id,item.n);
+    const state=checks[key]||{};
+    totalItems += itemSlots(item);
+    checkedItems += itemCheckedSlots(item,state);
+  })));
+  const progress = totalItems > 0 ? Math.round((checkedItems / totalItems) * 100) : 0;
+
+  // Toutes les validations requises pour pouvoir envoyer : présence de
+  // chaque article, test/scellé (toujours), niveau bar (toujours), date de
+  // péremption/scellé (1ère semaine du mois uniquement, et seulement si
+  // l'article est bien présent — sinon impossible à vérifier).
+  const getMissingValidations = () => {
+    const missing = [];
+    data.sections.forEach(sec => sec.shelves.forEach(sh => sh.items.forEach(item => {
+      if (item.okOnly) return;
+      const key = gk(sec.id, sh.id, item.n);
+      const state = checks[key] || {};
+      if (state.found == null) { missing.push(item.n + " (Présence)"); return; }
+      const isMissing = state.found < item.q;
+      if (item.t && state.testOk == null) missing.push(item.n + " (Fonctionnel)");
+      if (item.s && state.sealOk == null) missing.push(item.n + " (Scellé)");
+      if (item.bar && state.bar==null) missing.push(item.n + " (Niveau bar)");
+      if (!isMissing) {
+        if (item.p && firstWeek && !state.date) missing.push(item.n + " (Date péremption)");
+        if (item.s && !item.p && firstWeek && state.sealOk!==false && !state.sealDate) missing.push(item.n + " (Date scellé)");
+      }
+    })));
+    return missing;
+  };
+  const missingValidations = getMissingValidations();
+  const hasAmbulancier = amb1.trim().length>0 || amb2.trim().length>0;
+  const canSubmit = missingValidations.length===0 && hasAmbulancier;
+
+  // Fait défiler jusqu'au premier oubli (en dépliant sa section si besoin).
+  const scrollToFirstMissing = () => {
+    if(!hasAmbulancier){
+      const el=document.getElementById("ckitem-ambulancier");
+      if(el) el.scrollIntoView({behavior:"smooth", block:"center"});
+      return;
+    }
+    if(missingValidations.length===0) return;
+    const firstName = missingValidations[0].split(" (")[0];
+    let targetSectionId=null;
+    for(const sec of data.sections){
+      if(sec.shelves.some(sh=>sh.items.some(it=>it.n===firstName))){ targetSectionId=sec.id; break; }
+    }
+    if(targetSectionId!==null && !expanded[targetSectionId]) setExpanded(p=>({...p,[targetSectionId]:true}));
+    setTimeout(()=>{
+      const el=document.getElementById("ckitem-"+firstName.replace(/[^a-zA-Z0-9]/g,"-"));
+      if(el) el.scrollIntoView({behavior:"smooth", block:"center"});
+    }, targetSectionId!==null?150:0);
+  };
+
+  // Liste des problèmes réels (manques, test/scellé NOK) — utilisée pour
+  // l'écran récap et pour le contenu de l'email envoyé au responsable.
+  const buildIssues = () => {
+    const issues=[];
+    data.sections.forEach(sec=>sec.shelves.forEach(sh=>sh.items.forEach(item=>{
+      const key=gk(sec.id,sh.id,item.n);
+      const state=checks[key]||{};
+      if(state.found!=null && state.found<item.q){
+        const dueToExpiry=(item.p&&isMonthExpired(state.date))||(item.s&&state.sealOk!==false&&isMonthExpired(state.sealDate));
+        issues.push({name:item.n, type:"missing", missing:item.q-state.found, required:item.q, expired:dueToExpiry});
+      }
+      if(item.t && state.testOk===false) issues.push({name:item.n, type:"nok_test"});
+      if(item.s && state.sealOk===false) issues.push({name:item.n, type:"nok_seal"});
+      if(item.bar && state.bar!=null && state.bar<50) issues.push({name:item.n, type:"low_bar", bar:state.bar});
+    })));
+    return issues;
+  };
+  const issues = buildIssues();
+  const nokItems = issues.filter(i=>i.type==="missing").map(i=>[i.name,{found:i.required-i.missing,required:i.required}]);
 
   const sendMissingReport = async () => {
-    if(nokItems.length===0 || !emails || emails.length===0) return;
+    if(!emails || emails.length===0) return;
     setSending(true);
-    const missingLines = nokItems.map(([key,val])=>{
-      const parts=key.split("__");
-      const itemName=parts.slice(2).join("__");
-      return `- ${itemName} : manque ${val.required-val.found}/${val.required}`;
-    }).join("\n");
+    let missingLines;
+    if(issues.length===0){
+      missingLines = "✅ Aucun manque — véhicule complet.";
+    }else{
+      missingLines = issues.map(iss=>{
+        if(iss.type==="missing") return `- ${iss.name} : manque ${iss.missing}/${iss.required}${iss.expired?" (périmé — retiré du véhicule)":""}`;
+        if(iss.type==="nok_test") return `- ${iss.name} : test NOK (non fonctionnel)`;
+        if(iss.type==="nok_seal") return `- ${iss.name} : scellé NOK (rompu)`;
+        if(iss.type==="low_bar") return `- ${iss.name} : niveau bas (${iss.bar} bar, < 50)`;
+        return `- ${iss.name}`;
+      }).join("\n");
+    }
+    missingLines = `Rempli par : ${[amb1,amb2].filter(Boolean).join(" / ")||"—"}\n\n` + missingLines;
+    if(remarks.trim()) missingLines += `\n\nRemarques : ${remarks.trim()}`;
     try{
       for(const to of emails){
         await emailjs.send("service_mrs8v2l","template_2sxsq4j",{
           to_email: to,
-          vehicle_name: vehicleName,
-          date: new Date().toLocaleDateString("fr-FR"),
-          missing_items: missingLines,
+          title: `Checklist ${vehicleName} — Matériel manquant`,
+          content: missingLines,
         }, "Fhdx1kTE7vFmh4z07");
       }
     }catch(e){ console.error("Erreur envoi email checklist:", e); }
@@ -3248,27 +2675,24 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
             </div>
           ))}
         </div>
-        {nokItems.length>0&&(
+        {issues.length>0&&(
           <div style={{ background:CK_C.dangerSoft, border:`1px solid ${CK_C.danger}`, borderRadius:12, padding:"16px", marginBottom:14 }}>
-            <div style={{ fontWeight:800, color:CK_C.danger, marginBottom:12, fontSize:14 }}>⚠ Matériel manquant ({nokItems.length})</div>
-            {nokItems.map(([key,val])=>{
-              const parts=key.split("__");
-              const sId=parts[0];
-              const section=data.sections.find(s=>String(s.id)===sId);
-              const itemName=parts.slice(2).join("__");
-              return(<div key={key} style={{ borderLeft:`2px solid ${CK_C.danger}`, paddingLeft:10, marginBottom:8 }}>
-                <div style={{ fontSize:11, color:CK_C.muted }}>{section?.label}</div>
+            <div style={{ fontWeight:800, color:CK_C.danger, marginBottom:12, fontSize:14 }}>⚠ Problèmes signalés ({issues.length})</div>
+            {issues.map((iss,i)=>(
+              <div key={i} style={{ borderLeft:`2px solid ${CK_C.danger}`, paddingLeft:10, marginBottom:8 }}>
                 <div style={{ display:"flex", justifyContent:"space-between" }}>
-                  <span style={{ fontSize:13, fontWeight:600 }}>{itemName}</span>
-                  <span style={{ color:CK_C.danger, fontWeight:700, fontSize:12 }}>Manque {val.required-val.found}/{val.required}</span>
+                  <span style={{ fontSize:13, fontWeight:600 }}>{iss.name}</span>
+                  <span style={{ color:CK_C.danger, fontWeight:700, fontSize:12 }}>
+                    {iss.type==="missing"?`Manque ${iss.missing}/${iss.required}`:iss.type==="nok_test"?"Test NOK":iss.type==="nok_seal"?"Scellé NOK":`Niveau bas (${iss.bar} bar)`}
+                  </span>
                 </div>
-              </div>);
-            })}
+              </div>
+            ))}
           </div>
         )}
         {remarks&&<div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:"16px", marginBottom:14 }}><div style={{ fontSize:11, fontWeight:700, color:CK_C.muted, textTransform:"uppercase", marginBottom:8 }}>Remarques</div><div style={{ fontSize:13 }}>{remarks}</div></div>}
         <div style={{ background:CK_C.successSoft, border:`1px solid ${CK_C.success}`, borderRadius:10, padding:"14px", textAlign:"center", fontWeight:700, color:CK_C.success }}>
-          {nokItems.length>0?(emails&&emails.length>0?`✅ Email de manquants envoyé (${emails.length} destinataire${emails.length>1?"s":""})`:"⚠️ Aucun email destinataire configuré (Paramètres)"):"✅ Checklist complète, rien à signaler"}
+          {issues.length>0?(emails&&emails.length>0?`✅ Email de manquants envoyé (${emails.length} destinataire${emails.length>1?"s":""})`:"⚠️ Aucun email destinataire configuré (Paramètres)"):"✅ Checklist complète, rien à signaler"}
         </div>
         <button onClick={onBack} style={{ width:"100%", marginTop:12, background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:10, color:CK_C.muted, padding:"12px", fontWeight:700, fontSize:14 }}>← Retour à la liste</button>
       </div>
@@ -3300,23 +2724,31 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
         </div>
       </div>
 
-      {firstWeek&&(
+      {firstWeek&&(()=>{ const permCount=missingValidations.filter(m=>m.includes("Date péremption")).length; return(
         <div style={{ background:"#f59e0b20", borderBottom:`1px solid #f59e0b`, padding:"9px 16px", fontSize:12, fontWeight:700, color:"#fbbf24" }}>
-          📅 1ère semaine du mois — les dates de péremption sont obligatoires ({peremptionMissing.length} restante{peremptionMissing.length!==1?"s":""})
+          📅 1ère semaine du mois — les dates de péremption sont obligatoires ({permCount} restante{permCount!==1?"s":""})
         </div>
-      )}
+      );})()}
 
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"12px 16px", display:"flex", gap:8 }}>
-        <input value={amb1} onChange={e=>updateDoc_({amb1:e.target.value})} placeholder="Ambulancier 1" style={{ flex:1, background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"8px 12px", color:CK_C.text, fontSize:13 }}/>
-        <input value={amb2} onChange={e=>updateDoc_({amb2:e.target.value})} placeholder="Ambulancier 2" style={{ flex:1, background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"8px 12px", color:CK_C.text, fontSize:13 }}/>
-        <input value={semaine} onChange={e=>updateDoc_({semaine:e.target.value})} placeholder="Sem.N°" style={{ width:75, background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"8px 10px", color:CK_C.text, fontSize:13 }}/>
+      <div id="ckitem-ambulancier" style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"12px 16px", display:"flex", gap:8 }}>
+        <input value={amb1} onChange={e=>updateDoc_({amb1:e.target.value})} placeholder="Ambulancier 1" style={{ flex:1, background:CK_C.bg, border:`1px solid ${hasAmbulancier?CK_C.border:CK_C.danger}`, borderRadius:8, padding:"8px 12px", color:CK_C.text, fontSize:13 }}/>
+        <input value={amb2} onChange={e=>updateDoc_({amb2:e.target.value})} placeholder="Ambulancier 2" style={{ flex:1, background:CK_C.bg, border:`1px solid ${hasAmbulancier?CK_C.border:CK_C.danger}`, borderRadius:8, padding:"8px 12px", color:CK_C.text, fontSize:13 }}/>
+        <input value={semaine} onChange={e=>updateDoc_({semaine:e.target.value})} style={{ width:75, background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"8px 10px", color:CK_C.text, fontSize:13 }}/>
       </div>
 
       <div style={{ flex:1, padding:"12px 12px 100px" }}>
         {data.sections.filter(s=>s.shelves.some(sh=>sh.items.length>0)).map(section=>{
-          const allKeys=section.shelves.flatMap(sh=>sh.items.map(item=>gk(section.id,sh.id,item.n)));
-          const sChecked=allKeys.filter(k=>checks[k]?.found!==undefined).length;
-          const sNOK=allKeys.filter(k=>checks[k]?.found!==undefined&&checks[k]?.found<checks[k]?.required).length;
+          const sectionItems=section.shelves.flatMap(sh=>sh.items.map(item=>({item,key:gk(section.id,sh.id,item.n)})));
+          const sTotal=sectionItems.reduce((sum,{item})=>sum+itemSlots(item),0);
+          const sChecked=sectionItems.reduce((sum,{item,key})=>sum+itemCheckedSlots(item,checks[key]||{}),0);
+          const sNOK=sectionItems.filter(({item,key})=>{
+            const c=checks[key];
+            if(!c) return false;
+            if(c.found!=null&&c.found<c.required) return true;
+            if(c.testOk===false) return true;
+            if(c.sealOk===false) return true;
+            return false;
+          }).length;
           const isExp=expanded[section.id];
           return(
             <div key={section.id} style={{ marginBottom:8, border:`1px solid ${CK_C.border}`, borderRadius:12, overflow:"hidden" }}>
@@ -3327,7 +2759,7 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
                 </div>
                 <div style={{ display:"flex", alignItems:"center", gap:6 }}>
                   {sNOK>0&&<span style={{ background:CK_C.danger, borderRadius:20, padding:"2px 7px", fontSize:10, fontWeight:700 }}>⚠{sNOK}</span>}
-                  <span style={{ fontSize:11, opacity:0.8 }}>{sChecked}/{allKeys.length}</span>
+                  <span style={{ fontSize:11, opacity:0.8 }}>{sChecked}/{sTotal}</span>
                   <span style={{ fontSize:14, opacity:0.7 }}>{isExp?"▲":"▼"}</span>
                 </div>
               </button>
@@ -3338,37 +2770,70 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
                     const key=gk(section.id,shelf.id,item.n);
                     const state=checks[key]||{};
                     const found=state.found;
-                    const isChecked=found!==undefined;
+                    const isChecked=found!=null;
                     const isMissing=isChecked&&found<item.q;
                     const isOk=isChecked&&found>=item.q;
                     const isBinary=item.t||item.s||item.okOnly;
-                    const peremptionMissingHere=item.p&&firstWeek&&!state.date;
+                    const peremptionMissingHere=item.p&&firstWeek&&!isMissing&&!state.date;
+                    const peremptionExpired=item.p&&isMonthExpired(state.date);
+                    const sealDateMissingHere=item.s&&firstWeek&&!isMissing&&state.sealOk!==false&&!state.sealDate;
+                    const sealDateExpired=item.s&&state.sealOk!==false&&isMonthExpired(state.sealDate);
+                    const barMissingHere=item.bar&&state.bar==null;
                     return(
-                      <div key={idx} style={{ background:isMissing?"rgba(239,68,68,0.06)":isOk?"rgba(34,197,94,0.04)":CK_C.panel, borderTop:`1px solid ${CK_C.border}`, padding:"11px 14px" }}>
-                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:13, fontWeight:600, color:CK_C.text, display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
-                              {item.n}
-                              {item.t&&<span style={{ background:"#1d4ed820", border:"1px solid #1d4ed8", color:"#60a5fa", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>TEST</span>}
-                              {item.s&&<span style={{ background:"#7c3aed20", border:"1px solid #7c3aed", color:"#a78bfa", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>SCELLÉ</span>}
-                              {item.p&&<span style={{ background:peremptionMissingHere?"#ef444420":"#f59e0b20", border:`1px solid ${peremptionMissingHere?"#ef4444":"#f59e0b"}`, color:peremptionMissingHere?"#f87171":"#fbbf24", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>PÉREMPTION{peremptionMissingHere?" ⚠":""}</span>}
-                            </div>
-                            {!item.okOnly&&<div style={{ fontSize:11, color:CK_C.muted, marginTop:2, display:"flex", gap:8 }}>
-                              <span>Requis : <strong style={{ color:CK_C.text }}>{item.q}</strong></span>
-                              {isChecked&&!isBinary&&<span style={{ color:isOk?CK_C.success:CK_C.danger, fontWeight:700 }}>{isOk?"✓ Complet":`⚠ Manque ${item.q-found}`}</span>}
-                            </div>}
-                            {item.p&&<input type="date" value={state.date||""} onChange={e=>setC(key,"date",e.target.value)} style={{ marginTop:5, background:CK_C.bg, border:`1px solid ${firstWeek&&!state.date?"#ef4444":CK_C.border}`, borderRadius:6, padding:"4px 8px", color:CK_C.text, fontSize:11, width:150 }}/>}
-                          </div>
-                          <div style={{ display:"flex", gap:5, flexShrink:0 }}>
-                            <button onClick={()=>setCF(key,state.found===item.q?undefined:item.q,item.q)} style={{ padding:"7px 12px", borderRadius:8, border:isOk?`2px solid ${CK_C.success}`:`1px solid ${CK_C.border}`, background:isOk?CK_C.successSoft:"transparent", color:isOk?CK_C.success:CK_C.muted, fontWeight:700, fontSize:12 }}>OK</button>
-                            {!item.okOnly&&<button onClick={()=>setCF(key,state.found===0?undefined:0,item.q)} style={{ padding:"7px 10px", borderRadius:8, border:(isChecked&&!isOk)?`2px solid ${CK_C.danger}`:`1px solid ${CK_C.border}`, background:(isChecked&&!isOk)?CK_C.dangerSoft:"transparent", color:(isChecked&&!isOk)?CK_C.danger:CK_C.muted, fontWeight:700, fontSize:12 }}>NOK</button>}
-                            {!isBinary&&<div style={{ display:"flex", alignItems:"center", background:CK_C.bg, border:`1px solid ${isMissing?CK_C.danger:isOk?CK_C.success:CK_C.border}`, borderRadius:10, overflow:"hidden" }}>
-                              <button onClick={()=>setCF(key,Math.max(0,(found!==undefined?found:item.q)-1),item.q)} style={{ width:32, height:34, background:"transparent", border:"none", color:CK_C.muted, fontSize:17, display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
-                              <div style={{ minWidth:32, textAlign:"center", fontSize:14, fontWeight:800, color:isMissing?CK_C.danger:isOk?CK_C.success:CK_C.text, borderLeft:`1px solid ${CK_C.border}`, borderRight:`1px solid ${CK_C.border}`, height:34, display:"flex", alignItems:"center", justifyContent:"center" }}>{found!==undefined?found:"?"}</div>
-                              <button onClick={()=>setCF(key,(found!==undefined?found:0)+1,item.q)} style={{ width:32, height:34, background:"transparent", border:"none", color:CK_C.muted, fontSize:17, display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
+                      <div key={idx} id={"ckitem-"+item.n.replace(/[^a-zA-Z0-9]/g,"-")} style={{ background:isMissing?"rgba(239,68,68,0.06)":isOk?"rgba(34,197,94,0.04)":CK_C.panel, borderTop:`1px solid ${CK_C.border}`, padding:"11px 14px" }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:CK_C.text, display:"flex", alignItems:"center", gap:5, flexWrap:"wrap", marginBottom:8 }}>
+                          {item.n}
+                          {item.t&&<span style={{ background:"#1d4ed820", border:"1px solid #1d4ed8", color:"#60a5fa", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>TEST</span>}
+                          {item.s&&<span style={{ background:"#7c3aed20", border:"1px solid #7c3aed", color:"#a78bfa", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>SCELLÉ</span>}
+                          {item.p&&<span style={{ background:(peremptionMissingHere||peremptionExpired)?"#ef444420":"#f59e0b20", border:`1px solid ${(peremptionMissingHere||peremptionExpired)?"#ef4444":"#f59e0b"}`, color:(peremptionMissingHere||peremptionExpired)?"#f87171":"#fbbf24", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>PÉREMPTION{(peremptionMissingHere||peremptionExpired)?" ⚠":""}</span>}
+                        </div>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:(item.t||item.s||item.bar)?6:0 }}>
+                          <div style={{ fontSize:11, color:CK_C.muted, minWidth:80 }}>{item.okOnly?"État":"Présence"+(!isBinary?" (requis: "+item.q+")":"")}</div>
+                          <div style={{ display:"flex", gap:5, alignItems:"center" }}>
+                            <button onClick={()=>setCF(key,state.found===item.q?undefined:item.q,item.q,item)} style={{ padding:"6px 12px", borderRadius:8, border:isOk?`2px solid ${CK_C.success}`:`1px solid ${CK_C.border}`, background:isOk?CK_C.successSoft:"transparent", color:isOk?CK_C.success:CK_C.muted, fontWeight:700, fontSize:12 }}>OK</button>
+                            {!item.okOnly&&<button onClick={()=>setCF(key,state.found===0?undefined:0,item.q,item)} style={{ padding:"6px 10px", borderRadius:8, border:(isChecked&&!isOk)?`2px solid ${CK_C.danger}`:`1px solid ${CK_C.border}`, background:(isChecked&&!isOk)?CK_C.dangerSoft:"transparent", color:(isChecked&&!isOk)?CK_C.danger:CK_C.muted, fontWeight:700, fontSize:12 }}>NOK</button>}
+                            {!isBinary&&!item.bar&&<div style={{ display:"flex", alignItems:"center", background:CK_C.bg, border:`1px solid ${isMissing?CK_C.danger:isOk?CK_C.success:CK_C.border}`, borderRadius:10, overflow:"hidden" }}>
+                              <button onClick={()=>setCF(key,Math.max(0,(found!=null?found:item.q)-1),item.q,item)} style={{ width:30, height:32, background:"transparent", border:"none", color:CK_C.muted, fontSize:16 }}>−</button>
+                              <div style={{ minWidth:28, textAlign:"center", fontSize:13, fontWeight:800, color:isMissing?CK_C.danger:isOk?CK_C.success:CK_C.text, borderLeft:`1px solid ${CK_C.border}`, borderRight:`1px solid ${CK_C.border}`, height:32, display:"flex", alignItems:"center", justifyContent:"center" }}>{found!=null?found:"?"}</div>
+                              <button onClick={()=>setCF(key,(found!=null?found:0)+1,item.q,item)} style={{ width:30, height:32, background:"transparent", border:"none", color:CK_C.muted, fontSize:16 }}>+</button>
                             </div>}
                           </div>
                         </div>
+                        {item.bar&&(
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:6, paddingTop:5, borderTop:`1px dashed ${CK_C.border}` }}>
+                          <div style={{ fontSize:11, color:barMissingHere?CK_C.danger:(state.bar<50?CK_C.danger:CK_C.blue), minWidth:80, fontWeight:(barMissingHere||state.bar<50)?700:400 }}>Niveau (bar){(barMissingHere||state.bar<50)?" ⚠":""}</div>
+                          <select value={state.bar!=null?state.bar:""} onChange={e=>setC(key,"bar",e.target.value===""?undefined:parseInt(e.target.value))} style={{ background:barMissingHere?CK_C.dangerSoft:(state.bar<50?CK_C.dangerSoft:CK_C.bg), border:`1px solid ${(barMissingHere||state.bar<50)?CK_C.danger:CK_C.border}`, borderRadius:8, padding:"6px 10px", color:(barMissingHere||state.bar<50)?CK_C.danger:CK_C.text, fontSize:13, fontWeight:(barMissingHere||state.bar<50)?700:400 }}>
+                            <option value="">— bar —</option>
+                            {Array.from({length:31},(_,i)=>i*10).map(v=>(<option key={v} value={v}>{v} bar</option>))}
+                          </select>
+                        </div>
+                        )}
+                        {item.t&&(<div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:item.s?6:0, paddingTop:5, borderTop:`1px dashed ${CK_C.border}` }}>
+                          <div style={{ fontSize:11, color:CK_C.blue, minWidth:80 }}>Fonctionnel</div>
+                          <div style={{ display:"flex", gap:5 }}>
+                            <button onClick={()=>setTest(key,state.testOk===true?undefined:true)} style={{ padding:"6px 12px", borderRadius:8, border:state.testOk===true?`2px solid ${CK_C.success}`:`1px solid ${CK_C.border}`, background:state.testOk===true?CK_C.successSoft:"transparent", color:state.testOk===true?CK_C.success:CK_C.muted, fontWeight:700, fontSize:12 }}>OK</button>
+                            <button onClick={()=>setTest(key,state.testOk===false?undefined:false)} style={{ padding:"6px 10px", borderRadius:8, border:state.testOk===false?`2px solid ${CK_C.danger}`:`1px solid ${CK_C.border}`, background:state.testOk===false?CK_C.dangerSoft:"transparent", color:state.testOk===false?CK_C.danger:CK_C.muted, fontWeight:700, fontSize:12 }}>NOK</button>
+                          </div>
+                        </div>)}
+                        {item.s&&(<div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:6, paddingTop:5, borderTop:`1px dashed ${CK_C.border}` }}>
+                          <div style={{ fontSize:11, color:"#a78bfa", minWidth:80 }}>Scellé intact</div>
+                          <div style={{ display:"flex", gap:5 }}>
+                            <button onClick={()=>setSeal(key,state.sealOk===true?undefined:true)} style={{ padding:"6px 12px", borderRadius:8, border:state.sealOk===true?`2px solid ${CK_C.success}`:`1px solid ${CK_C.border}`, background:state.sealOk===true?CK_C.successSoft:"transparent", color:state.sealOk===true?CK_C.success:CK_C.muted, fontWeight:700, fontSize:12 }}>OK</button>
+                            <button onClick={()=>setSeal(key,state.sealOk===false?undefined:false)} style={{ padding:"6px 10px", borderRadius:8, border:state.sealOk===false?`2px solid ${CK_C.danger}`:`1px solid ${CK_C.border}`, background:state.sealOk===false?CK_C.dangerSoft:"transparent", color:state.sealOk===false?CK_C.danger:CK_C.muted, fontWeight:700, fontSize:12 }}>NOK</button>
+                          </div>
+                        </div>)}
+                        {item.s&&!item.p&&state.sealOk!==false&&(
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, paddingTop:2 }}>
+                          <div style={{ fontSize:11, color:sealDateExpired?CK_C.danger:"#a78bfa", minWidth:80 }}>Date scellé</div>
+                          <MonthYearPicker value={state.sealDate||""} onChange={v=>setDateField(key,"sealDate",v,item)} danger={sealDateMissingHere||sealDateExpired}/>
+                        </div>
+                        )}
+                        {item.p&&(
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginTop:6 }}>
+                          <div style={{ fontSize:11, color:peremptionExpired?CK_C.danger:"#fbbf24", minWidth:80 }}>Péremption</div>
+                          <MonthYearPicker value={state.date||""} onChange={v=>setDateField(key,"date",v,item)} danger={peremptionMissingHere||peremptionExpired}/>
+                        </div>
+                        )}
                       </div>
                     );
                   })}
@@ -3383,18 +2848,630 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
         </div>
       </div>
       <div style={{ position:"fixed", bottom:0, left:0, right:0, background:CK_C.panel, borderTop:`1px solid ${CK_C.border}`, padding:"13px 16px" }}>
-        <button disabled={!canSubmit||sending} onClick={()=>{if(canSubmit){sendMissingReport();setSubmitted(true);}}} style={{ width:"100%", background:!canSubmit?CK_C.border:progress===100?CK_C.success:CK_C.accent, border:"none", borderRadius:10, color:"white", padding:"14px", fontWeight:800, fontSize:15, opacity:checkedItems>0?1:0.5, cursor:canSubmit?"pointer":"not-allowed" }}>
-          {!canSubmit&&firstWeek&&peremptionMissing.length>0?`⚠ ${peremptionMissing.length} péremption(s) à dater`:progress===100?"✅ Envoyer au responsable":`📤 Envoyer (${progress}% complété)`}
+        {!canSubmit&&(
+          <div style={{ background:CK_C.dangerSoft, border:`1px solid ${CK_C.danger}`, borderRadius:8, padding:"8px 12px", marginBottom:8, fontSize:11, color:CK_C.danger, fontWeight:600 }}>
+            {!hasAmbulancier?"⚠ Indique au moins un ambulancier":`⚠ ${missingValidations.length} validation(s) manquante(s)`}
+          </div>
+        )}
+        <button disabled={sending} onClick={()=>{
+          if(!canSubmit){ scrollToFirstMissing(); return; }
+          sendMissingReport();
+          saveChecklistHistorique({
+            id:`${vehicleName}_${weekKey}_${Date.now()}`,
+            vehicle:vehicleName, date:new Date().toLocaleDateString("fr-FR"), dateISO:new Date().toISOString(),
+            weekNumber:getChecklistWeekNumber(), semaine:semaine||String(getChecklistWeekNumber()),
+            amb1, amb2, remarks:remarks||"", complete:progress===100, timestamp:Date.now(),
+            issues:issues.map(iss=>({
+              ...iss,
+              remaining: iss.type==="missing"?iss.missing:(iss.type==="low_bar"?(iss.bar===0?1:0):1),
+              resupplied:0,
+            })),
+          });
+          setSubmitted(true);
+        }} style={{ width:"100%", background:!canSubmit?CK_C.border:progress===100?CK_C.success:CK_C.accent, border:"none", borderRadius:10, color:"white", padding:"14px", fontWeight:800, fontSize:15, opacity:canSubmit?1:0.85, cursor:sending?"not-allowed":"pointer" }}>
+          {canSubmit?"✅ Envoyer au responsable":`⚠ ${!hasAmbulancier?"Ambulancier requis — toucher pour y aller":missingValidations.length+" oubli(s) — toucher pour y aller"}`}
         </button>
       </div>
     </div>
   );
 }
-function ChecklistsHome({ onBack, checklists, emails, themeMode, toggleTheme }) {
+// ═══════════════════════════════════════
+// HISTORIQUE — liste des checklists envoyées (24 mois glissants)
+// ═══════════════════════════════════════
+function HistoriqueView({ onBack, themeMode, toggleTheme }){
+  const [screen,setScreen]=useState("home"); // home | checklists | o2
+
+  if(screen==="checklists") return <ChecklistHistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="o2") return <O2HistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+
+  return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div style={{ fontWeight:800, fontSize:16 }}>📅 Historique</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{ flex:1, padding:"20px", maxWidth:420, margin:"0 auto", width:"100%", display:"flex", flexDirection:"column", gap:12 }}>
+        <button onClick={()=>setScreen("checklists")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
+          <div style={{ fontSize:28 }}>📋</div>
+          <div><div style={{ fontWeight:800, fontSize:15 }}>Historique checklists</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Toutes les checklists envoyées</div></div>
+        </button>
+        <button onClick={()=>setScreen("o2")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
+          <div style={{ fontSize:28, color:"#3b82f6", fontWeight:900 }}>O₂</div>
+          <div><div style={{ fontWeight:800, fontSize:15 }}>Historique bouteilles O²</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Échanges véhicules et livraisons fournisseur</div></div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChecklistHistoriqueSubView({ onBack, themeMode, toggleTheme }){
+  const [entries,setEntries]=useState([]);
+  const [loaded,setLoaded]=useState(false);
+
+  useEffect(()=>{
+    cleanOldHistorique();
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_historique"), snap=>{
+      const docs=snap.docs.map(d=>d.data());
+      docs.sort((a,b)=>b.timestamp-a.timestamp);
+      setEntries(docs);
+      setLoaded(true);
+    }, ()=>setLoaded(true));
+    return ()=>unsub();
+  },[]);
+
+  return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div style={{ fontWeight:800, fontSize:16 }}>📋 Historique checklists</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{ flex:1, padding:"14px", overflowY:"auto" }}>
+        {!loaded&&<div style={{ textAlign:"center", color:CK_C.muted, padding:"40px" }}>Chargement…</div>}
+        {loaded&&entries.length===0&&<div style={{ textAlign:"center", color:CK_C.muted, padding:"40px" }}>Aucune checklist envoyée pour l'instant</div>}
+        {entries.map(entry=>{
+          const allIssues=entry.issues||[];
+          const openIssues=allIssues.filter(i=>i.remaining>0);
+          const color=openIssues.length===0?CK_C.success:CK_C.danger;
+          return(
+            <div key={entry.id} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderLeft:`4px solid ${color}`, borderRadius:12, padding:"14px", marginBottom:10 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                <div>
+                  <div style={{ fontWeight:800, fontSize:14 }}>🚑 {entry.vehicle}</div>
+                  <div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>{entry.date} · Sem. {entry.semaine||entry.weekNumber} · {entry.amb1||"—"} / {entry.amb2||"—"}</div>
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <div style={{ fontSize:18 }}>{openIssues.length===0?"✅":"🔴"}</div>
+                  <div style={{ fontSize:10, color, fontWeight:700 }}>{allIssues.length===0?"Tout OK":openIssues.length===0?"Réappro OK":`${openIssues.length} en attente`}</div>
+                </div>
+              </div>
+              {allIssues.length>0&&(
+                <div style={{ marginTop:10, paddingTop:10, borderTop:`1px solid ${CK_C.border}` }}>
+                  {allIssues.map((iss,i)=>(
+                    <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12, padding:"4px 0" }}>
+                      <span style={{ color:CK_C.text }}>{iss.name}</span>
+                      <span style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        {iss.remaining>0&&<span style={{ color:CK_C.danger, fontWeight:700 }}>{iss.type==="missing"?`reste ${iss.remaining}`:"en attente"}</span>}
+                        {iss.remaining===0&&<span style={{ color:CK_C.success, fontWeight:700 }}>✓ résolu</span>}
+                        {iss.resupplied>0&&<span style={{ background:CK_C.successSoft, border:`1px solid ${CK_C.success}`, color:CK_C.success, borderRadius:5, padding:"1px 6px", fontSize:10, fontWeight:700 }}>+{iss.resupplied}</span>}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {entry.remarks&&<div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${CK_C.border}`, fontSize:11, color:CK_C.muted }}><strong style={{ color:CK_C.text }}>Remarques :</strong> {entry.remarks}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function O2HistoriqueSubView({ onBack, themeMode, toggleTheme }){
+  const [entries,setEntries]=useState([]);
+  const [loaded,setLoaded]=useState(false);
+  const [reserve,setReserve]=useState(O2_EMPTY_RESERVE);
+  const [confirmDelete,setConfirmDelete]=useState(null);
+
+  useEffect(()=>{
+    cleanOldO2Historique();
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_o2_historique"), snap=>{
+      const docs=snap.docs.map(d=>d.data());
+      docs.sort((a,b)=>b.timestamp-a.timestamp); // plus récent en haut
+      setEntries(docs);
+      setLoaded(true);
+    }, ()=>setLoaded(true));
+    return ()=>unsub();
+  },[]);
+
+  useEffect(()=>{
+    const unsub=onSnapshot(doc(dbChecklists,"dispatchai_o2","reserve"), snap=>{
+      const d=snap.exists()?snap.data():O2_EMPTY_RESERVE;
+      setReserve({ pleines:{...O2_EMPTY_RESERVE.pleines,...d.pleines}, vides:{...O2_EMPTY_RESERVE.vides,...d.vides} });
+    });
+    return ()=>unsub();
+  },[]);
+
+  return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div style={{ fontWeight:800, fontSize:16 }}><span style={{color:"#3b82f6"}}>O₂</span> Historique bouteilles</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{ display:"flex", gap:8, padding:"14px 14px 0" }}>
+        {O2_SIZES.map(s=>{
+          const low=(reserve.pleines[s]||0)<=2;
+          return(
+            <div key={s} style={{ flex:1, background:low?CK_C.dangerSoft:CK_C.panel, border:`1px solid ${low?CK_C.danger:CK_C.border}`, borderRadius:12, padding:"10px", textAlign:"center" }}>
+              <div style={{ fontSize:18, fontWeight:900, color:low?CK_C.danger:"#3b82f6" }}>{reserve.pleines[s]||0}</div>
+              <div style={{ fontSize:9, color:low?CK_C.danger:CK_C.muted, fontWeight:700 }}>{s} pleines</div>
+              <div style={{ fontSize:14, fontWeight:800, color:CK_C.muted, marginTop:4 }}>{reserve.vides[s]||0}</div>
+              <div style={{ fontSize:9, color:CK_C.muted, fontWeight:700 }}>{s} vides</div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ flex:1, padding:"14px", overflowY:"auto" }}>
+        {!loaded&&<div style={{ textAlign:"center", color:CK_C.muted, padding:"40px" }}>Chargement…</div>}
+        {loaded&&entries.length===0&&<div style={{ textAlign:"center", color:CK_C.muted, padding:"40px" }}>Aucun mouvement pour l'instant</div>}
+        {entries.map(entry=>{
+          const isFournisseur=entry.type==="fournisseur";
+          const sortieLines=O2_SIZES.filter(s=>(entry.sortie?.[s]||0)>0);
+          const entreeLines=O2_SIZES.filter(s=>(entry.entree?.[s]||0)>0);
+          return(
+            <div key={entry.id} style={{ background:CK_C.panel, border:`1px solid ${isFournisseur?"#3b82f6":CK_C.border}`, borderLeft:`4px solid ${isFournisseur?"#3b82f6":CK_C.muted}`, borderRadius:12, padding:"14px", marginBottom:10 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                <div style={{ fontWeight:isFournisseur?900:800, fontSize:isFournisseur?15:14, color:isFournisseur?"#3b82f6":CK_C.text, textTransform:isFournisseur?"uppercase":"none", letterSpacing:isFournisseur?"0.5px":"normal" }}>
+                  {isFournisseur?"🚚 Livraison fournisseur":(entry.vehicle==="Préventif"?"🧰 Préventif":`🚑 ${entry.vehicle}`)}
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <div style={{ fontSize:11, color:CK_C.muted }}>{entry.date}</div>
+                  <button onClick={()=>setConfirmDelete(entry)} style={{ background:CK_C.dangerSoft, border:`1px solid ${CK_C.danger}`, borderRadius:6, color:CK_C.danger, padding:"4px 8px", fontSize:11, cursor:"pointer" }}>🗑</button>
+                </div>
+              </div>
+              <div style={{ marginTop:8, fontSize:12 }}>
+                <div style={{ color:CK_C.danger, fontWeight:700, marginBottom:2 }}>Sortie :</div>
+                {sortieLines.length===0?<div style={{color:CK_C.muted,marginLeft:6}}>—</div>:sortieLines.map(s=>(<div key={s} style={{marginLeft:6}}>{s} : {entry.sortie[s]}</div>))}
+                <div style={{ color:CK_C.success, fontWeight:700, marginTop:6, marginBottom:2 }}>Entrée :</div>
+                {entreeLines.length===0?<div style={{color:CK_C.muted,marginLeft:6}}>—</div>:entreeLines.map(s=>(<div key={s} style={{marginLeft:6}}>{s} : {entry.entree[s]}</div>))}
+              </div>
+              {entry.name&&<div style={{ marginTop:8, paddingTop:8, borderTop:`1px solid ${CK_C.border}`, fontSize:11, color:CK_C.muted }}>Par : <strong style={{color:CK_C.text}}>{entry.name}</strong></div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {confirmDelete&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400}}>
+          <div style={{background:CK_C.panel,border:`1px solid ${CK_C.danger}`,borderRadius:16,padding:"24px",width:360,maxWidth:"92vw"}}>
+            <div style={{fontWeight:800,fontSize:16,marginBottom:10}}>🗑 Supprimer ce mouvement ?</div>
+            <div style={{fontSize:13,color:CK_C.muted,marginBottom:20}}>
+              Cette action supprime définitivement l'entrée et <strong style={{color:CK_C.text}}>annule son effet</strong> sur les compteurs de réserve (les quantités seront recalculées comme si ce mouvement n'avait jamais eu lieu).
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setConfirmDelete(null)} style={{flex:1,background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:9,color:CK_C.muted,padding:"11px",fontWeight:700,fontSize:13,cursor:"pointer"}}>Annuler</button>
+              <button onClick={async()=>{await deleteO2HistoriqueEntry(confirmDelete);setConfirmDelete(null);}} style={{flex:1,background:CK_C.danger,border:"none",borderRadius:9,color:"white",padding:"11px",fontWeight:700,fontSize:13,cursor:"pointer"}}>🗑 Supprimer</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ReapprovisionnementView({ onBack, themeMode, toggleTheme, emails, o2Emails }){
+  const [entries,setEntries]=useState([]);
+  const [selections,setSelections]=useState({}); // key -> qty sélectionnée (0/absent = pas sélectionné)
+  const [respName,setRespName]=useState("");
+  const [remarks,setRemarks]=useState("");
+  const [sending,setSending]=useState(false);
+  const [sentMsg,setSentMsg]=useState(null);
+  const [showRemarkModal,setShowRemarkModal]=useState(false);
+  const [remarkText,setRemarkText]=useState("");
+  const [remarkAuthor,setRemarkAuthor]=useState("");
+  const [remarkSending,setRemarkSending]=useState(false);
+  const [remarkSent,setRemarkSent]=useState(false);
+  const [screen,setScreen]=useState("home"); // "home" | "o2"
+
+  useEffect(()=>{
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_historique"), snap=>{
+      setEntries(snap.docs.map(d=>d.data()));
+    });
+    return ()=>unsub();
+  },[]);
+
+  const allManques=[];
+  entries.forEach(entry=>{
+    (entry.issues||[]).forEach((iss,idx)=>{
+      if(iss.remaining>0) allManques.push({ entryId:entry.id, issueIdx:idx, vehicle:entry.vehicle, ...iss });
+    });
+  });
+  const byVehicle=allManques.reduce((acc,item)=>{ (acc[item.vehicle]=acc[item.vehicle]||[]).push(item); return acc; },{});
+  const labelFor=(iss)=>iss.type==="missing"?`Manque : ${iss.remaining}`:iss.type==="nok_test"?"Test NOK":iss.type==="nok_seal"?"Scellé NOK":"Bouteille vide (0 bar)";
+
+  const key=(item)=>`${item.entryId}_${item.issueIdx}`;
+  const selectedCount=Object.values(selections).filter(v=>v>0).length;
+  const canSend=respName.trim().length>0 && selectedCount>0 && !sending;
+
+  const toggleBoolItem=(item)=>setSelections(p=>({...p,[key(item)]:p[key(item)]?0:1}));
+
+  const canSendRemark=remarkAuthor.trim().length>0 && remarkText.trim().length>0 && !remarkSending;
+  const handleSendRemark=async()=>{
+    if(!canSendRemark) return;
+    setRemarkSending(true);
+    try{
+      if(emails&&emails.length>0){
+        for(const to of emails){
+          await emailjs.send("service_mrs8v2l","template_2sxsq4j",{
+            to_email: to,
+            title: "Checklist Remarque",
+            content: `${remarkText.trim()}\n\n${remarkAuthor.trim()}`,
+          }, "Fhdx1kTE7vFmh4z07");
+        }
+      }
+    }catch(e){ console.error("Erreur envoi email remarque:", e); }
+    setRemarkSending(false);
+    setRemarkSent(true);
+    setTimeout(()=>{ setShowRemarkModal(false); setRemarkSent(false); setRemarkText(""); setRemarkAuthor(""); }, 1800);
+  };
+  const setQtyItem=(item,qty)=>setSelections(p=>({...p,[key(item)]:Math.max(0,Math.min(item.remaining,qty))}));
+
+  const handleSend=async()=>{
+    if(!canSend) return;
+    setSending(true);
+    const toResolve=allManques.filter(it=>(selections[key(it)]||0)>0);
+    for(const item of toResolve){
+      await resolveHistoriqueIssue(item.entryId,item.issueIdx,selections[key(item)]);
+    }
+    const vehicleEntries=Object.entries(byVehicle).map(([vehicle,items])=>{
+      const resolvedItems=items.filter(it=>(selections[key(it)]||0)>0);
+      if(resolvedItems.length===0) return null;
+      const itemLines=resolvedItems.map(it=>{
+        const qty=selections[key(it)];
+        return it.type==="missing"?`- ${it.name} : +${qty} réapprovisionné`:`- ${it.name} : résolu`;
+      });
+      const stillMissing=items.filter(it=>(it.remaining-(selections[key(it)]||0))>0);
+      const statusLine=stillMissing.length===0?"✅ Véhicule totalement réapprovisionné":`⚠ Encore en attente : ${stillMissing.map(i=>i.name).join(", ")}`;
+      return { vehicle, block:`${itemLines.join("\n")}\n${statusLine}` };
+    }).filter(Boolean);
+    if(vehicleEntries.length===0){ setSending(false); return; }
+    const firstVehicle=vehicleEntries[0].vehicle;
+    let content=`Véhicule : ${firstVehicle}\n\nMatériel manquant : \n${vehicleEntries[0].block}`;
+    vehicleEntries.slice(1).forEach(v=>{
+      content += `\n\nVéhicule : ${v.vehicle}\n\nMatériel manquant : \n${v.block}`;
+    });
+    if(remarks.trim()) content += `\n\nRemarques : ${remarks.trim()}`;
+    content += `\n\nRéapprovisionné par : ${respName.trim()}`;
+    try{
+      if(emails&&emails.length>0){
+        for(const to of emails){
+          await emailjs.send("service_mrs8v2l","template_2sxsq4j",{
+            to_email: to,
+            title: "Checklist Réapprovisionnement — Matériel manquant",
+            content: content,
+          }, "Fhdx1kTE7vFmh4z07");
+        }
+      }
+    }catch(e){ console.error("Erreur envoi email réappro:", e); }
+    setSending(false);
+    setSelections({});
+    setRemarks("");
+    setSentMsg("✅ Réapprovisionnement enregistré et envoyé !");
+    setTimeout(()=>setSentMsg(null),4000);
+  };
+
+  if(screen==="o2") return <O2ReserveView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme} emails={o2Emails}/>;
+
+  return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div>
+            <div style={{ fontWeight:800, fontSize:16 }}>📦 Réapprovisionnement</div>
+            <div style={{ fontSize:10, color:CK_C.muted }}>Accès libre — mode armoire</div>
+          </div>
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <div style={{ background:allManques.length===0?CK_C.successSoft:CK_C.dangerSoft, border:`1px solid ${allManques.length===0?CK_C.success:CK_C.danger}`, borderRadius:20, padding:"4px 12px", fontSize:11, fontWeight:700, color:allManques.length===0?CK_C.success:CK_C.danger }}>{allManques.length===0?"✅ Tout OK":`${allManques.length} manque(s)`}</div>
+          <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+        </div>
+      </div>
+
+      <div style={{ display:"flex", gap:10, padding:"16px 18px 0" }}>
+        <button onClick={()=>setScreen("o2")} style={{flex:1,background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:10,color:CK_C.text,padding:"13px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}><span style={{color:"#3b82f6",fontWeight:900}}>O₂</span> Réserve</button>
+        <button onClick={()=>setShowRemarkModal(true)} style={{flex:1,background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:10,color:CK_C.text,padding:"13px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📝 Remarque</button>
+      </div>
+
+      {allManques.length>0&&(
+        <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"12px 18px", display:"flex", gap:8 }}>
+          <input value={respName} onChange={e=>setRespName(e.target.value)} placeholder="Ton nom (obligatoire)*" style={{ flex:1, background:CK_C.bg, border:`1px solid ${respName.trim()?CK_C.border:CK_C.danger}`, borderRadius:8, padding:"8px 12px", color:CK_C.text, fontSize:13 }}/>
+        </div>
+      )}
+
+      <div style={{ flex:1, padding:"14px", overflowY:"auto", paddingBottom:allManques.length>0?140:14 }}>
+        {allManques.length===0&&(
+          <div style={{ textAlign:"center", padding:"60px 20px" }}>
+            <div style={{ fontSize:50, marginBottom:14 }}>✅</div>
+            <div style={{ fontSize:16, fontWeight:800, color:CK_C.success }}>Tout est réapprovisionné !</div>
+          </div>
+        )}
+        {Object.entries(byVehicle).map(([vehicle,items])=>(
+          <div key={vehicle} style={{ marginBottom:16 }}>
+            <div style={{ fontWeight:800, fontSize:14, marginBottom:8, display:"flex", alignItems:"center", gap:8 }}>
+              <span style={{ background:CK_C.red, color:"white", borderRadius:8, padding:"4px 10px", fontSize:13 }}>🚑 {vehicle}</span>
+              <span style={{ background:CK_C.dangerSoft, border:`1px solid ${CK_C.danger}`, borderRadius:20, padding:"2px 8px", fontSize:11, color:CK_C.danger, fontWeight:700 }}>{items.length} manque(s)</span>
+            </div>
+            {items.map(item=>{
+              const k=key(item);
+              const isQty=item.type==="missing";
+              const selQty=selections[k]||0;
+              const isSel=selQty>0;
+              return(
+                <div key={k} style={{ background:isSel?CK_C.successSoft:CK_C.panel, border:`1px solid ${isSel?CK_C.success:CK_C.border}`, borderRadius:10, padding:"12px 14px", marginBottom:8 }}>
+                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:14, fontWeight:700 }}>{item.name}</div>
+                      <div style={{ fontSize:11, color:CK_C.danger, marginTop:2 }}>{labelFor(item)}</div>
+                    </div>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      {isQty?(
+                        <div style={{ display:"flex", alignItems:"center", background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:10, overflow:"hidden" }}>
+                          <button onClick={()=>setQtyItem(item,selQty-1)} style={{ width:30, height:34, background:"transparent", border:"none", color:CK_C.muted, fontSize:16 }}>−</button>
+                          <div style={{ minWidth:28, textAlign:"center", fontSize:13, fontWeight:800, color:isSel?CK_C.success:CK_C.text, borderLeft:`1px solid ${CK_C.border}`, borderRight:`1px solid ${CK_C.border}`, height:34, display:"flex", alignItems:"center", justifyContent:"center" }}>{selQty}</div>
+                          <button onClick={()=>setQtyItem(item,selQty+1)} style={{ width:30, height:34, background:"transparent", border:"none", color:CK_C.muted, fontSize:16 }}>+</button>
+                        </div>
+                      ):(
+                        <button onClick={()=>toggleBoolItem(item)} style={{ background:isSel?CK_C.success:"transparent", border:`1.5px solid ${isSel?CK_C.success:CK_C.border}`, borderRadius:10, color:isSel?"white":CK_C.muted, padding:"8px 16px", fontWeight:800, fontSize:13, cursor:"pointer" }}>{isSel?"✓ Sélectionné":"Réapprovisionner"}</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        {allManques.length>0&&(
+          <div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:"14px", marginTop:6 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:CK_C.muted, textTransform:"uppercase", letterSpacing:"1px", marginBottom:8 }}>📝 Remarques</div>
+            <textarea value={remarks} onChange={e=>setRemarks(e.target.value)} placeholder="Observations sur ce réapprovisionnement..." rows={3} style={{ width:"100%", background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"10px 12px", color:CK_C.text, fontSize:13, resize:"none" }}/>
+          </div>
+        )}
+      </div>
+
+      {allManques.length>0&&(
+        <div style={{ position:"fixed", bottom:0, left:0, right:0, background:CK_C.panel, borderTop:`1px solid ${CK_C.border}`, padding:"13px 16px" }}>
+          {sentMsg&&<div style={{ background:CK_C.successSoft, border:`1px solid ${CK_C.success}`, borderRadius:8, padding:"8px 12px", marginBottom:8, fontSize:12, color:CK_C.success, fontWeight:700, textAlign:"center" }}>{sentMsg}</div>}
+          {!canSend&&!sentMsg&&(
+            <div style={{ background:CK_C.dangerSoft, border:`1px solid ${CK_C.danger}`, borderRadius:8, padding:"8px 12px", marginBottom:8, fontSize:11, color:CK_C.danger, fontWeight:600, textAlign:"center" }}>
+              {!respName.trim()?"⚠ Indique ton nom":"⚠ Sélectionne au moins un article réapprovisionné"}
+            </div>
+          )}
+          <button disabled={!canSend} onClick={handleSend} style={{ width:"100%", background:canSend?CK_C.success:CK_C.border, border:"none", borderRadius:10, color:"white", padding:"14px", fontWeight:800, fontSize:15, cursor:canSend?"pointer":"not-allowed", opacity:canSend?1:0.6 }}>
+            {sending?"Envoi…":`✅ Envoyer${selectedCount>0?` (${selectedCount})`:""}`}
+          </button>
+        </div>
+      )}
+
+      {showRemarkModal&&(
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:400 }}>
+          <div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:16, padding:"24px", width:400, maxWidth:"92vw" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:16 }}>
+              <div style={{ fontWeight:800, fontSize:16 }}>📝 Remarque</div>
+              <button onClick={()=>{setShowRemarkModal(false);setRemarkText("");setRemarkAuthor("");setRemarkSent(false);}} style={{ background:"transparent", border:"none", color:CK_C.muted, fontSize:22, cursor:"pointer" }}>×</button>
+            </div>
+            {remarkSent?(
+              <div style={{ background:CK_C.successSoft, border:`1px solid ${CK_C.success}`, borderRadius:10, padding:"14px", textAlign:"center", fontWeight:700, color:CK_C.success }}>✅ Remarque envoyée !</div>
+            ):(
+              <>
+                <div style={{ marginBottom:10 }}>
+                  <div style={{ fontSize:10, color:CK_C.muted, marginBottom:5, textTransform:"uppercase" }}>Ton nom*</div>
+                  <input value={remarkAuthor} onChange={e=>setRemarkAuthor(e.target.value)} placeholder="Nom (obligatoire)" style={{ width:"100%", background:CK_C.bg, border:`1px solid ${remarkAuthor.trim()?CK_C.border:CK_C.danger}`, borderRadius:8, padding:"9px 12px", color:CK_C.text, fontSize:13 }}/>
+                </div>
+                <div style={{ marginBottom:16 }}>
+                  <div style={{ fontSize:10, color:CK_C.muted, marginBottom:5, textTransform:"uppercase" }}>Remarque*</div>
+                  <textarea value={remarkText} onChange={e=>setRemarkText(e.target.value)} placeholder="Une remarque sur le matériel, une checklist..." rows={4} style={{ width:"100%", background:CK_C.bg, border:`1px solid ${remarkText.trim()?CK_C.border:CK_C.danger}`, borderRadius:8, padding:"9px 12px", color:CK_C.text, fontSize:13, resize:"none" }}/>
+                </div>
+                <button disabled={!canSendRemark} onClick={handleSendRemark} style={{ width:"100%", background:canSendRemark?CK_C.success:CK_C.border, border:"none", borderRadius:10, color:"white", padding:"12px", fontWeight:800, fontSize:14, cursor:canSendRemark?"pointer":"not-allowed", opacity:canSendRemark?1:0.6 }}>
+                  {remarkSending?"Envoi…":"✅ Envoyer"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+const O2_VEHICLES=["ALPHA 1","ALPHA 2","ALPHA 3","ALPHA 4","ALPHA 5","ALPHA 6","ALPHA 7","Préventif"];
+
+function BottleStepper({label,value,onChange,max=2}){
+  return (
+    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"9px 0"}}>
+      <div style={{fontSize:13,fontWeight:700}}>{label}</div>
+      <div style={{display:"flex",alignItems:"center",background:CK_C.bg,border:`1px solid ${CK_C.border}`,borderRadius:10,overflow:"hidden"}}>
+        <button onClick={()=>onChange(Math.max(0,value-1))} style={{width:34,height:36,background:"transparent",border:"none",color:CK_C.muted,fontSize:18}}>−</button>
+        <div style={{minWidth:32,textAlign:"center",fontWeight:800,fontSize:15,color:value>0?"#3b82f6":CK_C.text}}>{value}</div>
+        <button onClick={()=>onChange(Math.min(max,value+1))} style={{width:34,height:36,background:"transparent",border:"none",color:CK_C.muted,fontSize:18}}>+</button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// RÉSERVE OXYGÈNE — compteurs, échanges véhicules, livraison fournisseur
+// ═══════════════════════════════════════
+function O2ReserveView({ onBack, themeMode, toggleTheme, emails }){
+  const [reserve,setReserve]=useState(O2_EMPTY_RESERVE);
+  const [screen,setScreen]=useState("home"); // home | vehicle | fournisseur | historique
+  const [selectedVehicle,setSelectedVehicle]=useState(null);
+  const [sortie,setSortie]=useState({B2:0,B5:0,B10:0});
+  const [entree,setEntree]=useState({B2:0,B5:0,B10:0});
+  const [vName,setVName]=useState("");
+  const [saving,setSaving]=useState(false);
+  const [savedMsg,setSavedMsg]=useState(null);
+  const [fSortie,setFSortie]=useState({B2:0,B5:0,B10:0});
+  const [fEntree,setFEntree]=useState({B2:0,B5:0,B10:0});
+  const [fSaving,setFSaving]=useState(false);
+
+  useEffect(()=>{
+    const unsub=onSnapshot(doc(dbChecklists,"dispatchai_o2","reserve"), snap=>{
+      const d=snap.exists()?snap.data():O2_EMPTY_RESERVE;
+      setReserve({ pleines:{...O2_EMPTY_RESERVE.pleines,...d.pleines}, vides:{...O2_EMPTY_RESERVE.vides,...d.vides} });
+    });
+    return ()=>unsub();
+  },[]);
+
+  const resetVehicleForm=()=>{ setSortie({B2:0,B5:0,B10:0}); setEntree({B2:0,B5:0,B10:0}); setVName(""); };
+  const canSendVehicle = vName.trim().length>0 && (Object.values(sortie).some(v=>v>0)||Object.values(entree).some(v=>v>0)) && !saving;
+
+  const handleSendVehicle=async()=>{
+    if(!canSendVehicle) return;
+    setSaving(true);
+    const {current,next}=await applyO2Movement("vehicule", sortie, entree, { vehicle:selectedVehicle, name:vName.trim() });
+    await checkAndSendO2LowStock(current,next,emails);
+    setSaving(false);
+    setSavedMsg("✅ Mouvement enregistré");
+    resetVehicleForm();
+    setTimeout(()=>{ setSavedMsg(null); setScreen("home"); setSelectedVehicle(null); }, 1200);
+  };
+
+  const canSendFournisseur = (Object.values(fSortie).some(v=>v>0)||Object.values(fEntree).some(v=>v>0)) && !fSaving;
+  const handleSendFournisseur=async()=>{
+    if(!canSendFournisseur) return;
+    setFSaving(true);
+    const {current,next}=await applyO2Movement("fournisseur", fSortie, fEntree, {});
+    await checkAndSendO2LowStock(current,next,emails);
+    setFSaving(false);
+    setFSortie({B2:0,B5:0,B10:0});
+    setFEntree({B2:0,B5:0,B10:0});
+    setScreen("home");
+  };
+
+  const headerBar = (title) => (
+    <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+        <button onClick={()=>{ if(screen==="home"){onBack();}else{setScreen("home");setSelectedVehicle(null);resetVehicleForm();} }} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+        <div style={{ fontWeight:800, fontSize:16 }}>{title}</div>
+      </div>
+      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+        {screen==="home"&&<button onClick={()=>setScreen("historique")} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📅 Historique</button>}
+        {screen==="home"&&<button onClick={()=>setScreen("fournisseur")} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>🚚 Livraison fournisseur</button>}
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+    </div>
+  );
+
+  if(screen==="historique"){
+    return <O2HistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  }
+
+  if(screen==="fournisseur"){
+    return(
+      <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+        <style>{CK_GS}</style>
+        {headerBar("🚚 Livraison fournisseur")}
+        <div style={{ flex:1, padding:"18px", maxWidth:420, margin:"0 auto", width:"100%" }}>
+          <div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:"16px", marginBottom:14 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:CK_C.danger, textTransform:"uppercase", marginBottom:4 }}>Sortie</div>
+            <div style={{ fontSize:10, color:CK_C.muted, marginBottom:6 }}>Vides reprises par le fournisseur</div>
+            {O2_SIZES.map(s=>(<BottleStepper key={s} label={s} value={fSortie[s]} onChange={v=>setFSortie(p=>({...p,[s]:v}))} max={99}/>))}
+          </div>
+          <div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:"16px", marginBottom:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:CK_C.success, textTransform:"uppercase", marginBottom:4 }}>Entrée</div>
+            <div style={{ fontSize:10, color:CK_C.muted, marginBottom:6 }}>Pleines livrées par le fournisseur</div>
+            {O2_SIZES.map(s=>(<BottleStepper key={s} label={s} value={fEntree[s]} onChange={v=>setFEntree(p=>({...p,[s]:v}))} max={99}/>))}
+          </div>
+          <button disabled={!canSendFournisseur} onClick={handleSendFournisseur} style={{ width:"100%", background:canSendFournisseur?CK_C.success:CK_C.border, border:"none", borderRadius:10, color:"white", padding:"14px", fontWeight:800, fontSize:15, cursor:canSendFournisseur?"pointer":"not-allowed", opacity:canSendFournisseur?1:0.6 }}>
+            {fSaving?"Envoi…":"✅ Enregistrer"}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if(screen==="vehicle"&&selectedVehicle){
+    return(
+      <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+        <style>{CK_GS}</style>
+        {headerBar(selectedVehicle==="Préventif"?"🧰 Préventif":`🚑 ${selectedVehicle}`)}
+        <div style={{ flex:1, padding:"18px", maxWidth:420, margin:"0 auto", width:"100%" }}>
+          {savedMsg?(
+            <div style={{ background:CK_C.successSoft, border:`1px solid ${CK_C.success}`, borderRadius:10, padding:"16px", textAlign:"center", fontWeight:700, color:CK_C.success }}>{savedMsg}</div>
+          ):(
+            <>
+              <div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:"16px", marginBottom:14 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:CK_C.danger, textTransform:"uppercase", marginBottom:4 }}>Sortie</div>
+                <div style={{ fontSize:10, color:CK_C.muted, marginBottom:6 }}>Bouteille(s) retirée(s) du véhicule</div>
+                {O2_SIZES.map(s=>(<BottleStepper key={s} label={s} value={sortie[s]} onChange={v=>setSortie(p=>({...p,[s]:v}))}/>))}
+              </div>
+              <div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:"16px", marginBottom:14 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:CK_C.success, textTransform:"uppercase", marginBottom:4 }}>Entrée</div>
+                <div style={{ fontSize:10, color:CK_C.muted, marginBottom:6 }}>Bouteille(s) installée(s) dans le véhicule</div>
+                {O2_SIZES.map(s=>(<BottleStepper key={s} label={s} value={entree[s]} onChange={v=>setEntree(p=>({...p,[s]:v}))}/>))}
+              </div>
+              <input value={vName} onChange={e=>setVName(e.target.value)} placeholder="Ton nom (obligatoire)*" style={{ width:"100%", background:CK_C.bg, border:`1px solid ${vName.trim()?CK_C.border:CK_C.danger}`, borderRadius:8, padding:"10px 12px", color:CK_C.text, fontSize:13, marginBottom:14, boxSizing:"border-box" }}/>
+              <button disabled={!canSendVehicle} onClick={handleSendVehicle} style={{ width:"100%", background:canSendVehicle?CK_C.success:CK_C.border, border:"none", borderRadius:10, color:"white", padding:"14px", fontWeight:800, fontSize:15, cursor:canSendVehicle?"pointer":"not-allowed", opacity:canSendVehicle?1:0.6 }}>
+                {saving?"Envoi…":"✅ Enregistrer"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      {headerBar("O₂ Réserve")}
+      <div style={{ display:"flex", gap:8, padding:"16px 18px 0" }}>
+        {O2_SIZES.map(s=>{
+          const low=(reserve.pleines[s]||0)<=2;
+          return(
+            <div key={s} style={{ flex:1, background:low?CK_C.dangerSoft:CK_C.panel, border:`1px solid ${low?CK_C.danger:CK_C.border}`, borderRadius:12, padding:"12px", textAlign:"center" }}>
+              <div style={{ fontSize:22, fontWeight:900, color:low?CK_C.danger:"#3b82f6" }}>{reserve.pleines[s]||0}</div>
+              <div style={{ fontSize:10, color:low?CK_C.danger:CK_C.muted, fontWeight:700, marginTop:2 }}>{s} pleines</div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ flex:1, padding:"18px", maxWidth:480, margin:"0 auto", width:"100%" }}>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          {O2_VEHICLES.map(v=>(
+            <button key={v} onClick={()=>{setSelectedVehicle(v);setScreen("vehicle");}} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:"18px 10px", color:CK_C.text, fontWeight:700, fontSize:14, cursor:"pointer" }}>
+              {v==="Préventif"?"🧰 Préventif":`🚑 ${v}`}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChecklistsHome({ onBack, checklists, emails, o2Emails, themeMode, toggleTheme }) {
   const [selected, setSelected] = useState(null);
+  const [screen, setScreen] = useState("home"); // "home" | "historique" | "reappro"
   const statuses = useChecklistsWeekStatus(checklists);
 
   if (selected) return <ChecklistView vehicleName={selected} onBack={() => setSelected(null)} checklists={checklists} emails={emails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if (screen==="historique") return <HistoriqueView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if (screen==="reappro") return <ReapprovisionnementView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme} emails={emails} o2Emails={o2Emails}/>;
 
   return (
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
@@ -3408,16 +3485,28 @@ function ChecklistsHome({ onBack, checklists, emails, themeMode, toggleTheme }) 
             <div style={{ fontSize:10, color:CK_C.muted, textTransform:"uppercase", letterSpacing:"1.2px" }}>Sélectionnez votre véhicule</div>
           </div>
         </div>
-        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <button onClick={()=>setScreen("historique")} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"7px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>📅 Historique</button>
+          <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
+        </div>
       </div>
+      <div style={{ textAlign:"center", padding:"10px 20px 0", fontSize:12, color:CK_C.muted, fontWeight:600 }}>Semaine {getChecklistWeekNumber()}</div>
       {isFirstWeekOfMonth()&&(
         <div style={{ background:"#f59e0b20", borderBottom:`1px solid #f59e0b`, padding:"9px 20px", fontSize:12, fontWeight:700, color:"#fbbf24", textAlign:"center" }}>
           📅 1ère semaine du mois — les péremptions sont obligatoires
         </div>
       )}
       <div style={{ flex:1, padding:"24px 20px", maxWidth:480, margin:"0 auto", width:"100%" }}>
+        <button onClick={()=>setScreen("reappro")} style={{ width:"100%", marginBottom:16, background:CK_C.panel, border:`2px dashed ${CK_C.border}`, borderRadius:13, padding:"14px 20px", color:CK_C.muted, display:"flex", alignItems:"center", justifyContent:"center", gap:10, fontWeight:700, fontSize:14, cursor:"pointer" }}>
+          <span>📦</span> Accès Réapprovisionnement
+        </button>
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          {Object.keys(checklists).map(name => {
+          {Object.keys(checklists).sort((a,b)=>{
+            const aDone=statuses[a]?.complete?1:0;
+            const bDone=statuses[b]?.complete?1:0;
+            if(aDone!==bDone) return aDone-bDone;
+            return a.localeCompare(b);
+          }).map(name => {
             const st = statuses[name];
             const dotColor = st?.complete ? CK_C.success : st?.started ? "#f59e0b" : CK_C.muted;
             const dotLabel = st?.complete ? "✅ Complète" : st?.started ? `🟠 En cours (${st.progress}%)` : "Non commencée";
@@ -3478,6 +3567,150 @@ function getChecklistWeekKey(){
   monday.setHours(0,0,0,0);
   return monday.toISOString().slice(0,10);
 }
+// Numéro de semaine ISO (ex: "32" pour la semaine du 3 août 2026), calculé
+// à partir du lundi de la semaine en cours.
+function getChecklistWeekNumber(){
+  const monday=new Date(getChecklistWeekKey()+"T00:00:00");
+  const jan4=new Date(monday.getFullYear(),0,4);
+  const startOfWeek1=new Date(jan4);
+  startOfWeek1.setDate(jan4.getDate()-((jan4.getDay()||7)-1));
+  const weekNum=Math.round((monday-startOfWeek1)/(7*86400000))+1;
+  return weekNum;
+}
+// Enregistre une checklist envoyée dans l'historique (collection Firestore
+// dédiée). Chaque manque garde un "remaining" indépendant pour permettre un
+// réapprovisionnement partiel/progressif après coup.
+async function saveChecklistHistorique(entry){
+  try{
+    await setDoc(doc(dbChecklists,"dispatchai_historique",entry.id), entry);
+  }catch(e){ console.error("Erreur sauvegarde historique:", e); }
+}
+// Purge les entrées de plus de 24 mois (écart de mois calendaires, pas de
+// jours — ex: en janvier 2028, tout ce qui date de janvier 2026 ou avant
+// est supprimé).
+async function cleanOldHistorique(){
+  try{
+    const snap=await getDocs(collection(dbChecklists,"dispatchai_historique"));
+    const now=new Date();
+    const toDelete=[];
+    snap.forEach(d=>{
+      const data=d.data();
+      const entryDate=new Date(data.dateISO||data.timestamp);
+      const monthsDiff=(now.getFullYear()-entryDate.getFullYear())*12+(now.getMonth()-entryDate.getMonth());
+      if(monthsDiff>=24) toDelete.push(deleteDoc(doc(dbChecklists,"dispatchai_historique",d.id)));
+    });
+    if(toDelete.length>0) await Promise.all(toDelete);
+  }catch(e){ console.error("Erreur nettoyage historique:", e); }
+}
+// Marque un manque précis (par index dans l'entrée) comme réapprovisionné
+// d'une quantité donnée : diminue le restant et cumule le total réapprovisionné.
+async function resolveHistoriqueIssue(entryId, issueIdx, qtyResupplied){
+  try{
+    const ref=doc(dbChecklists,"dispatchai_historique",entryId);
+    const snap=await getDoc(ref);
+    if(!snap.exists()) return;
+    const data=snap.data();
+    const issues=(data.issues||[]).map((iss,i)=>{
+      if(i!==issueIdx) return iss;
+      const newRemaining=Math.max(0,(iss.remaining||0)-qtyResupplied);
+      const newResupplied=(iss.resupplied||0)+qtyResupplied;
+      return {...iss, remaining:newRemaining, resupplied:newResupplied};
+    });
+    await setDoc(ref, {...data, issues}, {merge:true});
+  }catch(e){ console.error("Erreur réappro:", e); }
+}
+
+// ═══════════════════════════════════════
+// RÉSERVE OXYGÈNE — compteurs Pleines/Vides par taille + journal des mouvements
+// ═══════════════════════════════════════
+const O2_SIZES=["B2","B5","B10"];
+const O2_EMPTY_RESERVE={ pleines:{B2:0,B5:0,B10:0}, vides:{B2:0,B5:0,B10:0} };
+
+// Applique un mouvement de bouteilles à la réserve et journalise l'action.
+// type "vehicule" : sortie (bouteille retirée du véhicule) → +1 vide ; entrée (bouteille installée) → -1 pleine.
+// type "fournisseur" : sortie (vide reprise par le fournisseur) → -1 vide ; entrée (pleine livrée) → +1 pleine.
+async function applyO2Movement(type, sortie, entree, extra){
+  try{
+    const ref=doc(dbChecklists,"dispatchai_o2","reserve");
+    const snap=await getDoc(ref);
+    const current=snap.exists()?snap.data():O2_EMPTY_RESERVE;
+    const currentPleines={...O2_EMPTY_RESERVE.pleines,...current.pleines};
+    const next={ pleines:{...currentPleines}, vides:{...O2_EMPTY_RESERVE.vides,...current.vides} };
+    O2_SIZES.forEach(s=>{
+      if(type==="vehicule"){
+        next.vides[s]=(next.vides[s]||0)+(sortie[s]||0);
+        next.pleines[s]=Math.max(0,(next.pleines[s]||0)-(entree[s]||0));
+      }else{
+        next.vides[s]=Math.max(0,(next.vides[s]||0)-(sortie[s]||0));
+        next.pleines[s]=(next.pleines[s]||0)+(entree[s]||0);
+      }
+    });
+    await setDoc(ref,next);
+    const logId=`${type}_${Date.now()}`;
+    await setDoc(doc(dbChecklists,"dispatchai_o2_historique",logId),{
+      id:logId, type, sortie, entree,
+      date:new Date().toLocaleDateString("fr-FR"), dateISO:new Date().toISOString(), timestamp:Date.now(),
+      ...extra,
+    });
+    return { current:currentPleines, next:next.pleines };
+  }catch(e){ console.error("Erreur mouvement O2:", e); return { current:{}, next:{} }; }
+}
+// Supprime une entrée de l'historique O2 et annule son effet sur les
+// compteurs de réserve (pour pouvoir nettoyer des tests sans fausser le stock).
+async function deleteO2HistoriqueEntry(entry){
+  try{
+    const ref=doc(dbChecklists,"dispatchai_o2","reserve");
+    const snap=await getDoc(ref);
+    const current=snap.exists()?snap.data():O2_EMPTY_RESERVE;
+    const next={ pleines:{...O2_EMPTY_RESERVE.pleines,...current.pleines}, vides:{...O2_EMPTY_RESERVE.vides,...current.vides} };
+    const sortie=entry.sortie||{}, entree=entry.entree||{};
+    O2_SIZES.forEach(s=>{
+      if(entry.type==="vehicule"){
+        next.vides[s]=Math.max(0,(next.vides[s]||0)-(sortie[s]||0));
+        next.pleines[s]=(next.pleines[s]||0)+(entree[s]||0);
+      }else{
+        next.vides[s]=(next.vides[s]||0)+(sortie[s]||0);
+        next.pleines[s]=Math.max(0,(next.pleines[s]||0)-(entree[s]||0));
+      }
+    });
+    await setDoc(ref,next);
+    await deleteDoc(doc(dbChecklists,"dispatchai_o2_historique",entry.id));
+  }catch(e){ console.error("Erreur suppression historique O2:", e); }
+}
+
+async function checkAndSendO2LowStock(currentPleines, nextPleines, emails){
+  const justDropped = O2_SIZES.some(s => (nextPleines[s]||0) < (currentPleines[s]||0) && (nextPleines[s]||0)<=2);
+  if(!justDropped) return;
+  if(!emails || emails.length===0) return;
+  const lowSizes = O2_SIZES.filter(s => (nextPleines[s]||0)<=2);
+  if(lowSizes.length===0) return;
+  const stockText = lowSizes.map(s=>`${s} : ${nextPleines[s]} restante(s)`).join("\n");
+  try{
+    for(const to of emails){
+      await emailjs.send("service_mrs8v2l","template_2sxsq4j",{
+        to_email: to,
+        title: "Alerte Stock O²",
+        content: `⚠ Stock bas\n\n${stockText}`,
+      }, "Fhdx1kTE7vFmh4z07");
+    }
+  }catch(e){ console.error("Erreur alerte stock O2:", e); }
+}
+// Purge les entrées O2 de plus de 24 mois (même règle que l'historique checklists).
+async function cleanOldO2Historique(){
+  try{
+    const snap=await getDocs(collection(dbChecklists,"dispatchai_o2_historique"));
+    const now=new Date();
+    const toDelete=[];
+    snap.forEach(d=>{
+      const data=d.data();
+      const entryDate=new Date(data.dateISO||data.timestamp);
+      const monthsDiff=(now.getFullYear()-entryDate.getFullYear())*12+(now.getMonth()-entryDate.getMonth());
+      if(monthsDiff>=24) toDelete.push(deleteDoc(doc(dbChecklists,"dispatchai_o2_historique",d.id)));
+    });
+    if(toDelete.length>0) await Promise.all(toDelete);
+  }catch(e){ console.error("Erreur nettoyage historique O2:", e); }
+}
+
 // Vrai si le lundi de la semaine en cours tombe dans les 7 premiers jours
 // du mois (= c'est la 1ère semaine du mois, où les péremptions deviennent
 // obligatoires).
@@ -3503,17 +3736,31 @@ function checklistPeremptionKeys(checklistsData, vehicleName){
 // des coches actuelles. "Complète" exige aussi, la 1ère semaine du mois,
 // que toutes les dates de péremption soient renseignées.
 function checklistStatus(checklistsData, vehicleName, checks){
+  const data=checklistsData[vehicleName];
   const total=checklistTotalItems(checklistsData, vehicleName);
-  const checkedCount=Object.values(checks||{}).filter(c=>c.found!==undefined).length;
+  const checkedCount=Object.values(checks||{}).filter(c=>c.found!=null).length;
   const progress=total>0?Math.round((checkedCount/total)*100):0;
-  let peremptionOk=true;
-  if(isFirstWeekOfMonth()){
-    const pkeys=checklistPeremptionKeys(checklistsData, vehicleName);
-    peremptionOk=pkeys.every(k=>checks?.[k]?.date);
+  const firstWeek=isFirstWeekOfMonth();
+  let allValidated=!!data;
+  if(data){
+    outer:
+    for(const sec of data.sections){
+      for(const sh of sec.shelves){
+        for(const item of sh.items){
+          if(item.okOnly) continue;
+          const key=`${sec.id}__${sh.id}__${item.n}`;
+          const state=(checks||{})[key];
+          if(!state||state.found==null){ allValidated=false; break outer; }
+          if(item.t&&state.testOk==null){ allValidated=false; break outer; }
+          if(item.s&&state.sealOk==null){ allValidated=false; break outer; }
+          if(item.p&&firstWeek&&!state.date){ allValidated=false; break outer; }
+        }
+      }
+    }
   }
-  const complete=progress===100&&peremptionOk;
+  const complete=progress===100&&allValidated;
   const started=checkedCount>0;
-  return { progress, checkedCount, total, complete, started, peremptionOk };
+  return { progress, checkedCount, total, complete, started };
 }
 // Abonnement temps réel au statut de la checklist de chaque véhicule pour
 // la semaine en cours (partagé entre toutes les tablettes via Firestore).
@@ -3812,6 +4059,7 @@ export default function App(){
   const [nextId,      setNextId]      = useFirestoreState("nextId", 100);
   const [checklistsData, setChecklistsData] = useFirestoreState("checklistsData", INIT_CHECKLISTS);
   const [checklistEmails, setChecklistEmails] = useFirestoreState("checklistEmails", []);
+  const [o2Emails, setO2Emails] = useFirestoreState("o2Emails", []);
   const [appView,     setAppView]     = useState("menu");
   const [showPin,     setShowPin]     = useState(false);
   const [showDispMenu,setShowDispMenu] = useState(false);
@@ -3904,8 +4152,8 @@ export default function App(){
   if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} tarifs={tarifs} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="planning") return <PlanningView courses={courses} setCourses={setCourses} vehicles={vehicles} patients={patientsHabituels} setPatients={setPatientsHabituels} categories={patientCategories} setCategories={setPatientCategories} conventions={conventions} transportTypes={transportTypes} equipements={equipements} pending={pending} onAssignPending={validateCourse} onGoFormulaire={()=>setAppView("formulaire")} onBack={backToSubMenu} onSchedule={submitFromPatientHabituel} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
