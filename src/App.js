@@ -3723,15 +3723,6 @@ function checklistTotalItems(checklistsData, vehicleName){
   if(!data) return 0;
   return data.sections.flatMap(s=>s.shelves.flatMap(sh=>sh.items)).length;
 }
-function checklistPeremptionKeys(checklistsData, vehicleName){
-  const data=checklistsData[vehicleName];
-  if(!data) return [];
-  const keys=[];
-  data.sections.forEach(s=>s.shelves.forEach(sh=>sh.items.forEach(item=>{
-    if(item.p) keys.push(`${s.id}__${sh.id}__${item.n}`);
-  })));
-  return keys;
-}
 // Calcule l'état d'une checklist (progression, complète ou non) à partir
 // des coches actuelles. "Complète" exige aussi, la 1ère semaine du mois,
 // que toutes les dates de péremption soient renseignées.
