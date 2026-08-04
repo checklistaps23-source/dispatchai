@@ -342,7 +342,7 @@ function PinModal({onSuccess,onCancel}){
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:10,marginBottom:14}}>
           {["1","2","3","4","5","6","7","8","9","","0","del"].map((k,i)=>(
             <button key={i} onClick={()=>k&&handleKey(k)}
-              style={{padding:"14px",borderRadius:10,border:`1px solid ${C.border}`,background:k?"":C.bg,color:k==="del"?C.danger:C.text,fontSize:k==="del"?18:20,fontWeight:700,cursor:k?"pointer":"default"}}>
+              style={{padding:"14px",borderRadius:10,border:`1px solid ${C.border}`,background:k?C.panel2:C.bg,color:k==="del"?C.danger:C.text,fontSize:k==="del"?18:20,fontWeight:700,cursor:k?"pointer":"default"}}>
               {k==="del"?"⌫":k}
             </button>
           ))}
@@ -1488,6 +1488,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
   const [showBons,setShowBons]=useState(false);
   const [showContacts,setShowContacts]=useState(false);
   const [showPlans,setShowPlans]=useState(false);
+  const [viewingPlan,setViewingPlan]=useState(null);
   const [bigContact,setBigContact]=useState(null);
   const [showTransfer,setShowTransfer]=useState(null);
   const [confirmTransfer,setConfirmTransfer]=useState(null);
@@ -1834,7 +1835,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
 
       {showPlans&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200}}>
-          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:"24px",width:520,maxWidth:"92vw",maxHeight:"90vh",display:"flex",flexDirection:"column",animation:"pop 0.2s ease"}}>
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:"24px",width:420,maxWidth:"92vw",maxHeight:"90vh",display:"flex",flexDirection:"column",animation:"pop 0.2s ease"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
               <div style={{fontWeight:800,fontSize:17}}>🗺️ Plans des sites</div>
               <button onClick={()=>setShowPlans(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:22,cursor:"pointer"}}>×</button>
@@ -1847,14 +1848,27 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
                   <div style={{fontSize:12,marginTop:8,color:C.muted}}>Ajoutez des plans dans Paramètres</div>
                 </div>
                 :plans.map((p,i)=>(
-                  <div key={i} style={{marginBottom:16}}>
-                    <div style={{fontWeight:700,fontSize:14,marginBottom:8}}>🗺️ {p.nom}</div>
-                    <iframe src={p.data} style={{width:"100%",height:400,border:`1px solid ${C.border}`,borderRadius:9}} title={p.nom}/>
-                  </div>
+                  <button key={i} onClick={()=>setViewingPlan(p)} style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 16px",marginBottom:8,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:20}}>🗺️</span>
+                      <span style={{fontWeight:700,fontSize:14,color:C.text}}>{p.nom}</span>
+                    </div>
+                    <span style={{color:C.blue,fontSize:12,fontWeight:700}}>🔍 Ouvrir</span>
+                  </button>
                 ))
               }
             </div>
           </div>
+        </div>
+      )}
+
+      {viewingPlan&&(
+        <div style={{position:"fixed",inset:0,background:"#000",zIndex:250,display:"flex",flexDirection:"column"}}>
+          <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div style={{fontWeight:800,fontSize:15,color:C.text}}>🗺️ {viewingPlan.nom}</div>
+            <button onClick={()=>setViewingPlan(null)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,padding:"8px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>✕ Fermer</button>
+          </div>
+          <iframe src={viewingPlan.data} style={{flex:1,width:"100%",border:"none",background:"#fff"}} title={viewingPlan.nom}/>
         </div>
       )}
 
