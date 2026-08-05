@@ -1279,7 +1279,6 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
   useEffect(()=>{if(pendingToday.length>0)setShowPending(true);},[pendingToday.length]);
 
   const activeVehicles=vehicles.filter(v=>v.active);
-  const filteredV=activeVehicles.filter(v=>filterType==="tous"?true:v.type===filterType);
   const dailyActiveNames=useDailyActiveVehicleNames();
   // Liste latérale : véhicules "en service" (checklist du jour envoyée) en
   // haut, puis les autres véhicules actifs, puis les hors service (rouge) tout en bas.
