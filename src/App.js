@@ -5180,8 +5180,6 @@ export default function App(){
     });
   };
 
-  const activeVehicles=vehicles.filter(v=>v.active);
-
   if(showPin) return <PinModal onSuccess={()=>{setShowPin(false);setAppView("parametres");}} onCancel={()=>setShowPin(false)}/>;
   if(appView==="formulaire") return <FormulaireView onBack={backToSubMenu} onSubmit={submitCourse} conventions={conventions} equipements={equipements} transportTypes={transportTypes} contacts={contacts} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} tarifs={tarifs} themeMode={themeMode} toggleTheme={toggleTheme}/>;
