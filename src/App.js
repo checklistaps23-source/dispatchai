@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import React from "react";
 import { db } from "./firebase";
 import { dbChecklists } from "./firebaseChecklists";
-import { doc, onSnapshot, setDoc, getDoc, getDocs, deleteDoc, collection } from "firebase/firestore";
+import { doc, onSnapshot, setDoc, getDoc, getDocs, deleteDoc, collection, query, where, addDoc } from "firebase/firestore";
 import emailjs from "@emailjs/browser";
 
 // Hook générique : synchronise un state React avec un document Firestore
@@ -116,6 +116,17 @@ function getStoredThemeMode(){
   try{ return localStorage.getItem("aps_theme_mode")||"dark"; }catch(e){ return "dark"; }
 }
 applyThemeMode(getStoredThemeMode());
+
+// Persistance de la session Chauffeur dans le stockage local : si la
+// tablette recharge la page (bug, wifi, batterie) ou perd la connexion,
+// on retrouve automatiquement le chauffeur/véhicule/écran en cours, sans
+// être "déconnecté" et renvoyé au menu principal.
+function lsGet(key, fallback){
+  try{ const v=localStorage.getItem(key); return v!==null?JSON.parse(v):fallback; }catch(e){ return fallback; }
+}
+function lsSet(key, value){
+  try{ localStorage.setItem(key, JSON.stringify(value)); }catch(e){}
+}
 
 const GS = `
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
@@ -365,6 +376,11 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const [newTypeIcon,setNewTypeIcon]=useState("🚑");
   const [subTab,setSubTab]=useState("amb");
   const [editingChecklist,setEditingChecklist]=useState(null); // {key, isNew, norme, edition, sections}
+  const [editingDailyVehicle,setEditingDailyVehicle]=useState(null); // vehicle object being edited
+  const [editingDailySections,setEditingDailySections]=useState([]);
+  const [dailyNewItemLabel,setDailyNewItemLabel]=useState({});
+  const [dailyNewSectionLabel,setDailyNewSectionLabel]=useState("");
+  const [dailySaving,setDailySaving]=useState(false);
   const [confirmDeleteChecklist,setConfirmDeleteChecklist]=useState(null); // vehicle name pending delete
   const [newEmail,setNewEmail]=useState("");
   const [newO2Email,setNewO2Email]=useState("");
@@ -397,7 +413,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const removeItem=(sIdx,shIdx,itIdx)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.filter((_,k)=>k!==itIdx)}:sh)}:s)}));
   const updateItem=(sIdx,shIdx,itIdx,field,val)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.map((it,k)=>k===itIdx?{...it,[field]:val}:it)}:sh)}:s)}));
 
-  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"stagiaires",icon:"🎓",label:"Stag/Form."},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"emails",icon:"✉️",label:"Emails"}];
+  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"stagiaires",icon:"🎓",label:"Stag/Form."},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"daily",icon:"🚑",label:"APS Daily"},{id:"emails",icon:"✉️",label:"Emails"}];
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
@@ -627,7 +643,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
               <div style={{marginBottom:16}}>
                 {plans.map((p,i)=>(
                   <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7}}>
-                    <div><div style={{fontSize:13,fontWeight:600}}>🗺️ {p.nom}</div><div style={{fontSize:10,color:C.success}}>PDF chargé ✓</div></div>
+                    <div><div style={{fontSize:13,fontWeight:600,color:C.text}}>🗺️ {p.nom}</div><div style={{fontSize:10,color:C.success}}>PDF chargé ✓</div></div>
                     <button onClick={()=>setPlans(prev=>prev.filter((_,j)=>j!==i))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
                   </div>
                 ))}
@@ -787,6 +803,80 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                   </div>
                 </div>
               )}
+            </div>
+          )}
+          {tab==="daily"&&!editingDailyVehicle&&(
+            <div>
+              <SectionTitle icon="🚑" title="APS Daily — Checklists journalières"/>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Personnalise la checklist journalière de chaque véhicule (par défaut, le modèle standard Alpha/TPMR/VSL est utilisé).</div>
+              {vehicles.map(v=>(
+                <div key={v.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span>{v.type==="AMB"?"🚑":v.type==="TPMR"?"♿":"🚗"}</span>
+                    <span style={{fontSize:13,fontWeight:600,color:C.text}}>{v.name}</span>
+                  </div>
+                  <button onClick={async()=>{
+                    setEditingDailyVehicle(v);
+                    try{
+                      const ref=doc(dbChecklists,"dispatchai_daily_templates",v.id);
+                      const snap=await getDoc(ref);
+                      if(snap.exists()&&snap.data().sections){ setEditingDailySections(JSON.parse(JSON.stringify(snap.data().sections))); }
+                      else{ setEditingDailySections(JSON.parse(JSON.stringify(DAILY_TEMPLATES_BASE[v.type]||DAILY_CHECKLIST_ALPHA))); }
+                    }catch(e){ setEditingDailySections(JSON.parse(JSON.stringify(DAILY_TEMPLATES_BASE[v.type]||DAILY_CHECKLIST_ALPHA))); }
+                  }} style={{padding:"5px 12px",background:C.dangerSoft,border:`1px solid ${C.danger}66`,borderRadius:7,color:C.danger,fontSize:12,cursor:"pointer"}}>Checklist</button>
+                </div>
+              ))}
+              {vehicles.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:C.muted,fontSize:13}}>Aucun véhicule (ajoute-les dans l'onglet Véhicules)</div>}
+            </div>
+          )}
+          {tab==="daily"&&editingDailyVehicle&&(
+            <div style={{paddingBottom:20}}>
+              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+                <button onClick={()=>{setEditingDailyVehicle(null);setEditingDailySections([]);setDailyNewItemLabel({});setDailyNewSectionLabel("");}} style={{background:C.panel,border:`1px solid ${C.border}`,color:C.text,padding:"8px 14px",borderRadius:10,cursor:"pointer"}}>Retour</button>
+                <div><div style={{fontWeight:800,fontSize:18,color:C.danger}}>{editingDailyVehicle.name}</div><div style={{fontSize:12,color:C.muted}}>Édition de la checklist journalière</div></div>
+              </div>
+              {editingDailySections.map((section,sIdx)=>(
+                <div key={sIdx} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:14,marginBottom:14}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+                    <div style={{fontWeight:700,fontSize:14,color:C.text}}>{section.section}</div>
+                    <button onClick={()=>{ if(!window.confirm("Supprimer cette section ?")) return; const s=JSON.parse(JSON.stringify(editingDailySections)); s.splice(sIdx,1); setEditingDailySections(s); }} style={{background:"transparent",border:`1px solid ${C.danger}66`,color:C.danger,borderRadius:7,padding:"3px 8px",fontSize:11,cursor:"pointer"}}>Supprimer section</button>
+                  </div>
+                  {section.items.map((item,iIdx)=>(
+                    <div key={item.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:`1px solid ${C.border}`,gap:8}}>
+                      <div style={{flex:1}}>
+                        <span style={{fontSize:13,fontWeight:600,color:C.text}}>{item.label}</span>
+                        <span style={{fontSize:11,color:C.muted,marginLeft:8}}>{item.type}</span>
+                        {item.required&&<span style={{fontSize:10,color:C.danger,marginLeft:6}}>*</span>}
+                      </div>
+                      <div style={{display:"flex",gap:4}}>
+                        <button onClick={()=>{ const s=JSON.parse(JSON.stringify(editingDailySections)); const items=s[sIdx].items; if(iIdx===0)return; [items[iIdx-1],items[iIdx]]=[items[iIdx],items[iIdx-1]]; setEditingDailySections(s); }} disabled={iIdx===0} style={{background:"transparent",border:`1px solid ${C.border}`,color:iIdx===0?C.muted:C.text,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:iIdx===0?"default":"pointer"}}>↑</button>
+                        <button onClick={()=>{ const s=JSON.parse(JSON.stringify(editingDailySections)); const items=s[sIdx].items; if(iIdx===items.length-1)return; [items[iIdx],items[iIdx+1]]=[items[iIdx+1],items[iIdx]]; setEditingDailySections(s); }} disabled={iIdx===section.items.length-1} style={{background:"transparent",border:`1px solid ${C.border}`,color:iIdx===section.items.length-1?C.muted:C.text,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:iIdx===section.items.length-1?"default":"pointer"}}>↓</button>
+                        <button onClick={()=>{ const s=JSON.parse(JSON.stringify(editingDailySections)); s[sIdx].items.splice(iIdx,1); setEditingDailySections(s); }} style={{background:"transparent",border:`1px solid ${C.danger}66`,color:C.danger,borderRadius:6,padding:"3px 7px",fontSize:12,cursor:"pointer"}}>🗑</button>
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{display:"flex",gap:8,marginTop:10}}>
+                    <input type="text" placeholder="Nouvel item..." value={dailyNewItemLabel[sIdx]||""} onChange={e=>setDailyNewItemLabel(prev=>({...prev,[sIdx]:e.target.value}))} onKeyDown={e=>{if(e.key==="Enter"){const label=(dailyNewItemLabel[sIdx]||"").trim(); if(!label)return; const s=JSON.parse(JSON.stringify(editingDailySections)); s[sIdx].items.push({id:"custom_"+Date.now(),label,type:"ok_nok",required:true}); setEditingDailySections(s); setDailyNewItemLabel(prev=>({...prev,[sIdx]:""}));}}} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px",color:C.text,fontSize:13}}/>
+                    <button onClick={()=>{const label=(dailyNewItemLabel[sIdx]||"").trim(); if(!label)return; const s=JSON.parse(JSON.stringify(editingDailySections)); s[sIdx].items.push({id:"custom_"+Date.now(),label,type:"ok_nok",required:true}); setEditingDailySections(s); setDailyNewItemLabel(prev=>({...prev,[sIdx]:""}));}} style={{background:C.danger,border:"none",borderRadius:8,color:"white",padding:"7px 12px",fontWeight:700,cursor:"pointer"}}>+</button>
+                  </div>
+                </div>
+              ))}
+              <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:14,marginBottom:14}}>
+                <div style={{fontWeight:700,fontSize:13,marginBottom:10,color:C.text}}>Nouvelle section</div>
+                <div style={{display:"flex",gap:8}}>
+                  <input type="text" placeholder="Ex: Équipement spécial" value={dailyNewSectionLabel} onChange={e=>setDailyNewSectionLabel(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&dailyNewSectionLabel.trim()){setEditingDailySections(prev=>[...prev,{section:dailyNewSectionLabel.trim(),items:[]}]);setDailyNewSectionLabel("");}}} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 10px",color:C.text,fontSize:13}}/>
+                  <button onClick={()=>{if(dailyNewSectionLabel.trim()){setEditingDailySections(prev=>[...prev,{section:dailyNewSectionLabel.trim(),items:[]}]);setDailyNewSectionLabel("");}}} style={{background:C.danger,border:"none",borderRadius:8,color:"white",padding:"9px 14px",fontWeight:700,cursor:"pointer"}}>+</button>
+                </div>
+              </div>
+              <button onClick={async()=>{
+                setDailySaving(true);
+                await setDoc(doc(dbChecklists,"dispatchai_daily_templates",editingDailyVehicle.id), { vehiculeId:editingDailyVehicle.id, vehiculeNom:editingDailyVehicle.name, type:editingDailyVehicle.type, sections:editingDailySections, updatedAt:new Date().toISOString() });
+                setDailySaving(false);
+                alert("Checklist sauvegardée !");
+                setEditingDailyVehicle(null); setEditingDailySections([]); setDailyNewItemLabel({}); setDailyNewSectionLabel("");
+              }} disabled={dailySaving} style={{width:"100%",padding:14,background:dailySaving?C.muted:C.success,border:"none",borderRadius:12,color:"white",fontWeight:800,fontSize:16,cursor:"pointer"}}>
+                {dailySaving?"Sauvegarde...":"Sauvegarder la checklist"}
+              </button>
             </div>
           )}
           {tab==="emails"&&(
@@ -1190,6 +1280,13 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
 
   const activeVehicles=vehicles.filter(v=>v.active);
   const filteredV=activeVehicles.filter(v=>filterType==="tous"?true:v.type===filterType);
+  const dailyActiveNames=useDailyActiveVehicleNames();
+  // Liste latérale : véhicules "en service" (checklist du jour envoyée) en
+  // haut, puis les autres véhicules actifs, puis les hors service (rouge) tout en bas.
+  const sidebarV=vehicles.filter(v=>filterType==="tous"?true:v.type===filterType).sort((a,b)=>{
+    const rank=v=>!v.active?2:(dailyActiveNames.has(v.name)?0:1);
+    return rank(a)-rank(b);
+  });
   const vCourses=id=>coursesToday.filter(c=>c.vehicleId===id);
   const selectedCourses=selectedV?vCourses(selectedV.id):[];
   const currentPending=pendingToday[alertIdx]||null;
@@ -1267,19 +1364,30 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
             <button onClick={()=>setShowGarage(true)} style={{width:"100%",background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"6px",fontSize:10,fontWeight:600,cursor:"pointer"}}>🏚 Actifs ({activeVehicles.length}/{vehicles.length})</button>
           </div>
           <div style={{flex:1,overflowY:"auto",padding:"6px"}}>
-            {filteredV.map(v=>{
+            {sidebarV.map(v=>{
               const sc={en_course:{label:"En course",color:C.success},disponible:{label:"Disponible",color:C.blue},attente:{label:"En attente",color:C.warning}}[v.status]||{label:"—",color:C.muted};
               const isSelected=selectedV?.id===v.id;
               const cnt=vCourses(v.id).length;
+              const enService=dailyActiveNames.has(v.name);
+              const horsService=!v.active;
               return(
-                <div key={v.id} onClick={()=>setSelectedV(isSelected?null:v)}
-                  style={{background:isSelected?C.accentSoft:C.panel2,border:`1px solid ${isSelected?C.accent:C.border}`,borderRadius:8,padding:"9px 10px",marginBottom:5,cursor:"pointer",transition:"all 0.14s"}}>
+                <div key={v.id} onClick={()=>{if(!horsService)setSelectedV(isSelected?null:v);}}
+                  style={{background:horsService?C.dangerSoft:isSelected?C.accentSoft:C.panel2,border:`1px solid ${horsService?C.danger:isSelected?C.accent:C.border}`,borderRadius:8,padding:"9px 10px",marginBottom:5,cursor:horsService?"not-allowed":"pointer",transition:"all 0.14s",opacity:horsService?0.7:1}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:2}}>
-                    <div style={{display:"flex",alignItems:"center",gap:5}}><span style={{fontSize:13,color:vColor(v.type)}}>{vIcon(v.type)}</span><span style={{fontWeight:700,fontSize:12}}>{v.name}</span></div>
-                    <div style={{display:"flex",alignItems:"center",gap:3}}><div style={{width:5,height:5,borderRadius:"50%",background:sc.color,animation:v.status==="en_course"?"pulse 2s infinite":"none"}}/><span style={{fontSize:9,color:sc.color,fontWeight:700}}>{sc.label}</span></div>
+                    <div style={{display:"flex",alignItems:"center",gap:5}}>
+                      {enService&&!horsService&&<div style={{width:6,height:6,borderRadius:"50%",background:C.success,animation:"pulse 2s infinite",flexShrink:0}} title="En service"/>}
+                      <span style={{fontSize:13,color:horsService?C.danger:vColor(v.type)}}>{vIcon(v.type)}</span><span style={{fontWeight:700,fontSize:12,color:horsService?C.danger:C.text}}>{v.name}</span>
+                    </div>
+                    {!horsService&&<div style={{display:"flex",alignItems:"center",gap:3}}><div style={{width:5,height:5,borderRadius:"50%",background:sc.color,animation:v.status==="en_course"?"pulse 2s infinite":"none"}}/><span style={{fontSize:9,color:sc.color,fontWeight:700}}>{sc.label}</span></div>}
                   </div>
-                  <div style={{fontSize:10,color:C.muted}}>{v.driver}</div>
-                  <div style={{fontSize:10,color:C.accent,fontWeight:600,marginTop:2}}>{cnt} course{cnt>1?"s":""}</div>
+                  {horsService?(
+                    <div style={{fontSize:10,color:C.danger,fontWeight:700}}>Hors service</div>
+                  ):v.horsBase?(
+                    <div style={{fontSize:10,color:"#f59e0b",fontWeight:700}}>🚗 Hors base — chez {v.horsBase.driver}</div>
+                  ):(
+                    <div style={{fontSize:10,color:C.muted}}>{v.driver}</div>
+                  )}
+                  {!horsService&&<div style={{fontSize:10,color:C.accent,fontWeight:600,marginTop:2}}>{cnt} course{cnt>1?"s":""}</div>}
                 </div>
               );
             })}
@@ -1484,10 +1592,379 @@ function ContactsPickerModal({contacts,onSelect,onClose,pickMode}){
   );
 }
 
-function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehicles,contacts,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,onBack,onEndService,themeMode,toggleTheme}){
+// ═══════════════════════════════════════
+// CHECKLIST JOURNALIÈRE — formulaire (portée depuis APS Daily, thème DispatchAI)
+// ═══════════════════════════════════════
+// ═══════════════════════════════════════
+// GARAGE — défauts véhicules (portée depuis APS Daily) + Mode TV
+// ═══════════════════════════════════════
+function DailyCarteVehicule({ vehicle, items, resolve, compact, themeC }){
+  const [currentIdx,setCurrentIdx]=useState(0);
+  useEffect(()=>{
+    if(items.length<=1) return;
+    const interval=setInterval(()=>{ setCurrentIdx(prev=>(prev+1)%items.length); }, 4000);
+    return ()=>clearInterval(interval);
+  },[items.length]);
+  const d=items[currentIdx];
+  return(
+    <div style={{background:themeC.panel,border:`2px solid ${themeC.danger}66`,borderRadius:14,padding:compact?8:12,display:"flex",flexDirection:"column",height:"100%",boxSizing:"border-box",overflow:"hidden"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,flexShrink:0}}>
+        <span style={{fontWeight:900,fontSize:compact?15:19,color:themeC.text}}>{vehicle}</span>
+        <span style={{background:themeC.dangerSoft,color:themeC.danger,padding:"2px 8px",borderRadius:6,fontSize:11,fontWeight:700}}>{currentIdx+1}/{items.length}</span>
+      </div>
+      <div style={{background:themeC.bg,borderRadius:8,padding:compact?8:10,borderLeft:`3px solid ${themeC.danger}`,flex:1,display:"flex",flexDirection:"column",justifyContent:"space-between",overflow:"hidden"}}>
+        <div style={{fontSize:compact?12:14,fontWeight:600,wordBreak:"break-word",lineHeight:1.4,overflowY:"auto",flex:1,marginBottom:8,color:themeC.text}}>{d.description}</div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexShrink:0}}>
+          <span style={{fontSize:11,color:themeC.muted}}>👤 {d.reportedBy}{d.source==="checklist"&&<span style={{color:themeC.warning,marginLeft:4}}>⚡</span>}{d.source==="manuel"&&<span style={{color:themeC.muted,marginLeft:4}}>✍️</span>}</span>
+          <button onClick={()=>resolve(d.id)} style={{padding:compact?"4px 10px":"6px 14px",background:themeC.success,border:"none",borderRadius:6,color:"white",fontSize:compact?11:13,fontWeight:700,cursor:"pointer"}}>Résolu</button>
+        </div>
+      </div>
+      {items.length>1&&(
+        <div style={{display:"flex",justifyContent:"center",gap:5,marginTop:6,flexShrink:0}}>
+          {items.map((_,i)=>(<div key={i} onClick={()=>setCurrentIdx(i)} style={{width:7,height:7,borderRadius:"50%",background:i===currentIdx?themeC.danger:themeC.muted,cursor:"pointer",flexShrink:0}}/>))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// SIGNALER (version complète, accès libre) — choix libre du véhicule
+// ═══════════════════════════════════════
+function SignalerCompletView({ onBack, vehicles, themeMode, toggleTheme }){
+  const [signalVehicle,setSignalVehicle]=useState("");
+  const [signalDesc,setSignalDesc]=useState("");
+  const [signalNom,setSignalNom]=useState("");
+  const [sending,setSending]=useState(false);
+  const [sent,setSent]=useState(false);
+
+  const canSend = signalVehicle && signalDesc.trim() && signalNom.trim() && !sending;
+
+  const handleSend = async () => {
+    if(!canSend) return;
+    setSending(true);
+    const vObj=vehicles.find(v=>v.name===signalVehicle);
+    await addDoc(collection(dbChecklists,"dispatchai_daily_defects"), {
+      vehicle:signalVehicle, type:vObj?.type||"AMB", description:signalDesc.trim(),
+      reportedBy:signalNom.trim(), source:"manuel", defectKey:signalVehicle+"_manuel_"+Date.now(),
+      createdAt:Date.now(),
+    });
+    setSending(false);
+    setSent(true);
+    setTimeout(()=>{ setSignalVehicle(""); setSignalDesc(""); setSignalNom(""); setSent(false); }, 1500);
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div style={{fontWeight:800,fontSize:16,color:C.danger}}>🚨 Signaler un problème</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{flex:1,padding:16,paddingBottom:100,maxWidth:520,margin:"0 auto",width:"100%"}}>
+        {sent?(
+          <div style={{background:C.successSoft,border:`1px solid ${C.success}`,borderRadius:12,padding:20,textAlign:"center",fontWeight:700,color:C.success,marginTop:20}}>✅ Problème signalé au Garage !</div>
+        ):(
+          <>
+            <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:8,marginTop:16}}>Véhicule concerné</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:16}}>
+              {vehicles.map(v=>(
+                <button key={v.id} onClick={()=>setSignalVehicle(v.name)} style={{padding:"8px 4px",borderRadius:9,textAlign:"center",cursor:"pointer",fontSize:12,fontWeight:700,background:signalVehicle===v.name?C.dangerSoft:C.panel,border:`1px solid ${signalVehicle===v.name?C.danger:C.border}`,color:signalVehicle===v.name?C.danger:C.muted}}>{v.name}</button>
+              ))}
+            </div>
+            <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:8}}>Description du problème*</div>
+            <textarea value={signalDesc} onChange={e=>setSignalDesc(e.target.value)} placeholder="Décrivez le problème en détail..." style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,minHeight:90,resize:"vertical",marginBottom:16,fontFamily:"inherit"}}/>
+            <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:8}}>Votre nom*</div>
+            <input value={signalNom} onChange={e=>setSignalNom(e.target.value)} placeholder="Prénom Nom" style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,marginBottom:20,fontFamily:"inherit"}}/>
+          </>
+        )}
+      </div>
+      {!sent&&(
+        <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.panel,borderTop:`1px solid ${C.border}`,padding:"13px 16px"}}>
+          <button disabled={!canSend} onClick={handleSend} style={{width:"100%",background:canSend?C.danger:C.panel2,border:"none",borderRadius:10,color:canSend?"white":C.muted,padding:14,fontWeight:800,fontSize:14,cursor:canSend?"pointer":"not-allowed",opacity:canSend?1:0.6}}>
+            {sending?"Envoi…":"Envoyer le signalement"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GarageView({ onBack, themeMode, toggleTheme }){
+  const [defects,setDefects]=useState([]);
+  const [tvMode,setTvMode]=useState(false);
+
+  useEffect(()=>{
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_daily_defects"), snap=>{
+      const data=snap.docs.map(d=>({id:d.id,...d.data()}));
+      data.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      setDefects(data);
+    });
+    return ()=>unsub();
+  },[]);
+
+  const resolve=(id)=>resolveDailyDefect(id);
+  const formatDate=(ts)=>{ if(!ts) return ""; return new Date(ts).toLocaleDateString("fr-FR",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"}); };
+
+  const grouped={};
+  defects.forEach(d=>{ if(!grouped[d.vehicle]) grouped[d.vehicle]=[]; grouped[d.vehicle].push(d); });
+  const openCount=defects.length;
+  const vehiculesTouches=Object.keys(grouped).length;
+
+  if(tvMode){
+    const cols=vehiculesTouches<=1?1:vehiculesTouches<=4?2:vehiculesTouches<=9?3:4;
+    const rows=Math.ceil(vehiculesTouches/cols);
+    const compact=vehiculesTouches>6;
+    return(
+      <div style={{position:"fixed",inset:0,background:C.bg,display:"flex",flexDirection:"column",zIndex:999,padding:12,boxSizing:"border-box"}}>
+        <style>{GS}</style>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:14}}>
+            <div style={{fontSize:22,fontWeight:900,color:C.danger}}>🔧 GARAGE</div>
+            <div style={{background:C.dangerSoft,border:`1px solid ${C.danger}66`,borderRadius:10,padding:"3px 10px"}}><span style={{fontSize:16,fontWeight:900,color:C.danger}}>{openCount}</span><span style={{fontSize:11,color:C.muted,marginLeft:6}}>défauts</span></div>
+            <div style={{background:C.warningSoft,border:`1px solid ${C.warning}66`,borderRadius:10,padding:"3px 10px"}}><span style={{fontSize:16,fontWeight:900,color:C.warning}}>{vehiculesTouches}</span><span style={{fontSize:11,color:C.muted,marginLeft:6}}>véhicules</span></div>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{fontSize:11,color:C.muted}}>{new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"})}</div>
+            <button onClick={()=>setTvMode(false)} style={{padding:"5px 10px",background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,fontSize:11,cursor:"pointer"}}>Quitter TV</button>
+          </div>
+        </div>
+        {defects.length===0?(
+          <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center"}}>
+            <div style={{fontSize:80,marginBottom:20}}>✅</div>
+            <div style={{fontSize:28,fontWeight:700,color:C.success}}>Aucun défaut en cours</div>
+          </div>
+        ):(
+          <div style={{flex:1,display:"grid",gridTemplateColumns:`repeat(${cols},1fr)`,gridTemplateRows:`repeat(${rows},1fr)`,gap:10,overflow:"hidden"}}>
+            {Object.entries(grouped).map(([vehicle,items])=>(
+              <DailyCarteVehicule key={vehicle} vehicle={vehicle} items={items} resolve={resolve} compact={compact} themeC={C}/>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div style={{fontWeight:800,fontSize:16,color:C.danger}}>🔧 Garage</div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button onClick={()=>setTvMode(true)} style={{padding:"7px 14px",background:C.dangerSoft,border:`1px solid ${C.danger}66`,borderRadius:9,color:C.danger,fontSize:12,fontWeight:700,cursor:"pointer"}}>📺 Mode TV</button>
+          <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+        </div>
+      </div>
+      <div style={{flex:1,padding:"16px",paddingBottom:60,maxWidth:640,margin:"0 auto",width:"100%"}}>
+        <div style={{display:"flex",gap:10,marginBottom:20}}>
+          <div style={{flex:1,background:C.dangerSoft,border:`1px solid ${C.danger}66`,borderRadius:12,padding:"12px 16px"}}>
+            <div style={{fontSize:32,fontWeight:900,color:C.danger}}>{openCount}</div>
+            <div style={{fontSize:12,color:C.muted}}>Défauts actifs</div>
+          </div>
+          <div style={{flex:1,background:C.warningSoft,border:`1px solid ${C.warning}66`,borderRadius:12,padding:"12px 16px"}}>
+            <div style={{fontSize:32,fontWeight:900,color:C.warning}}>{vehiculesTouches}</div>
+            <div style={{fontSize:12,color:C.muted}}>Véhicules touchés</div>
+          </div>
+        </div>
+        {defects.length===0&&(
+          <div style={{textAlign:"center",padding:48,color:C.muted}}>
+            <div style={{fontSize:48,marginBottom:12}}>✅</div>
+            <p>Aucun défaut en cours</p>
+          </div>
+        )}
+        {Object.entries(grouped).map(([vehicle,items])=>(
+          <div key={vehicle} style={{background:C.panel,border:`1px solid ${C.danger}66`,borderRadius:16,padding:16,marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+              <span style={{background:C.bg,borderRadius:8,padding:"4px 12px",fontWeight:800,fontSize:16,color:C.text}}>{vehicle}</span>
+              <span style={{padding:"4px 10px",borderRadius:8,fontSize:12,fontWeight:700,background:C.dangerSoft,color:C.danger}}>{items.length} défaut{items.length>1?"s":""}</span>
+            </div>
+            {items.map((d,idx)=>(
+              <div key={d.id} style={{borderTop:idx>0?`1px solid ${C.border}`:"none",paddingTop:idx>0?10:0,marginTop:idx>0?10:0}}>
+                <div style={{fontSize:14,fontWeight:600,marginBottom:4,wordBreak:"break-word",color:C.text}}>{d.description}</div>
+                <div style={{fontSize:12,color:C.muted,display:"flex",gap:12,flexWrap:"wrap",marginBottom:8}}>
+                  <span>👤 {d.reportedBy}</span><span>📅 {formatDate(d.createdAt)}</span>
+                  {d.source==="checklist"&&<span style={{color:C.warning}}>⚡ Via checklist</span>}
+                </div>
+                <button onClick={()=>resolve(d.id)} style={{width:"100%",padding:10,background:C.success,border:"none",borderRadius:10,color:"white",fontSize:14,fontWeight:700,cursor:"pointer"}}>Problème résolu</button>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DailyChecklistView({ vehicle, driverName, delayMessage, onComplete, themeMode, toggleTheme }){
+  const vType = vehicle?.type || "AMB";
+  const template = DAILY_TEMPLATES_BASE[vType] || DAILY_CHECKLIST_ALPHA;
+  const [values, setValues] = useState({ nom1: driverName||"" });
+  const [sending, setSending] = useState(false);
+  const [loadingYesterday, setLoadingYesterday] = useState(false);
+
+  const set = (id,val) => setValues(v=>({ ...v, [id]:val }));
+
+  const missingRequired = () => {
+    const missing=[];
+    template.forEach(s=>s.items.forEach(item=>{
+      if(item.required && !values[item.id] && item.type!=="textarea") missing.push(item.id);
+    }));
+    return missing;
+  };
+
+  const scrollToMissing = () => {
+    const missing = missingRequired();
+    if(missing.length===0) return;
+    const el = document.getElementById("dfield_"+missing[0]);
+    if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); el.style.outline=`3px solid ${C.danger}`; setTimeout(()=>{el.style.outline="";},3000); }
+  };
+
+  const handleChauffeurIdentique = async () => {
+    setLoadingYesterday(true);
+    const y = await findYesterdayDailyChecklist(vehicle.name);
+    setLoadingYesterday(false);
+    if(y && y.values){ setValues({ ...y.values, nom1:driverName||y.values.nom1||"" }); }
+  };
+
+  const handleSkip = async () => {
+    setSending(true);
+    await submitDailyChecklist({ vehicle:vehicle.name, vType, values:{nom1:driverName||""}, template, skipped:true });
+    setSending(false);
+    onComplete();
+  };
+
+  const handleSubmit = async () => {
+    const missing = missingRequired();
+    if(missing.length>0){ scrollToMissing(); return; }
+    setSending(true);
+    await submitDailyChecklist({ vehicle:vehicle.name, vType, values, template, skipped:false });
+    setSending(false);
+    onComplete();
+  };
+
+  const renderItem = (item) => {
+    const val = values[item.id] || "";
+    const req = item.required ? <span style={{color:C.danger}}> *</span> : null;
+    let control = null;
+    const inStyle={width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,fontFamily:"inherit"};
+
+    if(item.type==="fuel"){
+      const opts=[["full","Plein",C.success],["75","3/4",C.success],["50","1/2",C.warning],["25","1/4",C.danger],["0","0",C.danger]];
+      control=(
+        <div style={{display:"flex",gap:6}}>
+          {opts.map(([v,label,col])=>(
+            <div key={v} onClick={()=>set(item.id,v)} style={{flex:1,padding:"9px 4px",borderRadius:9,textAlign:"center",cursor:"pointer",fontSize:12,fontWeight:700,background:val===v?col+"22":C.bg,border:`1px solid ${val===v?col:C.border}`,color:val===v?col:C.muted}}>{label}</div>
+          ))}
+        </div>
+      );
+    }else if(["ok_nok","ok_insuf","pneus","propre_sale","vide_pleine","ok_nok_np"].includes(item.type)){
+      const optMap={
+        ok_nok:[["ok","OK",C.success],["nok","NOK",C.danger]],
+        ok_insuf:[["ok","OK",C.success],["insuf","Insuffisant",C.warning]],
+        pneus:[["bon","Bon état",C.success],["usure","Usure",C.warning],["remplacer","Remplacer",C.danger]],
+        propre_sale:[["propre","Propre",C.success],["sale","Sale",C.danger]],
+        vide_pleine:[["vide","Vide",C.success],["pleine","Pleine",C.danger]],
+        ok_nok_np:[["ok","OK",C.success],["nok","Défectueux",C.danger],["np","Absent",C.purple]],
+      };
+      control=(
+        <div style={{display:"flex",gap:8}}>
+          {optMap[item.type].map(([v,label,col])=>(
+            <div key={v} onClick={()=>set(item.id,v)} style={{flex:1,padding:10,borderRadius:9,textAlign:"center",cursor:"pointer",fontSize:13,fontWeight:700,background:val===v?col+"22":C.bg,border:`1px solid ${val===v?col:C.border}`,color:val===v?col:C.muted}}>{label}</div>
+          ))}
+        </div>
+      );
+    }else if(item.type==="o2"){
+      const num=parseInt(val)||0;
+      const col=num/300>0.5?C.success:num/300>0.2?C.warning:C.danger;
+      control=(
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+            <span style={{fontSize:12,color:C.muted}}>{item.label}</span>
+            <span style={{fontSize:14,fontWeight:700,color:col}}>{num} bar</span>
+          </div>
+          <input type="range" min="0" max="300" step="10" value={num} onChange={e=>set(item.id,e.target.value)} style={{width:"100%",cursor:"pointer"}}/>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginTop:4}}>
+            <span style={{color:C.danger}}>0</span><span style={{color:C.muted}}>100</span><span style={{color:C.muted}}>200</span><span style={{color:C.success}}>300 bar</span>
+          </div>
+        </div>
+      );
+    }else if(item.type==="date"){
+      control=<input type="date" value={val} onChange={e=>set(item.id,e.target.value)} style={inStyle}/>;
+    }else if(item.type==="number"){
+      control=<input type="number" placeholder="Ex: 125430" value={val} onChange={e=>set(item.id,e.target.value)} style={inStyle}/>;
+    }else if(item.type==="textarea"){
+      control=<textarea placeholder="Aucune remarque..." value={val} onChange={e=>set(item.id,e.target.value)} style={{...inStyle,minHeight:80,resize:"vertical"}}/>;
+    }else if(item.type==="text"){
+      control=<input type="text" placeholder="Prénom Nom" value={val} onChange={e=>set(item.id,e.target.value)} style={inStyle}/>;
+    }
+
+    const hasIssue = val==="nok"||val==="remplacer"||val==="insuf";
+    return(
+      <div id={"dfield_"+item.id} key={item.id} style={{background:C.panel,border:`1px solid ${hasIssue?C.danger:C.border}`,borderRadius:12,padding:14,marginBottom:8}}>
+        <div style={{fontSize:14,fontWeight:500,marginBottom:10,color:C.text}}>{item.label}{req}</div>
+        {control}
+      </div>
+    );
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:36,height:36,background:C.accent,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📋</div>
+          <div><div style={{fontWeight:800,fontSize:15}}>{vehicle?.name}</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"1px"}}>Checklist journalière</div></div>
+        </div>
+        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+
+      {delayMessage&&(
+        <div style={{background:"#f59e0b22",borderBottom:"1px solid #f59e0b",padding:"9px 16px",fontSize:12,fontWeight:700,color:"#fbbf24",textAlign:"center"}}>
+          ⏱ Délai de 24h dépassé depuis ta dernière checklist — merci de la refaire.
+        </div>
+      )}
+
+      <div style={{padding:"14px 16px 0",display:"flex",gap:8}}>
+        <button onClick={handleChauffeurIdentique} disabled={loadingYesterday} style={{flex:1,background:C.blueSoft,border:`1px solid ${C.blue}`,borderRadius:10,color:C.blue,padding:"10px",fontSize:12,fontWeight:700,cursor:"pointer"}}>{loadingYesterday?"Chargement…":"👤 Chauffeur identique"}</button>
+        <button onClick={handleSkip} disabled={sending} style={{flex:1,background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:10,color:C.danger,padding:"10px",fontSize:12,fontWeight:700,cursor:"pointer"}}>⚠️ Passer (urgence)</button>
+      </div>
+
+      <div style={{flex:1,padding:"16px",paddingBottom:120,maxWidth:640,margin:"0 auto",width:"100%"}}>
+        <div style={{fontSize:12,color:C.muted,marginBottom:14}}>{new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"})}</div>
+        {template.map(section=>(
+          <div key={section.section} style={{marginBottom:8}}>
+            <div style={{fontSize:12,fontWeight:700,letterSpacing:"1.5px",color:C.muted,textTransform:"uppercase",marginBottom:10}}>{section.section}</div>
+            {section.items.map(item=>renderItem(item))}
+          </div>
+        ))}
+      </div>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.panel,borderTop:`1px solid ${C.border}`,padding:"13px 16px"}}>
+        <button onClick={handleSubmit} disabled={sending} style={{width:"100%",background:C.accent,border:"none",borderRadius:10,color:"white",padding:14,fontWeight:800,fontSize:15,cursor:"pointer"}}>
+          {sending?"Envoi…":"✅ Soumettre la checklist"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehicles,setVehicles,contacts,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,onBack,onEndService,themeMode,toggleTheme}){
   const [showBons,setShowBons]=useState(false);
   const [showContacts,setShowContacts]=useState(false);
   const [showPlans,setShowPlans]=useState(false);
+  const [showSignaler,setShowSignaler]=useState(false);
+  const [showChangeConvoyeur,setShowChangeConvoyeur]=useState(false);
+  const [showEndChoice,setShowEndChoice]=useState(false);
+  const [signalVehicle,setSignalVehicle]=useState("");
+  const [signalDesc,setSignalDesc]=useState("");
+  const [signalNom,setSignalNom]=useState("");
+  const [signalSending,setSignalSending]=useState(false);
+  const [signalSent,setSignalSent]=useState(false);
   const [viewingPlan,setViewingPlan]=useState(null);
   const [bigContact,setBigContact]=useState(null);
   const [showTransfer,setShowTransfer]=useState(null);
@@ -1498,6 +1975,8 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
   const [convoyeur,setConvoyeur]=useState(null);
   const [stagiaireSelec,setStagiaireSelec]=useState(null);
   const [roleSwapped,setRoleSwapped]=useState(false);
+  const [checkingDaily,setCheckingDaily]=useState(false);
+  const [dailyDelayMessage,setDailyDelayMessage]=useState(false);
 
   const getStatut=id=>statuts[id]||"planifie";
   const isAmb=vehicle?.type==="AMB";
@@ -1586,7 +2065,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
         <Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge>
         <Clock/>
         <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
-        {showEnd&&<button onClick={onEndService} style={{background:C.danger,border:"none",borderRadius:7,color:"white",padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🔴 Fin de service</button>}
+        {showEnd&&<button onClick={()=>setShowEndChoice(true)} style={{background:C.danger,border:"none",borderRadius:7,color:"white",padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🔴 Fin de service</button>}
       </div>
     </div>
   );
@@ -1599,7 +2078,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
         <div style={{fontSize:26,fontWeight:800,marginBottom:4}}>Bonjour 👋</div>
         <div style={{fontSize:13,color:C.muted,marginBottom:24}}>Choisissez votre véhicule</div>
         {["TPMR","VSL","AMB"].map(type=>{
-          const group=vehicles.filter(v=>v.type===type&&v.active);
+          const group=vehicles.filter(v=>v.type===type);
           if(!group.length) return null;
           return(
             <div key={type} style={{marginBottom:22}}>
@@ -1610,10 +2089,11 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:9}}>
                 {group.map(v=>(
-                  <button key={v.id} onClick={()=>{setVehicle(v);setScreen("choix_vehicule");}}
-                    style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:13,padding:"18px 10px",color:C.text,textAlign:"center",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:7}}>
-                    <span style={{fontSize:28,color:vColor(type)}}>{vIcon(type)}</span>
+                  <button key={v.id} onClick={()=>{if(v.active){setVehicle(v);setScreen("choix_vehicule");}}} disabled={!v.active}
+                    style={{background:v.active?C.panel:C.dangerSoft,border:`1.5px solid ${v.active?C.border:C.danger}`,borderRadius:13,padding:"18px 10px",color:v.active?C.text:C.danger,textAlign:"center",cursor:v.active?"pointer":"not-allowed",display:"flex",flexDirection:"column",alignItems:"center",gap:7,opacity:v.active?1:0.7}}>
+                    <span style={{fontSize:28,color:v.active?vColor(type):C.danger}}>{vIcon(type)}</span>
                     <span style={{fontWeight:700,fontSize:13}}>{v.name}</span>
+                    {!v.active&&<span style={{fontSize:9,fontWeight:700,textTransform:"uppercase"}}>Hors service</span>}
                   </button>
                 ))}
               </div>
@@ -1684,13 +2164,31 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
         </div>
         <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.panel,borderTop:`1px solid ${C.border}`,padding:"12px 20px"}}>
           {!canContinue&&vType==="AMB"&&<div style={{fontSize:11,color:C.warning,textAlign:"center",marginBottom:8}}>⚠ Sélectionnez un chauffeur ET un convoyeur</div>}
-          <button onClick={()=>{if(canContinue)setScreen("planning");}} disabled={!canContinue}
+          <button onClick={async()=>{
+            if(!canContinue||checkingDaily) return;
+            setCheckingDaily(true);
+            const latest=await findLatestDailyChecklist(vehicle.name);
+            setCheckingDaily(false);
+            let needsChecklist=true, delay=false;
+            if(latest){
+              const hoursSince=(Date.now()-(latest.createdAt||0))/3600000;
+              if(latest.submittedBy===driver && hoursSince<24){ needsChecklist=false; }
+              else if(latest.submittedBy===driver && hoursSince>=24){ delay=true; }
+            }
+            if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:null}:v));
+            if(needsChecklist){ setDailyDelayMessage(delay); setScreen("daily_checklist"); }
+            else{ setScreen("planning"); }
+          }} disabled={!canContinue||checkingDaily}
             style={{width:"100%",background:canContinue?C.success:C.panel2,border:"none",borderRadius:11,color:canContinue?"white":C.muted,padding:"13px",fontWeight:800,fontSize:15,cursor:canContinue?"pointer":"not-allowed",opacity:canContinue?1:0.6}}>
-            ✅ Commencer le service
+            {checkingDaily?"Vérification…":"✅ Commencer le service"}
           </button>
         </div>
       </div>
     );
+  }
+
+  if(screen==="daily_checklist"){
+    return <DailyChecklistView vehicle={vehicle} driverName={driver} delayMessage={dailyDelayMessage} onComplete={()=>setScreen("planning")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   }
 
   if(screen==="planning") return(
@@ -1734,14 +2232,23 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
                 )}
               </div>
               {(isAmb&&convoyeur)||stagiaireSelec?(
-                <button onClick={()=>setRoleSwapped(r=>!r)}
-                  style={{background:roleSwapped?C.successSoft:C.accentSoft,border:`1px solid ${roleSwapped?C.success:C.accent}`,borderRadius:8,color:roleSwapped?C.success:C.accent,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
-                  🔄 Switch
-                </button>
+                <div style={{display:"flex",gap:6}}>
+                  {isAmb&&convoyeur&&(
+                    <button onClick={()=>setShowChangeConvoyeur(true)}
+                      style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                      👥 Changer
+                    </button>
+                  )}
+                  <button onClick={()=>setRoleSwapped(r=>!r)}
+                    style={{background:roleSwapped?C.successSoft:C.accentSoft,border:`1px solid ${roleSwapped?C.success:C.accent}`,borderRadius:8,color:roleSwapped?C.success:C.accent,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>
+                    🔄 Switch
+                  </button>
+                </div>
               ):null}
             </div>
           </div>
         ):null}
+        <button onClick={()=>{setSignalVehicle(vehicle.name);setSignalNom(isAmb?[driver,convoyeur].filter(Boolean).join(" / "):driver);setShowSignaler(true);}} style={{width:"100%",marginBottom:8,background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:10,color:C.danger,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🚨 Signaler un problème</button>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <button onClick={()=>setShowPlans(true)} style={{flex:1,background:C.blueSoft,border:`1px solid ${C.blue}`,borderRadius:10,color:C.blue,padding:"11px",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🗺️ Plans</button>
           <button onClick={()=>setShowContacts(true)} style={{flex:1,background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:10,color:C.accent,padding:"11px",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📞 Contacts</button>
@@ -1833,6 +2340,92 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
         </div>
       )}
 
+      {showEndChoice&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:230}}>
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:380,maxWidth:"92vw",animation:"pop 0.2s ease"}}>
+            <div style={{fontWeight:800,fontSize:16,marginBottom:6}}>🔴 Fin de service</div>
+            <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Le véhicule {vehicle?.name} reste où ce soir ?</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <button onClick={()=>{
+                if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:null}:v));
+                setShowEndChoice(false);
+                onEndService();
+              }} style={{background:C.successSoft,border:`1.5px solid ${C.success}`,borderRadius:12,padding:"14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",textAlign:"left"}}>
+                <span style={{fontSize:24}}>🏠</span>
+                <div><div style={{fontWeight:700,fontSize:14,color:C.success}}>Retour base</div><div style={{fontSize:11,color:C.muted}}>Le véhicule reste au dépôt</div></div>
+              </button>
+              <button onClick={()=>{
+                if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:{driver,since:Date.now()}}:v));
+                setShowEndChoice(false);
+                onEndService();
+              }} style={{background:C.dangerSoft,border:`1.5px solid ${C.danger}`,borderRadius:12,padding:"14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",textAlign:"left"}}>
+                <span style={{fontSize:24}}>🚗</span>
+                <div><div style={{fontWeight:700,fontSize:14,color:C.danger}}>Retour domicile</div><div style={{fontSize:11,color:C.muted}}>Je le ramène chez moi</div></div>
+              </button>
+            </div>
+            <button onClick={()=>setShowEndChoice(false)} style={{width:"100%",marginTop:14,background:"transparent",border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"10px",fontSize:13,cursor:"pointer"}}>Annuler</button>
+          </div>
+        </div>
+      )}
+
+      {showChangeConvoyeur&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:220}}>
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:420,maxWidth:"92vw",maxHeight:"90vh",overflowY:"auto",animation:"pop 0.2s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div style={{fontWeight:800,fontSize:16}}>👥 Changer de convoyeur</div>
+              <button onClick={()=>setShowChangeConvoyeur(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:22,cursor:"pointer"}}>×</button>
+            </div>
+            <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:10}}>Nouveau convoyeur (relève d'équipe)</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {[...driversAmb].sort((a,b)=>a.localeCompare(b)).filter(d=>d!==driver).map(d=>(
+                <button key={d} onClick={()=>{setConvoyeur(d);setShowChangeConvoyeur(false);}}
+                  style={{background:convoyeur===d?C.dangerSoft:C.panel2,border:`1.5px solid ${convoyeur===d?C.danger:C.border}`,borderRadius:11,padding:"12px 14px",color:convoyeur===d?C.danger:C.text,display:"flex",alignItems:"center",gap:10,cursor:"pointer"}}>
+                  <div style={{width:30,height:30,background:convoyeur===d?C.danger:C.panel,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0}}>🚑</div>
+                  <span style={{fontWeight:600,fontSize:13}}>{d}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSignaler&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:210}}>
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:420,maxWidth:"92vw",maxHeight:"90vh",overflowY:"auto",animation:"pop 0.2s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+              <div style={{fontWeight:800,fontSize:16,color:C.danger}}>🚨 Signaler un problème</div>
+              <button onClick={()=>{setShowSignaler(false);setSignalVehicle("");setSignalDesc("");setSignalNom("");setSignalSent(false);}} style={{background:"transparent",border:"none",color:C.muted,fontSize:22,cursor:"pointer"}}>×</button>
+            </div>
+            {signalSent?(
+              <div style={{background:C.successSoft,border:`1px solid ${C.success}`,borderRadius:10,padding:16,textAlign:"center",fontWeight:700,color:C.success}}>✅ Problème signalé au Garage !</div>
+            ):(
+              <>
+                <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 14px",marginBottom:16,display:"flex",justifyContent:"space-between"}}>
+                  <div><div style={{fontSize:10,color:C.muted,textTransform:"uppercase"}}>Véhicule</div><div style={{fontWeight:700,fontSize:14,color:C.text}}>{signalVehicle}</div></div>
+                  <div style={{textAlign:"right"}}><div style={{fontSize:10,color:C.muted,textTransform:"uppercase"}}>Signalé par</div><div style={{fontWeight:700,fontSize:14,color:C.text}}>{signalNom}</div></div>
+                </div>
+                <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:8}}>Description du problème*</div>
+                <textarea value={signalDesc} onChange={e=>setSignalDesc(e.target.value)} placeholder="Décrivez le problème en détail..." style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,minHeight:90,resize:"vertical",marginBottom:20,fontFamily:"inherit"}}/>
+                <button disabled={signalSending||!signalDesc.trim()} onClick={async()=>{
+                  setSignalSending(true);
+                  const vObj=vehicles.find(v=>v.name===signalVehicle);
+                  await addDoc(collection(dbChecklists,"dispatchai_daily_defects"), {
+                    vehicle:signalVehicle, type:vObj?.type||"AMB", description:signalDesc.trim(),
+                    reportedBy:signalNom, source:"manuel", defectKey:signalVehicle+"_manuel_"+Date.now(),
+                    createdAt:Date.now(),
+                  });
+                  setSignalSending(false);
+                  setSignalSent(true);
+                  setTimeout(()=>{setShowSignaler(false);setSignalVehicle("");setSignalDesc("");setSignalNom("");setSignalSent(false);},1500);
+                }} style={{width:"100%",background:C.danger,border:"none",borderRadius:10,color:"white",padding:14,fontWeight:800,fontSize:14,cursor:"pointer",opacity:(signalSending||!signalDesc.trim())?0.6:1}}>
+                  {signalSending?"Envoi…":"Envoyer le signalement"}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {showPlans&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200}}>
           <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:"24px",width:420,maxWidth:"92vw",maxHeight:"90vh",display:"flex",flexDirection:"column",animation:"pop 0.2s ease"}}>
@@ -1881,11 +2474,11 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
             </div>
             <div style={{fontSize:12,color:C.muted,marginBottom:14}}>Course : <strong style={{color:C.text}}>{showTransfer.patient}</strong></div>
             <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:10}}>Choisir un véhicule :</div>
-            {vehicles.filter(v=>v.active&&v.id!==vehicle?.id).map(v=>(
-              <button key={v.id} onClick={()=>setConfirmTransfer({course:showTransfer,vehicle:v})}
-                style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:7,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
-                <span style={{fontSize:16,color:vColor(v.type)}}>{vIcon(v.type)}</span>
-                <div><div style={{fontWeight:700,fontSize:13}}>{v.name}</div><div style={{fontSize:10,color:C.muted}}>{v.driver}</div></div>
+            {vehicles.filter(v=>v.id!==vehicle?.id).map(v=>(
+              <button key={v.id} onClick={()=>{if(v.active)setConfirmTransfer({course:showTransfer,vehicle:v});}} disabled={!v.active}
+                style={{width:"100%",background:v.active?C.panel2:C.dangerSoft,border:`1px solid ${v.active?C.border:C.danger}`,borderRadius:10,padding:"12px 14px",marginBottom:7,textAlign:"left",cursor:v.active?"pointer":"not-allowed",display:"flex",alignItems:"center",gap:10,opacity:v.active?1:0.7}}>
+                <span style={{fontSize:16,color:v.active?vColor(v.type):C.danger}}>{vIcon(v.type)}</span>
+                <div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:v.active?C.text:C.danger}}>{v.name}</div><div style={{fontSize:10,color:C.muted}}>{v.active?v.driver:"Hors service"}</div></div>
               </button>
             ))}
           </div>
@@ -2893,10 +3486,11 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
 // HISTORIQUE — liste des checklists envoyées (24 mois glissants)
 // ═══════════════════════════════════════
 function HistoriqueView({ onBack, themeMode, toggleTheme }){
-  const [screen,setScreen]=useState("home"); // home | checklists | o2
+  const [screen,setScreen]=useState("home"); // home | checklists | o2 | daily
 
   if(screen==="checklists") return <ChecklistHistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(screen==="o2") return <O2HistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="daily") return <DailyHistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
@@ -2916,6 +3510,10 @@ function HistoriqueView({ onBack, themeMode, toggleTheme }){
         <button onClick={()=>setScreen("o2")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
           <div style={{ fontSize:28, color:"#3b82f6", fontWeight:900 }}>O₂</div>
           <div><div style={{ fontWeight:800, fontSize:15 }}>Historique bouteilles O²</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Échanges véhicules et livraisons fournisseur</div></div>
+        </button>
+        <button onClick={()=>setScreen("daily")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
+          <div style={{ fontSize:28 }}>🚑</div>
+          <div><div style={{ fontWeight:800, fontSize:15 }}>Historique APS Daily</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Checklists journalières par véhicule</div></div>
         </button>
       </div>
     </div>
@@ -3081,6 +3679,151 @@ function O2HistoriqueSubView({ onBack, themeMode, toggleTheme }){
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function DailyHistoriqueSubView({ onBack, themeMode, toggleTheme }){
+  const [checklists,setChecklists]=useState([]);
+  const [loaded,setLoaded]=useState(false);
+  const [filter,setFilter]=useState("all");
+  const [selectMode,setSelectMode]=useState(false);
+  const [selected,setSelected]=useState([]);
+  const [detail,setDetail]=useState(null);
+
+  useEffect(()=>{
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_daily_checklists"), snap=>{
+      const data=snap.docs.map(d=>({id:d.id,...d.data()}));
+      data.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      setChecklists(data);
+      setLoaded(true);
+    }, ()=>setLoaded(true));
+    return ()=>unsub();
+  },[]);
+
+  const deleteSelected=async()=>{
+    if(!window.confirm("Supprimer "+selected.length+" checklist(s) ?")) return;
+    for(const id of selected) await deleteDoc(doc(dbChecklists,"dispatchai_daily_checklists",id));
+    setSelected([]); setSelectMode(false);
+  };
+  const toggleSelect=(id)=>setSelected(prev=>prev.includes(id)?prev.filter(i=>i!==id):[...prev,id]);
+
+  const formatDate=(ts)=>{ if(!ts) return ""; return new Date(ts).toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}); };
+  const formatTime=(ts)=>{ if(!ts) return ""; return new Date(ts).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}); };
+
+  const renderValue=(val)=>{
+    if(val===null||val===undefined||val==="") return { text:"Non rempli", color:CK_C.muted };
+    const v=String(val).toLowerCase();
+    if(v==="ok") return { text:"OK", color:CK_C.success };
+    if(v==="nok") return { text:"NOK", color:CK_C.danger };
+    if(v==="np") return { text:"N/P", color:CK_C.muted };
+    if(v==="propre"||v==="bon") return { text:val, color:CK_C.success };
+    if(v==="sale"||v==="remplacer") return { text:val, color:CK_C.danger };
+    if(v==="insuf"||v==="usure") return { text:val, color:"#f59e0b" };
+    if(v==="vide") return { text:"Vide", color:CK_C.success };
+    if(v==="pleine") return { text:"Pleine", color:CK_C.danger };
+    if(v==="full") return { text:"Plein", color:CK_C.success };
+    if(v==="75") return { text:"3/4", color:CK_C.success };
+    if(v==="50") return { text:"1/2", color:"#f59e0b" };
+    if(v==="25") return { text:"1/4", color:CK_C.danger };
+    if(v==="0") return { text:"Vide", color:CK_C.danger };
+    return { text:String(val), color:CK_C.muted };
+  };
+
+  const filtered=checklists.filter(c=>filter==="all"?true:c.type===filter);
+  const groups={};
+  filtered.forEach(c=>{ const date=c.createdAt?formatDate(c.createdAt):"Date inconnue"; if(!groups[date]) groups[date]=[]; groups[date].push(c); });
+
+  if(detail){
+    const template=DAILY_TEMPLATES_BASE[detail.type]||DAILY_CHECKLIST_ALPHA;
+    const values=detail.values||{};
+    return(
+      <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+        <style>{CK_GS}</style>
+        <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <button onClick={()=>setDetail(null)} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+            <div><div style={{ fontWeight:800, fontSize:15 }}>{detail.vehicle}</div><div style={{ fontSize:10, color:CK_C.muted }}>{formatDate(detail.createdAt)} à {formatTime(detail.createdAt)}</div></div>
+          </div>
+          <span style={{ padding:"4px 10px", borderRadius:8, fontSize:11, fontWeight:700, background:detail.skipped?"#f59e0b22":detail.hasDefects?CK_C.dangerSoft:CK_C.successSoft, color:detail.skipped?"#f59e0b":detail.hasDefects?CK_C.danger:CK_C.success }}>
+            {detail.skipped?"Sautée (urgence)":detail.hasDefects?"Défaut":"RAS"}
+          </span>
+        </div>
+        <div style={{ flex:1, padding:14, overflowY:"auto" }}>
+          <div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:14, marginBottom:14 }}>
+            <div style={{ display:"flex", gap:24, flexWrap:"wrap" }}>
+              <div><div style={{ fontSize:11, color:CK_C.muted, marginBottom:2 }}>Ambulancier(s)</div><div style={{ fontWeight:700 }}>{detail.submittedBy||"Non renseigné"}</div></div>
+              {values.km&&<div><div style={{ fontSize:11, color:CK_C.muted, marginBottom:2 }}>Kilométrage</div><div style={{ fontWeight:700 }}>{values.km} km</div></div>}
+            </div>
+            {values.remarques&&<div style={{ marginTop:10, padding:10, background:CK_C.bg, borderRadius:9 }}><div style={{ fontSize:11, color:CK_C.muted, marginBottom:4 }}>Remarques</div><div style={{ color:CK_C.text, fontSize:13 }}>{values.remarques}</div></div>}
+          </div>
+          {detail.skipped?(
+            <div style={{ textAlign:"center", padding:30, color:CK_C.muted }}>⚠️ Checklist non effectuée (accès d'urgence)</div>
+          ):template.map((section,sIdx)=>(
+            <div key={sIdx} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:14, marginBottom:12 }}>
+              <div style={{ fontWeight:700, fontSize:13, marginBottom:10, color:CK_C.muted }}>{section.section}</div>
+              {section.items.map((item,iIdx)=>{
+                const val=values[item.id]; const rendered=renderValue(val);
+                return(
+                  <div key={iIdx} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:`1px solid ${CK_C.border}` }}>
+                    <span style={{ fontSize:13, flex:1, paddingRight:8, color:CK_C.text }}>{item.label}</span>
+                    <span style={{ fontSize:12, fontWeight:700, color:rendered.color, background:CK_C.panel2, padding:"3px 10px", borderRadius:6, whiteSpace:"nowrap" }}>{rendered.text}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div style={{ fontWeight:800, fontSize:16 }}>🚑 Historique APS Daily</div>
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={()=>{setSelectMode(!selectMode);setSelected([]);}} style={{ padding:"6px 12px", background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:selectMode?CK_C.danger:CK_C.muted, fontSize:11, cursor:"pointer" }}>{selectMode?"Annuler":"Sélectionner"}</button>
+          <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+        </div>
+      </div>
+      <div style={{ flex:1, padding:14, overflowY:"auto" }}>
+        {selectMode&&selected.length>0&&(
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", background:CK_C.dangerSoft, border:`1px solid ${CK_C.danger}`, borderRadius:12, padding:"10px 14px", marginBottom:12 }}>
+            <span style={{ fontSize:13, color:CK_C.text }}>{selected.length} sélectionné(s)</span>
+            <button onClick={deleteSelected} style={{ padding:"7px 14px", background:CK_C.danger, border:"none", borderRadius:8, color:"white", fontSize:13, fontWeight:700, cursor:"pointer" }}>Supprimer</button>
+          </div>
+        )}
+        <div style={{ display:"flex", gap:8, marginBottom:16, overflowX:"auto" }}>
+          {[["all","Tout"],["AMB","Alpha"],["TPMR","TPMR"],["VSL","VSL"]].map(([val,label])=>(
+            <button key={val} onClick={()=>setFilter(val)} style={{ padding:"7px 14px", borderRadius:20, border:`1px solid ${filter===val?CK_C.danger:CK_C.border}`, background:filter===val?CK_C.danger:"transparent", color:filter===val?"white":CK_C.muted, fontSize:13, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>{label}</button>
+          ))}
+        </div>
+        {!loaded&&<div style={{ textAlign:"center", color:CK_C.muted, padding:40 }}>Chargement…</div>}
+        {loaded&&filtered.length===0&&<div style={{ textAlign:"center", padding:48, color:CK_C.muted }}><div style={{ fontSize:48, marginBottom:12 }}>📋</div><p>Aucune checklist enregistrée</p></div>}
+        {Object.entries(groups).map(([date,items])=>(
+          <div key={date} style={{ marginBottom:16 }}>
+            <div style={{ fontSize:12, fontWeight:700, letterSpacing:2, color:CK_C.muted, textTransform:"uppercase", marginBottom:8 }}>📅 {date}</div>
+            {items.map(c=>(
+              <div key={c.id} onClick={()=>selectMode?toggleSelect(c.id):setDetail(c)}
+                style={{ background:selected.includes(c.id)?CK_C.dangerSoft:CK_C.panel, border:`1px solid ${selected.includes(c.id)?CK_C.danger:CK_C.border}`, borderRadius:14, padding:14, marginBottom:8, cursor:"pointer" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  {selectMode&&<div style={{ width:20, height:20, borderRadius:6, border:`2px solid ${selected.includes(c.id)?CK_C.danger:CK_C.border}`, background:selected.includes(c.id)?CK_C.danger:"transparent", marginRight:10, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontSize:12 }}>{selected.includes(c.id)?"✓":""}</div>}
+                  <span style={{ background:CK_C.panel2, borderRadius:8, padding:"4px 10px", fontWeight:700, fontSize:14, color:CK_C.text }}>{c.vehicle}</span>
+                  <span style={{ padding:"4px 10px", borderRadius:8, fontSize:11, fontWeight:700, background:c.skipped?"#f59e0b22":c.hasDefects?CK_C.dangerSoft:CK_C.successSoft, color:c.skipped?"#f59e0b":c.hasDefects?CK_C.danger:CK_C.success }}>{c.skipped?"Sautée":c.hasDefects?"Défaut":"RAS"}</span>
+                </div>
+                <div style={{ fontSize:12, color:CK_C.muted, marginTop:6, display:"flex", gap:12 }}>
+                  <span>🕐 {formatTime(c.createdAt)}</span><span>👤 {c.submittedBy}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -3640,6 +4383,177 @@ async function resolveHistoriqueIssue(entryId, issueIdx, qtyResupplied){
 const O2_SIZES=["B2","B5","B10"];
 const O2_EMPTY_RESERVE={ pleines:{B2:0,B5:0,B10:0}, vides:{B2:0,B5:0,B10:0} };
 
+// ═══════════════════════════════════════
+// CHECKLIST JOURNALIÈRE (portée depuis APS Daily) — modèles par flotte
+// ═══════════════════════════════════════
+const DAILY_CHECKLIST_ALPHA = [
+  { section: '🚗 Véhicule', items: [
+    { id:'fuel', label:'Carburant', type:'fuel', required:true },
+    { id:'phares', label:'Phares', type:'ok_nok', required:true },
+    { id:'clignotants', label:'Clignotants', type:'ok_nok', required:true },
+    { id:'feux_bleus', label:'Feux bleus', type:'ok_nok', required:true },
+    { id:'feux_travail', label:'Feux de travail', type:'ok_nok', required:true },
+    { id:'eclairage_cab', label:'Éclairage cabine sanitaire', type:'ok_nok', required:true },
+    { id:'huile', label:"Niveau d'huile moteur", type:'ok_insuf', required:true },
+    { id:'refroid', label:'Niveau liquide de refroidissement', type:'ok_insuf', required:true },
+    { id:'freins', label:'Niveau liquide de freins', type:'ok_insuf', required:true },
+    { id:'lave_glace', label:'Niveau lave-glace', type:'ok_insuf', required:true },
+    { id:'pneus_av', label:'État des pneus avant', type:'pneus', required:true },
+    { id:'pneus_ar', label:'État des pneus arrière', type:'pneus', required:true },
+  ]},
+  { section: '🧹 Propreté', items: [
+    { id:'carrosserie', label:'Carrosserie', type:'propre_sale', required:true },
+    { id:'cab_chauffeur', label:'Cabine chauffeur', type:'propre_sale', required:true },
+    { id:'cab_sanitaire', label:'Cabine sanitaire', type:'propre_sale', required:true },
+    { id:'poubelle', label:'Poubelle', type:'vide_pleine', required:true },
+  ]},
+  { section: '🧰 Équipement', items: [
+    { id:'extincteur', label:'Extincteur', type:'ok_nok', required:true },
+    { id:'boite_secours', label:'Boîte de secours', type:'ok_nok', required:true },
+    { id:'triangle', label:'Triangle', type:'ok_nok', required:true },
+    { id:'marteau', label:'Marteau brise-vitre', type:'ok_nok', required:true },
+    { id:'radio_fixe', label:'Radio fixe', type:'ok_nok_np', required:true },
+    { id:'radio_port', label:'Radio portative', type:'ok_nok_np', required:true },
+    { id:'marchepied', label:'Marchepied', type:'ok_nok_np', required:true },
+    { id:'draps', label:'Sets de draps x3', type:'ok_nok', required:true },
+    { id:'toile_glisse', label:'Toile de glisse', type:'ok_nok', required:true },
+  ]},
+  { section: '📄 Documents', items: [
+    { id:'cert_conf', label:'Certificat de conformité', type:'ok_nok', required:true },
+    { id:'immat', label:"Certificat d'immatriculation", type:'ok_nok', required:true },
+    { id:'assurance', label:'Assurance', type:'ok_nok', required:true },
+    { id:'ct', label:'Contrôle technique', type:'date', required:true },
+    { id:'constat', label:"Constat d'accident", type:'ok_nok', required:true },
+    { id:'carnet_bord', label:'Carnet de bord', type:'ok_nok', required:true },
+    { id:'bon_transport', label:'Bon de transport', type:'ok_nok', required:true },
+    { id:'carte_carb', label:'Carte carburant', type:'ok_nok', required:false },
+    { id:'suivi_hygiene', label:"Suivi d'hygiène", type:'ok_nok', required:false },
+    { id:'farde_listing', label:'Farde listing hôpitaux', type:'ok_nok', required:false },
+    { id:'farde_sceller', label:'Farde scellée', type:'ok_nok', required:false },
+  ]},
+  { section: "🏥 Cartes d'accès hôpitaux", items: [
+    { id:'h_epicura', label:'Epicura', type:'ok_nok', required:false },
+    { id:'h_chwapi', label:'Chwapi', type:'ok_nok', required:false },
+    { id:'h_chm', label:'CHM', type:'ok_nok', required:false },
+    { id:'h_glorieux', label:'AZ Glorieux', type:'ok_nok', required:false },
+  ]},
+  { section: '🔬 Paramètres médicaux', items: [
+    { id:'pulsox', label:'Pulsoxymètre', type:'ok_nok_np', required:false },
+    { id:'tensio', label:'Tensiomètre', type:'ok_nok_np', required:false },
+    { id:'gluco', label:'Glucomètre', type:'ok_nok_np', required:false },
+    { id:'thermo_auri', label:'Thermomètre auriculaire', type:'ok_nok_np', required:false },
+    { id:'thermo_digit', label:'Thermomètre digital', type:'ok_nok_np', required:true },
+  ]},
+  { section: '🫁 Oxygènes', items: [
+    { id:'o2_b2_1', label:'B2 (1)', type:'o2', required:true },
+    { id:'o2_b2_2', label:'B2 (2)', type:'o2', required:true },
+    { id:'o2_b10_1', label:'B10 (1)', type:'o2', required:true },
+    { id:'o2_b10_2', label:'B10 (2)', type:'o2', required:true },
+  ]},
+  { section: '📝 Fin de checklist', items: [
+    { id:'km', label:'Kilométrage', type:'number', required:true },
+    { id:'remarques', label:'Remarques / Problèmes', type:'textarea', required:false },
+    { id:'nom1', label:'Ambulancier 1', type:'text', required:true },
+    { id:'nom2', label:'Ambulancier 2', type:'text', required:false },
+  ]},
+];
+
+const DAILY_CHECKLIST_TPMR = [
+  { section: '🚗 Véhicule', items: [
+    { id:'fuel', label:'Carburant', type:'fuel', required:true },
+    { id:'phares', label:'Phares', type:'ok_nok', required:true },
+    { id:'clignotants', label:'Clignotants', type:'ok_nok', required:true },
+    { id:'huile', label:"Niveau d'huile moteur", type:'ok_insuf', required:true },
+    { id:'refroid', label:'Niveau liquide de refroidissement', type:'ok_insuf', required:true },
+    { id:'freins', label:'Niveau liquide de freins', type:'ok_insuf', required:true },
+    { id:'lave_glace', label:'Niveau lave-glace', type:'ok_insuf', required:true },
+    { id:'pneus_av', label:'État des pneus avant', type:'pneus', required:true },
+    { id:'pneus_ar', label:'État des pneus arrière', type:'pneus', required:true },
+  ]},
+  { section: '🧹 Propreté', items: [
+    { id:'carrosserie', label:'Carrosserie', type:'propre_sale', required:true },
+    { id:'interieur', label:'Intérieur', type:'propre_sale', required:true },
+  ]},
+  { section: '🧰 Équipement', items: [
+    { id:'fauteuil', label:'Fauteuil roulant', type:'ok_nok_np', required:true },
+    { id:'sangle', label:'Sangle fauteuil', type:'ok_nok', required:true },
+    { id:'extincteur', label:'Extincteur', type:'ok_nok', required:true },
+    { id:'triangle', label:'Triangle', type:'ok_nok', required:true },
+    { id:'boite_secours', label:'Boîte de secours', type:'ok_nok', required:true },
+    { id:'sac_secours', label:'Sac de secours', type:'ok_nok', required:true },
+    { id:'radio_port', label:'Radio portative', type:'ok_nok_np', required:true },
+  ]},
+  { section: '📄 Documents', items: [
+    { id:'cert_conf', label:'Certificat de conformité', type:'ok_nok', required:true },
+    { id:'immat', label:"Certificat d'immatriculation", type:'ok_nok', required:true },
+    { id:'assurance', label:'Assurance', type:'ok_nok', required:true },
+    { id:'ct', label:'Contrôle technique', type:'date', required:true },
+    { id:'constat', label:"Constat d'accident", type:'ok_nok', required:true },
+    { id:'carnet_bord', label:'Carnet de bord', type:'ok_nok', required:true },
+    { id:'bon_transport', label:'Bon de transport', type:'ok_nok', required:true },
+    { id:'carte_carb', label:'Carte carburant', type:'ok_nok', required:false },
+    { id:'farde_listing', label:'Farde listing hôpitaux', type:'ok_nok', required:true },
+    { id:'farde_sceller', label:'Farde scellée', type:'ok_nok', required:true },
+  ]},
+  { section: "🏥 Cartes d'accès hôpitaux", items: [
+    { id:'h_epicura', label:'Epicura', type:'ok_nok', required:true },
+    { id:'h_chm', label:'CHM', type:'ok_nok', required:true },
+  ]},
+  { section: '📝 Fin de checklist', items: [
+    { id:'km', label:'Kilométrage', type:'number', required:true },
+    { id:'remarques', label:'Remarques / Problèmes', type:'textarea', required:false },
+    { id:'nom1', label:'Nom du chauffeur', type:'text', required:true },
+  ]},
+];
+
+const DAILY_CHECKLIST_VSL = [
+  { section: '🚗 Véhicule', items: [
+    { id:'fuel', label:'Carburant', type:'fuel', required:true },
+    { id:'phares', label:'Phares', type:'ok_nok', required:true },
+    { id:'clignotants', label:'Clignotants', type:'ok_nok', required:true },
+    { id:'huile', label:"Niveau d'huile moteur", type:'ok_insuf', required:true },
+    { id:'refroid', label:'Niveau liquide de refroidissement', type:'ok_insuf', required:true },
+    { id:'freins', label:'Niveau liquide de freins', type:'ok_insuf', required:true },
+    { id:'lave_glace', label:'Niveau lave-glace', type:'ok_insuf', required:true },
+    { id:'pneus_av', label:'État des pneus avant', type:'pneus', required:true },
+    { id:'pneus_ar', label:'État des pneus arrière', type:'pneus', required:true },
+  ]},
+  { section: '🧹 Propreté', items: [
+    { id:'carrosserie', label:'Carrosserie', type:'propre_sale', required:true },
+    { id:'interieur', label:'Intérieur', type:'propre_sale', required:true },
+  ]},
+  { section: '🧰 Équipement', items: [
+    { id:'fauteuil', label:'Fauteuil roulant', type:'ok_nok_np', required:true },
+    { id:'sangle', label:'Sangle fauteuil', type:'ok_nok', required:true },
+    { id:'extincteur', label:'Extincteur', type:'ok_nok', required:true },
+    { id:'triangle', label:'Triangle', type:'ok_nok', required:true },
+    { id:'boite_secours', label:'Boîte de secours', type:'ok_nok', required:true },
+    { id:'radio_port', label:'Radio portative', type:'ok_nok_np', required:true },
+  ]},
+  { section: '📄 Documents', items: [
+    { id:'cert_conf', label:'Certificat de conformité', type:'ok_nok', required:true },
+    { id:'immat', label:"Certificat d'immatriculation", type:'ok_nok', required:true },
+    { id:'assurance', label:'Assurance', type:'ok_nok', required:true },
+    { id:'ct', label:'Contrôle technique', type:'date', required:true },
+    { id:'constat', label:"Constat d'accident", type:'ok_nok', required:true },
+    { id:'carnet_bord', label:'Carnet de bord', type:'ok_nok', required:true },
+    { id:'bon_transport', label:'Bon de transport', type:'ok_nok', required:true },
+    { id:'carte_carb', label:'Carte carburant', type:'ok_nok', required:false },
+    { id:'farde_listing', label:'Farde listing hôpitaux', type:'ok_nok', required:true },
+    { id:'farde_sceller', label:'Farde scellée', type:'ok_nok', required:true },
+  ]},
+  { section: "🏥 Cartes d'accès hôpitaux", items: [
+    { id:'h_epicura', label:'Epicura', type:'ok_nok', required:true },
+  ]},
+  { section: '📝 Fin de checklist', items: [
+    { id:'km', label:'Kilométrage', type:'number', required:true },
+    { id:'remarques', label:'Remarques / Problèmes', type:'textarea', required:false },
+    { id:'nom1', label:'Nom du chauffeur', type:'text', required:true },
+  ]},
+];
+
+const DAILY_TEMPLATES_BASE = { AMB: DAILY_CHECKLIST_ALPHA, TPMR: DAILY_CHECKLIST_TPMR, VSL: DAILY_CHECKLIST_VSL };
+
 // Applique un mouvement de bouteilles à la réserve et journalise l'action.
 // type "vehicule" : sortie (bouteille retirée du véhicule) → +1 vide ; entrée (bouteille installée) → -1 pleine.
 // type "fournisseur" : sortie (vide reprise par le fournisseur) → -1 vide ; entrée (pleine livrée) → +1 pleine.
@@ -3690,6 +4604,114 @@ async function deleteO2HistoriqueEntry(entry){
     await setDoc(ref,next);
     await deleteDoc(doc(dbChecklists,"dispatchai_o2_historique",entry.id));
   }catch(e){ console.error("Erreur suppression historique O2:", e); }
+}
+
+// ═══════════════════════════════════════
+// CHECKLIST JOURNALIÈRE — Firestore (checklists soumises + défauts Garage)
+// ═══════════════════════════════════════
+function yesterdayISO(){
+  const d=new Date(); d.setDate(d.getDate()-1);
+  return d.toISOString().split("T")[0];
+}
+// Cherche si une checklist a déjà été soumise aujourd'hui pour ce véhicule.
+// Cherche la dernière checklist soumise pour ce véhicule, tous jours confondus
+// (sert à décider si on doit en redemander une : même chauffeur + moins de 24h = non).
+async function findLatestDailyChecklist(vehicleName){
+  try{
+    const q=query(collection(dbChecklists,"dispatchai_daily_checklists"), where("vehicle","==",vehicleName));
+    const snap=await getDocs(q);
+    if(snap.empty) return null;
+    const docs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    docs.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+    return docs[0];
+  }catch(e){ console.error("Erreur lecture dernière checklist:", e); return null; }
+}
+// Cherche la checklist de la veille pour ce véhicule (pour "Chauffeur identique").
+async function findYesterdayDailyChecklist(vehicleName){
+  try{
+    const q=query(collection(dbChecklists,"dispatchai_daily_checklists"), where("vehicle","==",vehicleName), where("date","==",yesterdayISO()));
+    const snap=await getDocs(q);
+    if(snap.empty) return null;
+    return { id:snap.docs[0].id, ...snap.docs[0].data() };
+  }catch(e){ console.error("Erreur lecture checklist veille:", e); return null; }
+}
+// Soumet une checklist journalière : détecte les valeurs problématiques,
+// crée automatiquement les défauts correspondants au Garage (sans doublon
+// via defectKey), et enregistre la checklist dans l'historique.
+async function submitDailyChecklist({ vehicle, vType, values, template, skipped }){
+  const BAD_VALUES = ['nok','remplacer','insuf','usure','sale','pleine'];
+  const defautsAuto = [];
+  if(!skipped){
+    template.forEach(section=>{
+      section.items.forEach(item=>{
+        const val = values[item.id];
+        if(item.id==="ct" && val){
+          const dateCT=new Date(val); const today=new Date(); today.setHours(0,0,0,0);
+          if(dateCT<today){
+            defautsAuto.push({ vehicle, type:vType, description:"Contrôle technique dépassé : "+new Date(val).toLocaleDateString("fr-FR"), reportedBy:values.nom1||"Inconnu", source:"checklist", defectKey:vehicle+"_ct_depasse" });
+          }
+        }
+        if(val && BAD_VALUES.includes(String(val).toLowerCase())){
+          defautsAuto.push({ vehicle, type:vType, description:item.label+" : "+String(val).toUpperCase(), reportedBy:values.nom1||"Inconnu", source:"checklist", defectKey:vehicle+"_"+item.id });
+        }
+      });
+    });
+    if(values.remarques && values.remarques.trim().length>0){
+      defautsAuto.push({ vehicle, type:vType, description:"Remarque : "+values.remarques.trim(), reportedBy:values.nom1||"Inconnu", source:"checklist", defectKey:vehicle+"_remarque_"+Date.now() });
+    }
+  }
+  let nbNouveaux=0;
+  for(const defaut of defautsAuto){
+    if(defaut.defectKey.includes("_remarque_")){
+      await addDoc(collection(dbChecklists,"dispatchai_daily_defects"), {...defaut, createdAt:Date.now()});
+      nbNouveaux++; continue;
+    }
+    const existing=await getDocs(query(collection(dbChecklists,"dispatchai_daily_defects"), where("defectKey","==",defaut.defectKey)));
+    if(existing.empty){ await addDoc(collection(dbChecklists,"dispatchai_daily_defects"), {...defaut, createdAt:Date.now()}); nbNouveaux++; }
+  }
+  await addDoc(collection(dbChecklists,"dispatchai_daily_checklists"), {
+    vehicle, type:vType, date:todayISO(),
+    time:new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}),
+    submittedBy: values.nom1||"Inconnu",
+    hasDefects: defautsAuto.length>0,
+    values, skipped: !!skipped,
+    createdAt: Date.now(),
+  });
+  return nbNouveaux;
+}
+async function resolveDailyDefect(id){
+  try{ await deleteDoc(doc(dbChecklists,"dispatchai_daily_defects",id)); }catch(e){ console.error("Erreur résolution défaut:", e); }
+}
+// Nombre de véhicules distincts ayant eu une checklist journalière envoyée
+// aujourd'hui (complétée normalement ou passée en urgence) — sert au
+// compteur "Véhicules actifs" du menu principal.
+function useDailyActiveVehiclesCount(){
+  const [count,setCount]=useState(0);
+  useEffect(()=>{
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_daily_checklists"), snap=>{
+      const today=todayISO();
+      const set=new Set();
+      snap.forEach(d=>{ const data=d.data(); if(data.date===today) set.add(data.vehicle); });
+      setCount(set.size);
+    });
+    return ()=>unsub();
+  },[]);
+  return count;
+}
+// Comme ci-dessus mais renvoie l'ensemble des noms (pour trier/marquer
+// individuellement les véhicules "en service" dans les listes).
+function useDailyActiveVehicleNames(){
+  const [names,setNames]=useState(new Set());
+  useEffect(()=>{
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_daily_checklists"), snap=>{
+      const today=todayISO();
+      const set=new Set();
+      snap.forEach(d=>{ const data=d.data(); if(data.date===today) set.add(data.vehicle); });
+      setNames(set);
+    });
+    return ()=>unsub();
+  },[]);
+  return names;
 }
 
 async function checkAndSendO2LowStock(currentPleines, nextPleines, emails){
@@ -4065,19 +5087,28 @@ export default function App(){
   const [checklistsData, setChecklistsData] = useFirestoreState("checklistsData", INIT_CHECKLISTS);
   const [checklistEmails, setChecklistEmails] = useFirestoreState("checklistEmails", []);
   const [o2Emails, setO2Emails] = useFirestoreState("o2Emails", []);
-  const [appView,     setAppView]     = useState("menu");
+  const [appView,     setAppView]     = useState(()=>lsGet("aps_appView","menu"));
   const [showPin,     setShowPin]     = useState(false);
   const [showDispMenu,setShowDispMenu] = useState(false);
   const checklistStatuses = useChecklistsWeekStatus(checklistsData);
+  const dailyActiveCount = useDailyActiveVehiclesCount();
   const [themeMode, setThemeMode] = useState(()=>getStoredThemeMode());
   const toggleTheme = () => { const next=themeMode==="light"?"dark":"light"; applyThemeMode(next); applyCkThemeMode(next); setThemeMode(next); };
 
-  const [cDriver,   setCDriver]   = useState(null);
-  const [cVehicle,  setCVehicle]  = useState(null);
-  const [cScreen,   setCScreen]   = useState("choix_nom");
-  const [cCourse,   setCCourse]   = useState(null);
-  const [cStatuts,  setCStatuts]  = useState({});
-  const [cBons,     setCBons]     = useState([]);
+  const [cDriver,   setCDriver]   = useState(()=>lsGet("aps_cDriver",null));
+  const [cVehicle,  setCVehicle]  = useState(()=>lsGet("aps_cVehicle",null));
+  const [cScreen,   setCScreen]   = useState(()=>lsGet("aps_cScreen","choix_nom"));
+  const [cCourse,   setCCourse]   = useState(()=>lsGet("aps_cCourse",null));
+  const [cStatuts,  setCStatuts]  = useState(()=>lsGet("aps_cStatuts",{}));
+  const [cBons,     setCBons]     = useState(()=>lsGet("aps_cBons",[]));
+
+  useEffect(()=>{ lsSet("aps_appView",appView); },[appView]);
+  useEffect(()=>{ lsSet("aps_cDriver",cDriver); },[cDriver]);
+  useEffect(()=>{ lsSet("aps_cVehicle",cVehicle); },[cVehicle]);
+  useEffect(()=>{ lsSet("aps_cScreen",cScreen); },[cScreen]);
+  useEffect(()=>{ lsSet("aps_cCourse",cCourse); },[cCourse]);
+  useEffect(()=>{ lsSet("aps_cStatuts",cStatuts); },[cStatuts]);
+  useEffect(()=>{ lsSet("aps_cBons",cBons); },[cBons]);
 
   const getStatut = id => cStatuts[id]||"planifie";
   const setStatut = (id,s) => {
@@ -4156,8 +5187,10 @@ export default function App(){
   if(appView==="formulaire") return <FormulaireView onBack={backToSubMenu} onSubmit={submitCourse} conventions={conventions} equipements={equipements} transportTypes={transportTypes} contacts={contacts} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} tarifs={tarifs} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="planning") return <PlanningView courses={courses} setCourses={setCourses} vehicles={vehicles} patients={patientsHabituels} setPatients={setPatientsHabituels} categories={patientCategories} setCategories={setPatientCategories} conventions={conventions} transportTypes={transportTypes} equipements={equipements} pending={pending} onAssignPending={validateCourse} onGoFormulaire={()=>setAppView("formulaire")} onBack={backToSubMenu} onSchedule={submitFromPatientHabituel} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="signaler") return <SignalerCompletView onBack={()=>setAppView("menu")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return(
@@ -4181,8 +5214,8 @@ export default function App(){
             <div style={{fontSize:13,color:C.muted,textTransform:"uppercase",letterSpacing:"2px",marginBottom:10}}>Choisissez votre interface</div>
             <div style={{fontSize:30,fontWeight:700,letterSpacing:"-0.5px"}}>Où souhaitez-vous aller ?</div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10,marginBottom:36}}>
-            {[{val:activeVehicles.length,label:"Véhicules actifs",color:C.accent},{val:courses.length,label:"Courses du jour",color:C.blue},{val:Object.keys(checklistsData).filter(n=>!checklistStatuses[n]?.complete).length,label:"Checklists restantes",color:Object.keys(checklistsData).filter(n=>!checklistStatuses[n]?.complete).length===0?C.success:"#dc2626"}].map(s=>(
+          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:36}}>
+            {[{val:dailyActiveCount,label:"Véhicules actifs",color:C.accent},{val:vehicles.filter(v=>v.active&&v.status==="disponible"&&!v.horsBase).length,label:"Véhicules disponibles",color:C.success},{val:courses.length,label:"Courses du jour",color:C.blue},{val:Object.keys(checklistsData).filter(n=>!checklistStatuses[n]?.complete).length,label:"Checklists restantes",color:Object.keys(checklistsData).filter(n=>!checklistStatuses[n]?.complete).length===0?C.success:"#dc2626"}].map(s=>(
               <div key={s.label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px",textAlign:"center"}}>
                 <div style={{fontSize:24,fontWeight:800,color:s.color,fontFamily:"'IBM Plex Mono',monospace"}}>{s.val}</div>
                 <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginTop:3}}>{s.label}</div>
@@ -4190,6 +5223,7 @@ export default function App(){
             ))}
           </div>
           {!showDispMenu?(
+            <>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14}}>
               <button onClick={()=>setShowDispMenu(true)}
                 style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"24px 20px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:10,position:"relative",overflow:"hidden"}}>
@@ -4223,6 +5257,25 @@ export default function App(){
                 <div style={{fontSize:12,color:"#dc2626",fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
               </button>
             </div>
+            <div style={{display:"flex",gap:10,marginTop:14}}>
+              <button onClick={()=>setAppView("garage")}
+                style={{flex:1,background:C.panel,border:`1.5px solid ${C.danger}55`,borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left"}}>
+                <div style={{width:38,height:38,background:C.dangerSoft,border:`1.5px solid ${C.danger}`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0}}>🔧</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:800,fontSize:14,color:C.text}}>Garage</div>
+                  <div style={{fontSize:10,color:C.muted}}>Défauts + Mode TV</div>
+                </div>
+              </button>
+              <button onClick={()=>setAppView("signaler")}
+                style={{flex:1,background:C.panel,border:`1.5px solid ${C.danger}55`,borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left"}}>
+                <div style={{width:38,height:38,background:C.dangerSoft,border:`1.5px solid ${C.danger}`,borderRadius:10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:19,flexShrink:0}}>🚨</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:800,fontSize:14,color:C.text}}>Signaler</div>
+                  <div style={{fontSize:10,color:C.muted}}>Tout véhicule</div>
+                </div>
+              </button>
+            </div>
+            </>
           ):(
             <div>
               <button onClick={()=>setShowDispMenu(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:6}}>← Retour</button>
