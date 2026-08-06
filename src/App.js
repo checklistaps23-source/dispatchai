@@ -1696,14 +1696,21 @@ function SignalerCompletView({ onBack, vehicles, themeMode, toggleTheme }){
           <div style={{background:C.successSoft,border:`1px solid ${C.success}`,borderRadius:12,padding:20,textAlign:"center",fontWeight:700,color:C.success,marginTop:20}}>✅ Problème signalé au Garage !</div>
         ):(
           <>
-            <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:8,marginTop:16}}>Véhicule concerné</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:16}}>
-              {[...vehicles].sort((a,b)=>{
-                const order={TPMR:0,VSL:1,AMB:2};
-                return (order[a.type]??9)-(order[b.type]??9);
-              }).map(v=>(
-                <button key={v.id} onClick={()=>setSignalVehicle(v.name)} style={{padding:"8px 4px",borderRadius:9,textAlign:"center",cursor:"pointer",fontSize:12,fontWeight:700,background:signalVehicle===v.name?C.dangerSoft:C.panel,border:`1px solid ${signalVehicle===v.name?C.danger:C.border}`,color:signalVehicle===v.name?C.danger:C.muted}}>{v.name}</button>
-              ))}
+            <div style={{marginTop:16,marginBottom:16}}>
+              {[["TPMR","TPMR"],["VSL","VSL"],["AMB","Ambulances ALPHA"]].map(([type,label])=>{
+                const group=vehicles.filter(v=>v.type===type);
+                if(group.length===0) return null;
+                return(
+                  <div key={type} style={{marginBottom:14}}>
+                    <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:8}}>{label}</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6}}>
+                      {group.map(v=>(
+                        <button key={v.id} onClick={()=>setSignalVehicle(v.name)} style={{padding:"8px 4px",borderRadius:9,textAlign:"center",cursor:"pointer",fontSize:12,fontWeight:700,background:signalVehicle===v.name?C.dangerSoft:C.panel,border:`1px solid ${signalVehicle===v.name?C.danger:C.border}`,color:signalVehicle===v.name?C.danger:C.muted}}>{v.name}</button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
             <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:8}}>Description du problème*</div>
             <textarea value={signalDesc} onChange={e=>setSignalDesc(e.target.value)} placeholder="Décrivez le problème en détail..." style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,minHeight:90,resize:"vertical",marginBottom:16,fontFamily:"inherit"}}/>
