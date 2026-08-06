@@ -364,7 +364,7 @@ function PinModal({onSuccess,onCancel}){
   );
 }
 
-function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,onBack,themeMode,toggleTheme}){
+function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,listeRouge,setListeRouge,onBack,themeMode,toggleTheme}){
   const [tab,setTab]=useState("chauffeurs");
   const [newVal,setNewVal]=useState("");
   const [newVehName,setNewVehName]=useState("");
@@ -381,6 +381,9 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const [dailyNewItemLabel,setDailyNewItemLabel]=useState({});
   const [dailyNewSectionLabel,setDailyNewSectionLabel]=useState("");
   const [dailySaving,setDailySaving]=useState(false);
+  const [newRougeName,setNewRougeName]=useState("");
+  const [newRougeReason,setNewRougeReason]=useState("");
+  const [newRougeBirthdate,setNewRougeBirthdate]=useState("");
   const [confirmDeleteChecklist,setConfirmDeleteChecklist]=useState(null); // vehicle name pending delete
   const [newEmail,setNewEmail]=useState("");
   const [newO2Email,setNewO2Email]=useState("");
@@ -413,7 +416,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const removeItem=(sIdx,shIdx,itIdx)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.filter((_,k)=>k!==itIdx)}:sh)}:s)}));
   const updateItem=(sIdx,shIdx,itIdx,field,val)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.map((it,k)=>k===itIdx?{...it,[field]:val}:it)}:sh)}:s)}));
 
-  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"stagiaires",icon:"🎓",label:"Stag/Form."},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"daily",icon:"🚑",label:"APS Daily"},{id:"emails",icon:"✉️",label:"Emails"}];
+  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"stagiaires",icon:"🎓",label:"Stag/Form."},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"daily",icon:"🚑",label:"APS Daily"},{id:"listerouge",icon:"🚫",label:"Liste rouge"},{id:"emails",icon:"✉️",label:"Emails"}];
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
@@ -877,6 +880,31 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
               }} disabled={dailySaving} style={{width:"100%",padding:14,background:dailySaving?C.muted:C.success,border:"none",borderRadius:12,color:"white",fontWeight:800,fontSize:16,cursor:"pointer"}}>
                 {dailySaving?"Sauvegarde...":"Sauvegarder la checklist"}
               </button>
+            </div>
+          )}
+          {tab==="listerouge"&&(
+            <div>
+              <SectionTitle icon="🚫" title="Liste rouge — patients à ne plus transporter"/>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Toute création de course pour un patient de cette liste sera bloquée dans le Formulaire, avec la raison affichée. La date de naissance permet d'éviter les confusions entre homonymes (facultatif).</div>
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                <input value={newRougeName} onChange={e=>setNewRougeName(e.target.value)} placeholder="Nom du patient" style={{flex:1,background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none"}}/>
+                <div style={{width:150}}><DateInput value={newRougeBirthdate} onChange={setNewRougeBirthdate}/></div>
+              </div>
+              <div style={{display:"flex",gap:8,marginBottom:16}}>
+                <input value={newRougeReason} onChange={e=>setNewRougeReason(e.target.value)} placeholder="Raison (impayé, comportement...)" style={{flex:1,background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none"}}/>
+                <button onClick={()=>{
+                  if(!newRougeName.trim()) return;
+                  setListeRouge(p=>[...p,{id:"lr"+Date.now(),name:newRougeName.trim(),birthdate:newRougeBirthdate||"",reason:newRougeReason.trim()||"Non précisée"}]);
+                  setNewRougeName(""); setNewRougeReason(""); setNewRougeBirthdate("");
+                }} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:9,color:C.danger,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Ajouter</button>
+              </div>
+              {listeRouge.length===0&&<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"20px 0"}}>Aucun patient sur liste rouge</div>}
+              {listeRouge.map(p=>(
+                <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.dangerSoft,border:`1px solid ${C.danger}66`,borderRadius:9,padding:"10px 14px",marginBottom:7}}>
+                  <div><span style={{fontSize:13,fontWeight:700,color:C.text}}>🚫 {p.name}</span>{p.birthdate&&<span style={{fontSize:11,color:C.muted,marginLeft:8}}>{p.birthdate}</span>}<div style={{fontSize:11,color:C.muted,marginTop:2}}>{p.reason}</div></div>
+                  <button onClick={()=>setListeRouge(prev=>prev.filter(x=>x.id!==p.id))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"5px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                </div>
+              ))}
             </div>
           )}
           {tab==="emails"&&(
@@ -1670,7 +1698,10 @@ function SignalerCompletView({ onBack, vehicles, themeMode, toggleTheme }){
           <>
             <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:8,marginTop:16}}>Véhicule concerné</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:16}}>
-              {vehicles.map(v=>(
+              {[...vehicles].sort((a,b)=>{
+                const order={TPMR:0,VSL:1,AMB:2};
+                return (order[a.type]??9)-(order[b.type]??9);
+              }).map(v=>(
                 <button key={v.id} onClick={()=>setSignalVehicle(v.name)} style={{padding:"8px 4px",borderRadius:9,textAlign:"center",cursor:"pointer",fontSize:12,fontWeight:700,background:signalVehicle===v.name?C.dangerSoft:C.panel,border:`1px solid ${signalVehicle===v.name?C.danger:C.border}`,color:signalVehicle===v.name?C.danger:C.muted}}>{v.name}</button>
               ))}
             </div>
@@ -5071,6 +5102,7 @@ export default function App(){
   const [transportTypes,setTransportTypes] = useFirestoreState("transportTypes", INIT_TRANSPORT_TYPES);
   const [bases,       setBases]       = useFirestoreState("bases", INIT_BASES);
   const [contacts,    setContacts]    = useFirestoreState("contacts", INIT_CONTACTS);
+  const [listeRouge,  setListeRouge]  = useFirestoreState("listeRouge", []);
   const [patientsHabituels, setPatientsHabituels] = useFirestoreState("patientsHabituels", [
     {id:"ph_test1",categorie:"Dialyse",nom:"Moreau",prenom:"Alice",telephone:"065 12 34 56",adresseDepart:"15 rue de la Paix, Mons",adresseArrivee:"CHU Mons — Dialyse",convention:"epicura",typeTransport:"dialyse",mobilite:"chaise_perso",equipSelected:[],litrageO2:2,notes:"Dialyse 3x/semaine — Lun/Mer/Ven",heureHabituelle:"08h00",statut:"actif"},
     {id:"ph_test2",categorie:"Radiothérapie",nom:"Petit",prenom:"Bernard",telephone:"065 98 76 54",adresseDepart:"42 chaussée de Bruxelles, Mons",adresseArrivee:"CHU Mons — Radiothérapie",convention:"partenamut",typeTransport:"radiotherapie",mobilite:"brancard",equipSelected:["oxygene"],litrageO2:4,notes:"Test — sous oxygène",heureHabituelle:"10h30",statut:"actif"},
@@ -5181,14 +5213,14 @@ export default function App(){
   };
 
   if(showPin) return <PinModal onSuccess={()=>{setShowPin(false);setAppView("parametres");}} onCancel={()=>setShowPin(false)}/>;
-  if(appView==="formulaire") return <FormulaireView onBack={backToSubMenu} onSubmit={submitCourse} conventions={conventions} equipements={equipements} transportTypes={transportTypes} contacts={contacts} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="formulaire") return <FormulaireView onBack={backToSubMenu} onSubmit={submitCourse} conventions={conventions} equipements={equipements} transportTypes={transportTypes} contacts={contacts} listeRouge={listeRouge} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} tarifs={tarifs} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="planning") return <PlanningView courses={courses} setCourses={setCourses} vehicles={vehicles} patients={patientsHabituels} setPatients={setPatientsHabituels} categories={patientCategories} setCategories={setPatientCategories} conventions={conventions} transportTypes={transportTypes} equipements={equipements} pending={pending} onAssignPending={validateCourse} onGoFormulaire={()=>setAppView("formulaire")} onBack={backToSubMenu} onSchedule={submitFromPatientHabituel} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="signaler") return <SignalerCompletView onBack={()=>setAppView("menu")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} listeRouge={listeRouge} setListeRouge={setListeRouge} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -5329,7 +5361,7 @@ function validateF(form,step){
   return e;
 }
 
-function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,contacts,themeMode,toggleTheme}){
+function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,contacts,listeRouge,themeMode,toggleTheme}){
   const [step,setStep]=useState(1);
   const [form,setForm]=useState(()=>({...EMPTY_F,date:todayFR()}));
   const [touched,setTouched]=useState({});
@@ -5344,7 +5376,14 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
   const toggleEquip=(id)=>{const sel=form.equipSelected||[];if(sel.includes(id))set("equipSelected",sel.filter(x=>x!==id));else set("equipSelected",[...sel,id]);};
   const isAmb=needsAmb(form.mobilite,form.equipSelected);
   const vehicle=isAmb?{label:"AMBULANCE",icon:"🚑",color:C.danger}:form.mobilite==="assis"?{label:"VSL / TPMR",icon:"🚗",color:C.blue}:{label:"TPMR",icon:"♿",color:C.blue};
-  const handleSubmit=()=>{if(Object.keys(validateF(form,5)).length===0){onSubmit(form);setDone(true);}};
+  const normalizedFull=`${(form.nom||"").trim()} ${(form.prenom||"").trim()}`.toLowerCase();
+  const redEntry=(listeRouge||[]).find(p=>{
+    if(!p.name||!p.name.trim()) return false;
+    if(!normalizedFull.includes(p.name.trim().toLowerCase())) return false;
+    if(p.birthdate) return (form.dateNaissance||"")===p.birthdate;
+    return true;
+  });
+  const handleSubmit=()=>{if(redEntry) return; if(Object.keys(validateF(form,5)).length===0){onSubmit(form);setDone(true);}};
   const addHeure=()=>set("heures",[...form.heures,{heure:"",description:""}]);
   const removeHeure=(i)=>set("heures",form.heures.filter((_,j)=>j!==i));
   const updateHeure=(i,k,v)=>set("heures",form.heures.map((h,j)=>j===i?{...h,[k]:v}:h));
@@ -5403,6 +5442,12 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
               {step===2&&(
                 <>
                   <SectionTitle icon="👤" title="Patient"/>
+                  {redEntry&&(
+                    <div style={{background:C.dangerSoft,border:`1.5px solid ${C.danger}`,borderRadius:10,padding:"12px 14px",marginBottom:14,display:"flex",alignItems:"center",gap:10}}>
+                      <span style={{fontSize:22}}>🚫</span>
+                      <div><div style={{fontWeight:800,fontSize:13,color:C.danger}}>Patient sur liste rouge — course bloquée</div><div style={{fontSize:12,color:C.text,marginTop:2}}>Raison : {redEntry.reason}</div></div>
+                    </div>
+                  )}
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
                     <FieldWrap label="Nom" error={errors.nom} touched={touched.nom} required><TextInput value={form.nom} onChange={e=>set("nom",e.target.value)} onBlur={()=>touch("nom")} placeholder="Dupont" error={errors.nom} touched={touched.nom}/></FieldWrap>
                     <FieldWrap label="Prénom" error={errors.prenom} touched={touched.prenom} required><TextInput value={form.prenom} onChange={e=>set("prenom",e.target.value)} onBlur={()=>touch("prenom")} placeholder="Jean" error={errors.prenom} touched={touched.prenom}/></FieldWrap>
@@ -5541,7 +5586,7 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
             <div style={{display:"flex",gap:10,marginTop:18}}>
               {step>1&&<button onClick={()=>setStep(s=>s-1)} style={{flex:1,padding:"12px",background:"transparent",border:`1.5px solid ${C.border}`,borderRadius:11,color:C.mutedLight,fontSize:13,fontWeight:700,cursor:"pointer"}}>← Précédent</button>}
               {step<5?<button onClick={goNext} style={{flex:2,padding:"12px",background:canNext?C.accent:C.panel2,border:"none",borderRadius:11,color:canNext?"white":C.muted,fontSize:13,fontWeight:800,cursor:canNext?"pointer":"not-allowed",opacity:canNext?1:0.6}}>Suivant →</button>
-              :<button onClick={handleSubmit} style={{flex:2,padding:"12px",background:C.success,border:"none",borderRadius:11,color:"white",fontSize:13,fontWeight:800,cursor:"pointer"}}>📤 Envoyer au dispatcher</button>}
+              :<button onClick={handleSubmit} disabled={!!redEntry} style={{flex:2,padding:"12px",background:redEntry?C.panel2:C.success,border:"none",borderRadius:11,color:redEntry?C.danger:"white",fontSize:13,fontWeight:800,cursor:redEntry?"not-allowed":"pointer"}}>{redEntry?"🚫 Bloqué — liste rouge":"📤 Envoyer au dispatcher"}</button>}
             </div>
           </>
         )}
