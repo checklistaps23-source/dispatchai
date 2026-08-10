@@ -207,6 +207,25 @@ const INIT_TRANSPORT_TYPES = [
   {id:"retour_domicile",label:"Retour domicile",icon:"🏠"},
 ];
 
+// Liste "Nature de mission" propre au Carnet de bord (séparée de celle du
+// Formulaire), éditable dans Paramètres → Carnet de bord.
+const INIT_CARNET_TYPES = [
+  {id:"consultation",label:"Consultation",icon:"🏥"},
+  {id:"retour_consultation",label:"Retour consultation",icon:"↩️"},
+  {id:"radiotherapie",label:"Radiothérapie",icon:"☢️"},
+  {id:"retour_radiotherapie",label:"Retour radiothérapie",icon:"↩️"},
+  {id:"dialyse",label:"Dialyse",icon:"💧"},
+  {id:"retour_dialyse",label:"Retour dialyse",icon:"↩️"},
+  {id:"oncologie",label:"Oncologie",icon:"🎗"},
+  {id:"retour_oncologie",label:"Retour oncologie",icon:"↩️"},
+  {id:"hospitalisation",label:"Hospitalisation",icon:"🛏"},
+  {id:"urgences",label:"Urgences",icon:"🚨"},
+  {id:"transfert_inter",label:"Transfert inter-site",icon:"🔄"},
+  {id:"transfert_extra",label:"Transfert extra-site",icon:"📍"},
+  {id:"retour_base",label:"Retour base",icon:"🏠"},
+  {id:"retour_domicile",label:"Retour domicile du chauffeur",icon:"🚗"},
+];
+
 const INIT_BASES = ["La Glanerie","Baudour","Ath"];
 const INIT_CONTACTS = [
   {id:"c1",nom:"CHU Mons",tel:"065 38 21 11"},
@@ -364,7 +383,7 @@ function PinModal({onSuccess,onCancel}){
   );
 }
 
-function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,listeRouge,setListeRouge,onBack,themeMode,toggleTheme}){
+function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,listeRouge,setListeRouge,carnetBordTypes,setCarnetBordTypes,onBack,themeMode,toggleTheme}){
   const [tab,setTab]=useState("chauffeurs");
   const [newVal,setNewVal]=useState("");
   const [newVehName,setNewVehName]=useState("");
@@ -384,6 +403,8 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const [newRougeName,setNewRougeName]=useState("");
   const [newRougeReason,setNewRougeReason]=useState("");
   const [newRougeBirthdate,setNewRougeBirthdate]=useState("");
+  const [newCarnetLabel,setNewCarnetLabel]=useState("");
+  const [newCarnetIcon,setNewCarnetIcon]=useState("📍");
   const [confirmDeleteChecklist,setConfirmDeleteChecklist]=useState(null); // vehicle name pending delete
   const [newEmail,setNewEmail]=useState("");
   const [newO2Email,setNewO2Email]=useState("");
@@ -416,7 +437,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const removeItem=(sIdx,shIdx,itIdx)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.filter((_,k)=>k!==itIdx)}:sh)}:s)}));
   const updateItem=(sIdx,shIdx,itIdx,field,val)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.map((it,k)=>k===itIdx?{...it,[field]:val}:it)}:sh)}:s)}));
 
-  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"stagiaires",icon:"🎓",label:"Stag/Form."},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"daily",icon:"🚑",label:"APS Daily"},{id:"listerouge",icon:"🚫",label:"Liste rouge"},{id:"emails",icon:"✉️",label:"Emails"}];
+  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"stagiaires",icon:"🎓",label:"Stag/Form."},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"daily",icon:"🚑",label:"APS Daily"},{id:"listerouge",icon:"🚫",label:"Liste rouge"},{id:"carnetbord",icon:"📓",label:"Carnet de bord"},{id:"emails",icon:"✉️",label:"Emails"}];
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
@@ -903,6 +924,30 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                 <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.dangerSoft,border:`1px solid ${C.danger}66`,borderRadius:9,padding:"10px 14px",marginBottom:7}}>
                   <div><span style={{fontSize:13,fontWeight:700,color:C.text}}>🚫 {p.name}</span>{p.birthdate&&<span style={{fontSize:11,color:C.muted,marginLeft:8}}>{p.birthdate}</span>}<div style={{fontSize:11,color:C.muted,marginTop:2}}>{p.reason}</div></div>
                   <button onClick={()=>setListeRouge(prev=>prev.filter(x=>x.id!==p.id))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"5px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {tab==="carnetbord"&&(
+            <div>
+              <SectionTitle icon="📓" title="Carnet de bord — nature de mission"/>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Liste propre au Carnet de bord (indépendante de celle du Formulaire). Change les icônes ou ajoute tes propres catégories.</div>
+              <div style={{display:"flex",gap:8,marginBottom:16}}>
+                <input value={newCarnetIcon} onChange={e=>setNewCarnetIcon(e.target.value)} placeholder="📍" maxLength={4} style={{width:60,textAlign:"center",background:C.bg,color:C.text,fontSize:16,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 8px",outline:"none"}}/>
+                <input value={newCarnetLabel} onChange={e=>setNewCarnetLabel(e.target.value)} placeholder="Nom de la catégorie" style={{flex:1,background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none"}}/>
+                <button onClick={()=>{
+                  if(!newCarnetLabel.trim()) return;
+                  setCarnetBordTypes(p=>[...p,{id:"custom"+Date.now(),label:newCarnetLabel.trim(),icon:newCarnetIcon.trim()||"📍"}]);
+                  setNewCarnetLabel(""); setNewCarnetIcon("📍");
+                }} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:9,color:C.danger,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>+ Ajouter</button>
+              </div>
+              {carnetBordTypes.map((t,i)=>(
+                <div key={t.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",marginBottom:7}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,flex:1}}>
+                    <input value={t.icon} onChange={e=>setCarnetBordTypes(p=>p.map((x,j)=>j===i?{...x,icon:e.target.value}:x))} style={{width:40,textAlign:"center",background:C.bg,color:C.text,fontSize:15,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px"}}/>
+                    <input value={t.label} onChange={e=>setCarnetBordTypes(p=>p.map((x,j)=>j===i?{...x,label:e.target.value}:x))} style={{flex:1,background:C.bg,color:C.text,fontSize:13,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 10px"}}/>
+                  </div>
+                  <button onClick={()=>setCarnetBordTypes(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"5px 9px",fontSize:11,cursor:"pointer",marginLeft:8}}>🗑</button>
                 </div>
               ))}
             </div>
@@ -1838,6 +1883,241 @@ function GarageView({ onBack, themeMode, toggleTheme }){
   );
 }
 
+// ═══════════════════════════════════════
+// CARNET DE BORD — modal accessible pendant le service (Chauffeur)
+// Fonctionnement en 2 temps : Départ (heure/km/lieu) puis Arrivée (lieu/km/litres)
+// ═══════════════════════════════════════
+function capitalizeCity(s){
+  if(!s) return s;
+  return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();
+}
+function NumKeyboardField({ value, onConfirm, allowDecimal, placeholder, danger }){
+  const [local,setLocal]=useState(value!==undefined&&value!==null?String(value):"");
+  const [confirmed,setConfirmed]=useState(!!(value!==undefined&&value!==null&&value!==""));
+  return(
+    <div style={{display:"flex",gap:6}}>
+      <input type="text" inputMode={allowDecimal?"decimal":"numeric"} value={local}
+        onChange={e=>{
+          let v=e.target.value.replace(allowDecimal?/[^0-9,]/g:/[^0-9]/g,"");
+          setLocal(v); setConfirmed(false);
+        }}
+        placeholder={placeholder} style={{flex:1,background:C.bg,border:`1px solid ${danger&&!confirmed?C.danger:C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:14,boxSizing:"border-box"}}/>
+      <button onClick={()=>{ onConfirm(local); setConfirmed(true); }} disabled={!local} style={{background:confirmed?C.successSoft:C.accentSoft,border:`1px solid ${confirmed?C.success:C.accent}`,borderRadius:8,color:confirmed?C.success:C.accent,padding:"0 14px",fontWeight:700,fontSize:12,cursor:local?"pointer":"not-allowed",opacity:local?1:0.5}}>{confirmed?"✓":"Entrer"}</button>
+    </div>
+  );
+}
+
+function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, onClose, forcedMission, onForcedSaved }){
+  const [entries,setEntries]=useState([]);
+  const [mode,setMode]=useState(forcedMission?"fin_service":"list"); // list | depart | arrivee | fin_service
+  const [arrivingEntry,setArrivingEntry]=useState(null);
+  const [selectedCourseId,setSelectedCourseId]=useState("");
+  const nowHeure=()=>new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+
+  const [departForm,setDepartForm]=useState({heureDepart:nowHeure(),kmDepart:"",lieuDepart:"",natureMission:""});
+  const [arriveeForm,setArriveeForm]=useState({destination:"",kmFin:"",litres:""});
+  const [finForm,setFinForm]=useState({kmFin:""});
+  const [saving,setSaving]=useState(false);
+
+  const types=(carnetBordTypes&&carnetBordTypes.length)?carnetBordTypes:INIT_CARNET_TYPES;
+
+  useEffect(()=>{
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_carnet_bord"), snap=>{
+      const today=todayISO();
+      const data=snap.docs.map(d=>d.data()).filter(e=>e.vehicle===vehicle.name && e.date===today);
+      data.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      setEntries(data);
+    });
+    return ()=>unsub();
+  },[vehicle.name]);
+
+  const startDepart=()=>{
+    setSelectedCourseId("");
+    setDepartForm({heureDepart:nowHeure(),kmDepart:"",lieuDepart:"",natureMission:""});
+    setMode("depart");
+  };
+  const startDepartFromCourse=(course)=>{
+    setSelectedCourseId(course.id);
+    setDepartForm({heureDepart:course.heure||nowHeure(),kmDepart:"",lieuDepart:capitalizeCity(course.adresseDepart||""),natureMission:course.typeTransport||""});
+    setMode("depart");
+  };
+  const startArrivee=(entry)=>{
+    setArrivingEntry(entry);
+    const linkedCourse=entry.courseId?(myCourses||[]).find(c=>c.id===entry.courseId):null;
+    setArriveeForm({destination:linkedCourse?capitalizeCity(linkedCourse.adresseArrivee||""):"",kmFin:"",litres:""});
+    setMode("arrivee");
+  };
+
+  const canSaveDepart=departForm.heureDepart&&departForm.kmDepart&&departForm.lieuDepart.trim()&&departForm.natureMission;
+  const saveDepart=async()=>{
+    if(!canSaveDepart) return;
+    setSaving(true);
+    await saveCarnetBordEntry({
+      vehicle:vehicle.name, date:todayISO(), dateISO:new Date().toISOString(),
+      status:"open",
+      heureDepart:departForm.heureDepart, kmDepart:departForm.kmDepart, lieuDepart:departForm.lieuDepart.trim(),
+      natureMission:departForm.natureMission, chauffeur:driver, courseId:selectedCourseId||null,
+    });
+    setSaving(false);
+    setMode("list");
+  };
+
+  const canSaveArrivee=arriveeForm.destination.trim()&&arriveeForm.kmFin;
+  const saveArrivee=async()=>{
+    if(!canSaveArrivee||!arrivingEntry) return;
+    setSaving(true);
+    await saveCarnetBordEntry({
+      ...arrivingEntry,
+      status:"closed",
+      destination:arriveeForm.destination.trim(), kmFin:arriveeForm.kmFin, litres:arriveeForm.litres||null,
+    });
+    setSaving(false);
+    setArrivingEntry(null);
+    setMode("list");
+  };
+
+  const canSaveFin=!!finForm.kmFin;
+  const saveFin=async()=>{
+    if(!canSaveFin) return;
+    setSaving(true);
+    await saveCarnetBordEntry({
+      vehicle:vehicle.name, date:todayISO(), dateISO:new Date().toISOString(),
+      status:"closed",
+      heureDepart:nowHeure(), kmDepart:null, lieuDepart:null,
+      destination:forcedMission==="retour_domicile"?"Domicile du chauffeur":"Base",
+      natureMission:forcedMission, chauffeur:driver, kmFin:finForm.kmFin, litres:null,
+      heureRetour:nowHeure(),
+    });
+    setSaving(false);
+    if(onForcedSaved) onForcedSaved();
+  };
+
+  const natureLabel=(id)=>types.find(t=>t.id===id)?.label||id;
+  const natureIcon=(id)=>types.find(t=>t.id===id)?.icon||"📍";
+  const openEntries=entries.filter(e=>e.status==="open");
+  const closedEntries=entries.filter(e=>e.status==="closed");
+
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:240}}>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:460,maxWidth:"92vw",maxHeight:"90vh",overflowY:"auto",animation:"pop 0.2s ease"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div style={{fontWeight:800,fontSize:16}}>📓 Carnet de bord{forcedMission&&" — Fin de service"}</div>
+          {!forcedMission&&mode==="list"&&<button onClick={onClose} style={{background:"transparent",border:"none",color:C.muted,fontSize:22,cursor:"pointer"}}>×</button>}
+        </div>
+
+        {mode==="fin_service"&&(
+          <>
+            <div style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:9,padding:"10px 14px",marginBottom:16,fontSize:12,color:C.text}}>
+              {forcedMission==="retour_domicile"?"🚗 Retour domicile du chauffeur":"🏠 Retour base"} — heure {nowHeure()}. Le km de fin est requis pour clôturer.
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Km de fin (obligatoire)</div>
+              <NumKeyboardField value={finForm.kmFin} onConfirm={v=>setFinForm({kmFin:v})} danger/>
+            </div>
+            <button disabled={!canSaveFin||saving} onClick={saveFin} style={{width:"100%",background:canSaveFin?C.success:C.panel2,border:"none",borderRadius:9,color:canSaveFin?"white":C.muted,padding:"13px",fontWeight:800,fontSize:14,cursor:canSaveFin?"pointer":"not-allowed"}}>{saving?"Enregistrement…":"✅ Clôturer le service"}</button>
+          </>
+        )}
+
+        {mode==="list"&&(
+          <>
+            <button onClick={startDepart} style={{width:"100%",marginBottom:10,background:C.successSoft,border:`1.5px dashed ${C.success}`,borderRadius:11,padding:"13px",color:C.success,fontWeight:700,fontSize:13,cursor:"pointer"}}>🚗 Départ</button>
+            {myCourses&&myCourses.length>0&&(
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase"}}>Ou partir depuis une course</div>
+                <div style={{display:"flex",flexDirection:"column",gap:5,maxHeight:100,overflowY:"auto"}}>
+                  {myCourses.map(c=>(
+                    <button key={c.id} onClick={()=>startDepartFromCourse(c)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px",color:C.text,fontSize:11,textAlign:"left",cursor:"pointer"}}>{c.heure} — {c.patient||c.nom}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {openEntries.length>0&&(
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:10,color:"#f59e0b",fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>⏳ En cours</div>
+                {openEntries.map(e=>(
+                  <div key={e.id} style={{background:"#f59e0b18",border:"1px solid #f59e0b",borderRadius:10,padding:"10px 12px",marginBottom:7}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontWeight:700,fontSize:12,color:C.text}}>{natureIcon(e.natureMission)} {e.heureDepart} — {e.lieuDepart}</span>
+                      <button onClick={()=>startArrivee(e)} style={{background:C.success,border:"none",borderRadius:7,color:"white",padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🏁 Arrivée</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {closedEntries.length>0&&(
+              <div>
+                <div style={{fontSize:10,color:C.muted,fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>Terminées aujourd'hui</div>
+                {closedEntries.map(e=>(
+                  <div key={e.id} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",marginBottom:7}}>
+                    <div style={{display:"flex",justifyContent:"space-between"}}>
+                      <span style={{fontWeight:700,fontSize:12,color:C.text}}>{natureIcon(e.natureMission)} {natureLabel(e.natureMission)}</span>
+                      {e.kmDepart&&e.kmFin&&<span style={{fontSize:11,color:C.muted}}>{e.kmDepart}→{e.kmFin} km</span>}
+                    </div>
+                    {(e.lieuDepart||e.destination)&&<div style={{fontSize:11,color:C.muted,marginTop:3}}>{e.lieuDepart||"—"} → {e.destination||"—"}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {entries.length===0&&<div style={{textAlign:"center",color:C.muted,fontSize:12,padding:"14px 0"}}>Aucune ligne aujourd'hui pour ce véhicule</div>}
+          </>
+        )}
+
+        {mode==="depart"&&(
+          <>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Heure de départ</div>
+              <HeureInput value={departForm.heureDepart} onChange={v=>setDepartForm(f=>({...f,heureDepart:v}))}/>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Km de départ</div>
+              <NumKeyboardField value={departForm.kmDepart} onConfirm={v=>setDepartForm(f=>({...f,kmDepart:v}))}/>
+            </div>
+            <div style={{marginBottom:14}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Lieu de départ</div>
+              <input value={departForm.lieuDepart} onChange={e=>setDepartForm(f=>({...f,lieuDepart:capitalizeCity(e.target.value)}))} placeholder="Adresse ou ville de départ" style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+            </div>
+            <div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase"}}>Nature de la mission</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:16}}>
+              {types.map(t=>(
+                <button key={t.id} onClick={()=>setDepartForm(f=>({...f,natureMission:t.id}))} style={{padding:"8px 6px",borderRadius:8,textAlign:"center",cursor:"pointer",fontSize:11,fontWeight:700,background:departForm.natureMission===t.id?C.dangerSoft:C.bg,border:`1px solid ${departForm.natureMission===t.id?C.danger:C.border}`,color:departForm.natureMission===t.id?C.danger:C.muted}}>{t.icon} {t.label}</button>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setMode("list")} style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"11px",fontSize:13,cursor:"pointer"}}>Annuler</button>
+              <button disabled={!canSaveDepart||saving} onClick={saveDepart} style={{flex:2,background:canSaveDepart?C.success:C.panel2,border:"none",borderRadius:9,color:canSaveDepart?"white":C.muted,padding:"11px",fontWeight:700,fontSize:13,cursor:canSaveDepart?"pointer":"not-allowed"}}>{saving?"…":"✅ Départ enregistré"}</button>
+            </div>
+          </>
+        )}
+
+        {mode==="arrivee"&&arrivingEntry&&(
+          <>
+            <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:14,fontSize:12,color:C.muted}}>
+              Départ {arrivingEntry.heureDepart} — {arrivingEntry.lieuDepart} ({arrivingEntry.kmDepart} km)
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Lieu d'arrivée</div>
+              <input value={arriveeForm.destination} onChange={e=>setArriveeForm(f=>({...f,destination:capitalizeCity(e.target.value)}))} placeholder="Adresse ou ville d'arrivée" style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Km d'arrivée</div>
+              <NumKeyboardField value={arriveeForm.kmFin} onConfirm={v=>setArriveeForm(f=>({...f,kmFin:v}))}/>
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Litres essence (facultatif)</div>
+              <NumKeyboardField value={arriveeForm.litres} onConfirm={v=>setArriveeForm(f=>({...f,litres:v}))} allowDecimal placeholder="27,46"/>
+              {arriveeForm.litres&&<div style={{fontSize:11,color:C.muted,marginTop:4}}>{arriveeForm.litres} Litres</div>}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>{setMode("list");setArrivingEntry(null);}} style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"11px",fontSize:13,cursor:"pointer"}}>Annuler</button>
+              <button disabled={!canSaveArrivee||saving} onClick={saveArrivee} style={{flex:2,background:canSaveArrivee?C.success:C.panel2,border:"none",borderRadius:9,color:canSaveArrivee?"white":C.muted,padding:"11px",fontWeight:700,fontSize:13,cursor:canSaveArrivee?"pointer":"not-allowed"}}>{saving?"…":"✅ Clôturer la ligne"}</button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function DailyChecklistView({ vehicle, driverName, delayMessage, onComplete, themeMode, toggleTheme }){
   const vType = vehicle?.type || "AMB";
   const template = DAILY_TEMPLATES_BASE[vType] || DAILY_CHECKLIST_ALPHA;
@@ -1990,13 +2270,15 @@ function DailyChecklistView({ vehicle, driverName, delayMessage, onComplete, the
   );
 }
 
-function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehicles,setVehicles,contacts,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,onBack,onEndService,themeMode,toggleTheme}){
+function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehicles,setVehicles,contacts,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,carnetBordTypes,onBack,onEndService,themeMode,toggleTheme}){
   const [showBons,setShowBons]=useState(false);
   const [showContacts,setShowContacts]=useState(false);
   const [showPlans,setShowPlans]=useState(false);
   const [showSignaler,setShowSignaler]=useState(false);
   const [showChangeConvoyeur,setShowChangeConvoyeur]=useState(false);
   const [showEndChoice,setShowEndChoice]=useState(false);
+  const [showCarnetBord,setShowCarnetBord]=useState(false);
+  const [endCarnetMission,setEndCarnetMission]=useState(null); // "retour_base" | "retour_domicile" | null
   const [signalVehicle,setSignalVehicle]=useState("");
   const [signalDesc,setSignalDesc]=useState("");
   const [signalNom,setSignalNom]=useState("");
@@ -2286,6 +2568,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
           </div>
         ):null}
         <button onClick={()=>{setSignalVehicle(vehicle.name);setSignalNom(isAmb?[driver,convoyeur].filter(Boolean).join(" / "):driver);setShowSignaler(true);}} style={{width:"100%",marginBottom:8,background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:10,color:C.danger,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🚨 Signaler un problème</button>
+        <button onClick={()=>setShowCarnetBord(true)} style={{width:"100%",marginBottom:8,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📓 Carnet de bord</button>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <button onClick={()=>setShowPlans(true)} style={{flex:1,background:C.blueSoft,border:`1px solid ${C.blue}`,borderRadius:10,color:C.blue,padding:"11px",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🗺️ Plans</button>
           <button onClick={()=>setShowContacts(true)} style={{flex:1,background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:10,color:C.accent,padding:"11px",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📞 Contacts</button>
@@ -2383,19 +2666,11 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
             <div style={{fontWeight:800,fontSize:16,marginBottom:6}}>🔴 Fin de service</div>
             <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Le véhicule {vehicle?.name} reste où ce soir ?</div>
             <div style={{display:"flex",flexDirection:"column",gap:10}}>
-              <button onClick={()=>{
-                if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:null}:v));
-                setShowEndChoice(false);
-                onEndService();
-              }} style={{background:C.successSoft,border:`1.5px solid ${C.success}`,borderRadius:12,padding:"14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",textAlign:"left"}}>
+              <button onClick={()=>{ setShowEndChoice(false); setEndCarnetMission("retour_base"); }} style={{background:C.successSoft,border:`1.5px solid ${C.success}`,borderRadius:12,padding:"14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",textAlign:"left"}}>
                 <span style={{fontSize:24}}>🏠</span>
                 <div><div style={{fontWeight:700,fontSize:14,color:C.success}}>Retour base</div><div style={{fontSize:11,color:C.muted}}>Le véhicule reste au dépôt</div></div>
               </button>
-              <button onClick={()=>{
-                if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:{driver,since:Date.now()}}:v));
-                setShowEndChoice(false);
-                onEndService();
-              }} style={{background:C.dangerSoft,border:`1.5px solid ${C.danger}`,borderRadius:12,padding:"14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",textAlign:"left"}}>
+              <button onClick={()=>{ setShowEndChoice(false); setEndCarnetMission("retour_domicile"); }} style={{background:C.dangerSoft,border:`1.5px solid ${C.danger}`,borderRadius:12,padding:"14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",textAlign:"left"}}>
                 <span style={{fontSize:24}}>🚗</span>
                 <div><div style={{fontWeight:700,fontSize:14,color:C.danger}}>Retour domicile</div><div style={{fontSize:11,color:C.muted}}>Je le ramène chez moi</div></div>
               </button>
@@ -2403,6 +2678,20 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
             <button onClick={()=>setShowEndChoice(false)} style={{width:"100%",marginTop:14,background:"transparent",border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"10px",fontSize:13,cursor:"pointer"}}>Annuler</button>
           </div>
         </div>
+      )}
+
+      {endCarnetMission&&(
+        <CarnetBordModal vehicle={vehicle} driver={driver} myCourses={myCourses} carnetBordTypes={carnetBordTypes} forcedMission={endCarnetMission}
+          onForcedSaved={()=>{
+            if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:endCarnetMission==="retour_domicile"?{driver,since:Date.now()}:null}:v));
+            setEndCarnetMission(null);
+            onEndService();
+          }}
+          onClose={()=>setEndCarnetMission(null)}/>
+      )}
+
+      {showCarnetBord&&(
+        <CarnetBordModal vehicle={vehicle} driver={driver} myCourses={myCourses} carnetBordTypes={carnetBordTypes} onClose={()=>setShowCarnetBord(false)}/>
       )}
 
       {showChangeConvoyeur&&(
@@ -3522,12 +3811,15 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
 // ═══════════════════════════════════════
 // HISTORIQUE — liste des checklists envoyées (24 mois glissants)
 // ═══════════════════════════════════════
-function HistoriqueView({ onBack, themeMode, toggleTheme }){
-  const [screen,setScreen]=useState("home"); // home | checklists | o2 | daily
+function HistoriqueView({ onBack, vehicles, carnetBordTypes, themeMode, toggleTheme }){
+  const [screen,setScreen]=useState("home"); // home | checklists | o2 | daily | carnet
+  const [carnetVehicle,setCarnetVehicle]=useState(null);
 
   if(screen==="checklists") return <ChecklistHistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(screen==="o2") return <O2HistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(screen==="daily") return <DailyHistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="carnet"&&carnetVehicle) return <CarnetBordHistoriqueDetail vehicle={carnetVehicle} carnetBordTypes={carnetBordTypes} onBack={()=>setCarnetVehicle(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="carnet") return <CarnetBordVehiclePicker vehicles={vehicles} onSelect={setCarnetVehicle} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
@@ -3552,6 +3844,100 @@ function HistoriqueView({ onBack, themeMode, toggleTheme }){
           <div style={{ fontSize:28 }}>🚑</div>
           <div><div style={{ fontWeight:800, fontSize:15 }}>Historique APS Daily</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Checklists journalières par véhicule</div></div>
         </button>
+        <button onClick={()=>setScreen("carnet")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
+          <div style={{ fontSize:28 }}>📓</div>
+          <div><div style={{ fontWeight:800, fontSize:15 }}>Carnet de bord</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Historique des trajets par véhicule (3 ans)</div></div>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CarnetBordVehiclePicker({ vehicles, onSelect, onBack, themeMode, toggleTheme }){
+  return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div style={{ fontWeight:800, fontSize:16 }}>📓 Carnet de bord</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{ flex:1, padding:"16px", maxWidth:480, margin:"0 auto", width:"100%" }}>
+        {[["TPMR","TPMR"],["VSL","VSL"],["AMB","Ambulances ALPHA"]].map(([type,label])=>{
+          const group=(vehicles||[]).filter(v=>v.type===type);
+          if(group.length===0) return null;
+          return(
+            <div key={type} style={{ marginBottom:18 }}>
+              <div style={{ fontSize:11, fontWeight:700, color:CK_C.muted, textTransform:"uppercase", marginBottom:8 }}>{label}</div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                {group.map(v=>(
+                  <button key={v.id} onClick={()=>onSelect(v)} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:"16px 10px", color:CK_C.text, fontWeight:700, fontSize:14, cursor:"pointer" }}>
+                    {v.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CarnetBordHistoriqueDetail({ vehicle, carnetBordTypes, onBack, themeMode, toggleTheme }){
+  const [entries,setEntries]=useState([]);
+  const [loaded,setLoaded]=useState(false);
+
+  useEffect(()=>{
+    cleanOldCarnetBord();
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_carnet_bord"), snap=>{
+      const data=snap.docs.map(d=>d.data()).filter(e=>e.vehicle===vehicle.name);
+      data.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      setEntries(data);
+      setLoaded(true);
+    }, ()=>setLoaded(true));
+    return ()=>unsub();
+  },[vehicle.name]);
+
+  const cbTypes=(carnetBordTypes&&carnetBordTypes.length)?carnetBordTypes:INIT_CARNET_TYPES;
+  const natureLabel=(id)=>cbTypes.find(t=>t.id===id)?.label||id;
+  const groups={};
+  entries.forEach(e=>{ if(!groups[e.date]) groups[e.date]=[]; groups[e.date].push(e); });
+
+  return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div style={{ fontWeight:800, fontSize:16 }}>📓 {vehicle.name}</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{ flex:1, padding:"14px", overflowY:"auto" }}>
+        {!loaded&&<div style={{ textAlign:"center", color:CK_C.muted, padding:40 }}>Chargement…</div>}
+        {loaded&&entries.length===0&&<div style={{ textAlign:"center", color:CK_C.muted, padding:40 }}>Aucune ligne pour ce véhicule</div>}
+        {Object.entries(groups).map(([date,items])=>(
+          <div key={date} style={{ marginBottom:16 }}>
+            <div style={{ fontSize:12, fontWeight:700, letterSpacing:2, color:CK_C.muted, textTransform:"uppercase", marginBottom:8 }}>📅 {new Date(date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>
+            {items.map(e=>(
+              <div key={e.id} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:14, marginBottom:8 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span style={{ fontWeight:700, fontSize:13, color:CK_C.text }}>{e.heureDepart} — {natureLabel(e.natureMission)}</span>
+                  {e.kmDepart&&e.kmFin&&<span style={{ fontSize:11, color:CK_C.muted }}>{e.kmDepart} → {e.kmFin} km</span>}
+                </div>
+                <div style={{ fontSize:12, color:CK_C.muted, marginTop:4 }}>{e.lieuDepart} → {e.destination}</div>
+                <div style={{ fontSize:11, color:CK_C.muted, marginTop:6, display:"flex", gap:12, flexWrap:"wrap" }}>
+                  <span>👤 {e.chauffeur}</span>
+                  {e.litres&&<span>⛽ {e.litres} L</span>}
+                  {e.heureRetour&&<span>🏠 Retour {e.heureRetour}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -4258,13 +4644,13 @@ function O2ReserveView({ onBack, themeMode, toggleTheme, emails }){
   );
 }
 
-function ChecklistsHome({ onBack, checklists, emails, o2Emails, themeMode, toggleTheme }) {
+function ChecklistsHome({ onBack, checklists, emails, o2Emails, vehicles, carnetBordTypes, themeMode, toggleTheme }) {
   const [selected, setSelected] = useState(null);
   const [screen, setScreen] = useState("home"); // "home" | "historique" | "reappro"
   const statuses = useChecklistsWeekStatus(checklists);
 
   if (selected) return <ChecklistView vehicleName={selected} onBack={() => setSelected(null)} checklists={checklists} emails={emails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if (screen==="historique") return <HistoriqueView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if (screen==="historique") return <HistoriqueView onBack={()=>setScreen("home")} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if (screen==="reappro") return <ReapprovisionnementView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme} emails={emails} o2Emails={o2Emails}/>;
 
   return (
@@ -4751,6 +5137,33 @@ function useDailyActiveVehicleNames(){
   return names;
 }
 
+// ═══════════════════════════════════════
+// CARNET DE BORD — historique légal des trajets (rétention 36 mois, obligation 3 ans)
+// ═══════════════════════════════════════
+async function saveCarnetBordEntry(entry){
+  const id=entry.id||("cb"+Date.now());
+  try{
+    await setDoc(doc(dbChecklists,"dispatchai_carnet_bord",id), {...entry, id, createdAt:entry.createdAt||Date.now()});
+  }catch(e){ console.error("Erreur sauvegarde carnet de bord:", e); }
+  return id;
+}
+// Purge les lignes de plus de 36 mois (obligation légale de conservation 3
+// ans) — au 37ème mois, la plus ancienne disparaît.
+async function cleanOldCarnetBord(){
+  try{
+    const snap=await getDocs(collection(dbChecklists,"dispatchai_carnet_bord"));
+    const now=new Date();
+    const toDelete=[];
+    snap.forEach(d=>{
+      const data=d.data();
+      const entryDate=new Date(data.dateISO||data.createdAt);
+      const monthsDiff=(now.getFullYear()-entryDate.getFullYear())*12+(now.getMonth()-entryDate.getMonth());
+      if(monthsDiff>=37) toDelete.push(deleteDoc(doc(dbChecklists,"dispatchai_carnet_bord",d.id)));
+    });
+    if(toDelete.length>0) await Promise.all(toDelete);
+  }catch(e){ console.error("Erreur nettoyage carnet de bord:", e); }
+}
+
 async function checkAndSendO2LowStock(currentPleines, nextPleines, emails){
   const justDropped = O2_SIZES.some(s => (nextPleines[s]||0) < (currentPleines[s]||0) && (nextPleines[s]||0)<=2);
   if(!justDropped) return;
@@ -5110,6 +5523,7 @@ export default function App(){
   const [bases,       setBases]       = useFirestoreState("bases", INIT_BASES);
   const [contacts,    setContacts]    = useFirestoreState("contacts", INIT_CONTACTS);
   const [listeRouge,  setListeRouge]  = useFirestoreState("listeRouge", []);
+  const [carnetBordTypes, setCarnetBordTypes] = useFirestoreState("carnetBordTypes", INIT_CARNET_TYPES);
   const [patientsHabituels, setPatientsHabituels] = useFirestoreState("patientsHabituels", [
     {id:"ph_test1",categorie:"Dialyse",nom:"Moreau",prenom:"Alice",telephone:"065 12 34 56",adresseDepart:"15 rue de la Paix, Mons",adresseArrivee:"CHU Mons — Dialyse",convention:"epicura",typeTransport:"dialyse",mobilite:"chaise_perso",equipSelected:[],litrageO2:2,notes:"Dialyse 3x/semaine — Lun/Mer/Ven",heureHabituelle:"08h00",statut:"actif"},
     {id:"ph_test2",categorie:"Radiothérapie",nom:"Petit",prenom:"Bernard",telephone:"065 98 76 54",adresseDepart:"42 chaussée de Bruxelles, Mons",adresseArrivee:"CHU Mons — Radiothérapie",convention:"partenamut",typeTransport:"radiotherapie",mobilite:"brancard",equipSelected:["oxygene"],litrageO2:4,notes:"Test — sous oxygène",heureHabituelle:"10h30",statut:"actif"},
@@ -5223,11 +5637,11 @@ export default function App(){
   if(appView==="formulaire") return <FormulaireView onBack={backToSubMenu} onSubmit={submitCourse} conventions={conventions} equipements={equipements} transportTypes={transportTypes} contacts={contacts} listeRouge={listeRouge} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} tarifs={tarifs} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="planning") return <PlanningView courses={courses} setCourses={setCourses} vehicles={vehicles} patients={patientsHabituels} setPatients={setPatientsHabituels} categories={patientCategories} setCategories={setPatientCategories} conventions={conventions} transportTypes={transportTypes} equipements={equipements} pending={pending} onAssignPending={validateCourse} onGoFormulaire={()=>setAppView("formulaire")} onBack={backToSubMenu} onSchedule={submitFromPatientHabituel} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} carnetBordTypes={carnetBordTypes} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="signaler") return <SignalerCompletView onBack={()=>setAppView("menu")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} listeRouge={listeRouge} setListeRouge={setListeRouge} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} listeRouge={listeRouge} setListeRouge={setListeRouge} carnetBordTypes={carnetBordTypes} setCarnetBordTypes={setCarnetBordTypes} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
