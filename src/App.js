@@ -1775,6 +1775,125 @@ function SignalerCompletView({ onBack, vehicles, themeMode, toggleTheme }){
   );
 }
 
+// ═══════════════════════════════════════
+// PRÉVENTIF — postes de secours événementiels (section indépendante)
+// ═══════════════════════════════════════
+const PREVENTIF_GRADES=["Secouriste","ATNUP","AMU","Infirmier/ère","SISU","Médecin"];
+
+function PreventifParametresView({ personnel, setPersonnel, materiel, setMateriel, onBack, themeMode, toggleTheme }){
+  const [tab,setTab]=useState("personnel");
+  const [newName,setNewName]=useState("");
+  const [newGrade,setNewGrade]=useState(PREVENTIF_GRADES[0]);
+  const [newMateriel,setNewMateriel]=useState("");
+  const PTABS=[{id:"personnel",icon:"👥",label:"Personnel"},{id:"materiel",icon:"🎒",label:"Matériel"}];
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div style={{fontWeight:800,fontSize:16,color:C.purple}}>⚙️ Paramètres Préventif</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+        <div style={{width:180,background:C.panel,borderRight:`1px solid ${C.border}`,padding:"12px 8px",display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+          {PTABS.map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:"11px 14px",borderRadius:9,border:"none",background:tab===t.id?C.purpleSoft:"transparent",color:tab===t.id?C.purple:C.muted,fontWeight:tab===t.id?700:500,fontSize:13,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
+              <span>{t.icon}</span>{t.label}
+            </button>
+          ))}
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:24}}>
+          {tab==="personnel"&&(
+            <div>
+              <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:6}}>👥 Personnel</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Organisé par grade sanitaire.</div>
+              <div style={{display:"flex",gap:8,marginBottom:20}}>
+                <select value={newGrade} onChange={e=>setNewGrade(e.target.value)} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 10px",color:C.text,fontSize:12}}>
+                  {PREVENTIF_GRADES.map(g=>(<option key={g} value={g}>{g}</option>))}
+                </select>
+                <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Prénom Nom" style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 12px",color:C.text,fontSize:13}}/>
+                <button onClick={()=>{
+                  if(!newName.trim()) return;
+                  setPersonnel(p=>[...p,{id:"pp"+Date.now(),name:newName.trim(),grade:newGrade}]);
+                  setNewName("");
+                }} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+              </div>
+              {PREVENTIF_GRADES.map(grade=>{
+                const group=personnel.filter(p=>p.grade===grade);
+                if(group.length===0) return null;
+                return(
+                  <div key={grade} style={{marginBottom:18}}>
+                    <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>{grade}</div>
+                    {group.map(p=>(
+                      <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",marginBottom:6}}>
+                        <span style={{fontSize:13,color:C.text}}>{p.name}</span>
+                        <button onClick={()=>setPersonnel(prev=>prev.filter(x=>x.id!==p.id))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+              {personnel.length===0&&<div style={{textAlign:"center",color:C.muted,fontSize:13,padding:"20px 0"}}>Aucun personnel enregistré</div>}
+            </div>
+          )}
+          {tab==="materiel"&&(
+            <div>
+              <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:6}}>🎒 Matériel</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Liste utilisée pour toutes les fiches événements.</div>
+              <div style={{display:"flex",gap:8,marginBottom:16}}>
+                <input value={newMateriel} onChange={e=>setNewMateriel(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newMateriel.trim()){setMateriel(p=>[...p,{id:"pm"+Date.now(),name:newMateriel.trim()}]);setNewMateriel("");}}} placeholder="Ex: Table, Chaise, Défibrillateur..." style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 12px",color:C.text,fontSize:13}}/>
+                <button onClick={()=>{if(newMateriel.trim()){setMateriel(p=>[...p,{id:"pm"+Date.now(),name:newMateriel.trim()}]);setNewMateriel("");}}} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+              </div>
+              {materiel.map(m=>(
+                <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",marginBottom:6}}>
+                  <span style={{fontSize:13,color:C.text}}>{m.name}</span>
+                  <button onClick={()=>setMateriel(prev=>prev.filter(x=>x.id!==m.id))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                </div>
+              ))}
+              {materiel.length===0&&<div style={{textAlign:"center",color:C.muted,fontSize:13,padding:"20px 0"}}>Aucun article enregistré</div>}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreventifView({ onBack, themeMode, toggleTheme }){
+  const [bureau,setBureau]=useState(false);
+  const [screen,setScreen]=useState("home"); // home | parametres
+  const [personnel,setPersonnel]=useFirestoreState("preventifPersonnel", []);
+  const [materiel,setMateriel]=useFirestoreState("preventifMateriel", []);
+
+  if(screen==="parametres") return <PreventifParametresView personnel={personnel} setPersonnel={setPersonnel} materiel={materiel} setMateriel={setMateriel} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div style={{fontWeight:800,fontSize:16,color:C.purple}}>🚑 Préventif</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <button onClick={()=>setBureau(b=>!b)} style={{background:bureau?C.purple:C.panel2,border:`1px solid ${bureau?C.purple:C.border}`,borderRadius:8,color:bureau?"white":C.muted,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🏢 Bureau{bureau?" ✓":""}</button>
+          {bureau&&<button onClick={()=>setScreen("parametres")} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 10px",fontSize:13,cursor:"pointer"}}>⚙️</button>}
+          <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+        </div>
+      </div>
+      <div style={{flex:1,padding:20,maxWidth:640,margin:"0 auto",width:"100%"}}>
+        {bureau&&<button style={{width:"100%",marginBottom:20,background:C.purpleSoft,border:`1.5px dashed ${C.purple}`,borderRadius:12,padding:"16px",color:C.purple,fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Nouvelle fiche événement</button>}
+        <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
+          <div style={{fontSize:48,marginBottom:14}}>🚑</div>
+          <div style={{fontSize:14}}>Aucun événement Préventif prévu aujourd'hui</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function GarageView({ onBack, themeMode, toggleTheme }){
   const [defects,setDefects]=useState([]);
   const [tvMode,setTvMode]=useState(false);
@@ -5866,6 +5985,7 @@ export default function App(){
   if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} carnetBordTypes={carnetBordTypes} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="signaler") return <SignalerCompletView onBack={()=>setAppView("menu")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} listeRouge={listeRouge} setListeRouge={setListeRouge} carnetBordTypes={carnetBordTypes} setCarnetBordTypes={setCarnetBordTypes} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
@@ -5933,6 +6053,16 @@ export default function App(){
                 <div style={{fontSize:12,color:"#dc2626",fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
               </button>
             </div>
+            <button onClick={()=>setAppView("preventif")}
+              style={{width:"100%",marginTop:14,background:C.panel,border:`1.5px solid ${C.purple}`,borderRadius:16,padding:"22px 20px",display:"flex",alignItems:"center",gap:16,cursor:"pointer",textAlign:"left"}}>
+              <div style={{width:52,height:52,background:C.purpleSoft,border:`1.5px solid ${C.purple}`,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0}}>🚑</div>
+              <div style={{flex:1}}>
+                <div style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Préventif</div>
+                <div style={{fontSize:11,color:C.purple,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:6}}>Postes de secours événementiels</div>
+                <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Fiches événements, matériel, personnel et véhicule assigné.</div>
+              </div>
+              <div style={{fontSize:13,color:C.purple,fontWeight:700}}>Ouvrir →</div>
+            </button>
             <div style={{display:"flex",gap:10,marginTop:14}}>
               <button onClick={()=>setAppView("garage")}
                 style={{flex:1,background:C.panel,border:`1.5px solid ${C.danger}55`,borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left"}}>
