@@ -1891,32 +1891,32 @@ function capitalizeCity(s){
   if(!s) return s;
   return s.charAt(0).toUpperCase()+s.slice(1).toLowerCase();
 }
+function capitalizeWords(s){
+  if(!s) return s;
+  return s.split(" ").map(w=>w.length?w.charAt(0).toUpperCase()+w.slice(1).toLowerCase():w).join(" ");
+}
 function NumKeyboardField({ value, onConfirm, allowDecimal, placeholder, danger }){
-  const [local,setLocal]=useState(value!==undefined&&value!==null?String(value):"");
-  const [confirmed,setConfirmed]=useState(!!(value!==undefined&&value!==null&&value!==""));
   return(
-    <div style={{display:"flex",gap:6}}>
-      <input type="text" inputMode={allowDecimal?"decimal":"numeric"} value={local}
-        onChange={e=>{
-          let v=e.target.value.replace(allowDecimal?/[^0-9,]/g:/[^0-9]/g,"");
-          setLocal(v); setConfirmed(false);
-        }}
-        placeholder={placeholder} style={{flex:1,background:C.bg,border:`1px solid ${danger&&!confirmed?C.danger:C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:14,boxSizing:"border-box"}}/>
-      <button onClick={()=>{ onConfirm(local); setConfirmed(true); }} disabled={!local} style={{background:confirmed?C.successSoft:C.accentSoft,border:`1px solid ${confirmed?C.success:C.accent}`,borderRadius:8,color:confirmed?C.success:C.accent,padding:"0 14px",fontWeight:700,fontSize:12,cursor:local?"pointer":"not-allowed",opacity:local?1:0.5}}>{confirmed?"✓":"Entrer"}</button>
-    </div>
+    <input type="text" inputMode={allowDecimal?"decimal":"numeric"} value={value||""}
+      onChange={e=>{
+        let v=e.target.value.replace(allowDecimal?/[^0-9,]/g:/[^0-9]/g,"");
+        onConfirm(v);
+      }}
+      placeholder={placeholder} style={{width:"100%",background:C.bg,border:`1px solid ${danger&&!value?C.danger:C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:14,boxSizing:"border-box"}}/>
   );
 }
 
 function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, onClose, forcedMission, onForcedSaved }){
   const [entries,setEntries]=useState([]);
-  const [mode,setMode]=useState(forcedMission?"fin_service":"list"); // list | depart | arrivee | fin_service
+  const [mode,setMode]=useState(forcedMission?"fin_service":"list"); // list | depart | arrivee | fin_service | plein
   const [arrivingEntry,setArrivingEntry]=useState(null);
   const [selectedCourseId,setSelectedCourseId]=useState("");
   const nowHeure=()=>new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
 
   const [departForm,setDepartForm]=useState({heureDepart:nowHeure(),kmDepart:"",lieuDepart:"",natureMission:""});
-  const [arriveeForm,setArriveeForm]=useState({destination:"",kmFin:"",litres:""});
-  const [finForm,setFinForm]=useState({kmFin:""});
+  const [arriveeForm,setArriveeForm]=useState({destination:"",kmFin:""});
+  const [finForm,setFinForm]=useState({kmFin:"",destination:""});
+  const [pleinLitres,setPleinLitres]=useState("");
   const [saving,setSaving]=useState(false);
 
   const types=(carnetBordTypes&&carnetBordTypes.length)?carnetBordTypes:INIT_CARNET_TYPES;
@@ -1969,25 +1969,62 @@ function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, onClose,
     await saveCarnetBordEntry({
       ...arrivingEntry,
       status:"closed",
-      destination:arriveeForm.destination.trim(), kmFin:arriveeForm.kmFin, litres:arriveeForm.litres||null,
+      destination:arriveeForm.destination.trim(), kmFin:arriveeForm.kmFin,
     });
     setSaving(false);
     setArrivingEntry(null);
     setMode("list");
   };
 
-  const canSaveFin=!!finForm.kmFin;
+  // Plein d'essence : s'inscrit sur la ligne "en cours" s'il y en a une,
+  // sinon sur la dernière ligne enregistrée aujourd'hui (aucun calcul, juste
+  // la valeur qui remplace l'existante). On relit Firestore au moment de
+  // sauvegarder pour être sûr d'avoir la toute dernière version de la ligne.
+  const canSavePlein=!!pleinLitres;
+  const savePlein=async()=>{
+    if(!canSavePlein) return;
+    setSaving(true);
+    try{
+      const snap=await getDocs(query(collection(dbChecklists,"dispatchai_carnet_bord"), where("vehicle","==",vehicle.name), where("date","==",todayISO())));
+      const all=snap.docs.map(d=>d.data());
+      all.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      const target=all.find(e=>e.status==="open")||all[0];
+      if(target){
+        await saveCarnetBordEntry({ ...target, litres:pleinLitres });
+      }
+    }catch(e){ console.error("Erreur enregistrement plein:", e); }
+    setSaving(false);
+    setPleinLitres("");
+    setMode("list");
+  };
+
+  const canSaveFin=!!finForm.kmFin && (forcedMission!=="retour_domicile" || finForm.destination.trim());
   const saveFin=async()=>{
     if(!canSaveFin) return;
     setSaving(true);
-    await saveCarnetBordEntry({
-      vehicle:vehicle.name, date:todayISO(), dateISO:new Date().toISOString(),
-      status:"closed",
-      heureDepart:nowHeure(), kmDepart:null, lieuDepart:null,
-      destination:forcedMission==="retour_domicile"?"Domicile du chauffeur":"Base",
-      natureMission:forcedMission, chauffeur:driver, kmFin:finForm.kmFin, litres:null,
-      heureRetour:nowHeure(),
-    });
+    const finDestination=forcedMission==="retour_domicile"?(finForm.destination.trim()||"Domicile du chauffeur"):"Base";
+    try{
+      const snap=await getDocs(query(collection(dbChecklists,"dispatchai_carnet_bord"), where("vehicle","==",vehicle.name), where("date","==",todayISO()), where("status","==","open")));
+      const openEntry=snap.docs.map(d=>d.data())[0];
+      if(openEntry){
+        await saveCarnetBordEntry({
+          ...openEntry,
+          status:"closed",
+          destination:finDestination,
+          kmFin:finForm.kmFin,
+          heureRetour:nowHeure(),
+        });
+      }else{
+        await saveCarnetBordEntry({
+          vehicle:vehicle.name, date:todayISO(), dateISO:new Date().toISOString(),
+          status:"closed",
+          heureDepart:nowHeure(), kmDepart:null, lieuDepart:null,
+          destination:finDestination,
+          natureMission:forcedMission, chauffeur:driver, kmFin:finForm.kmFin, litres:null,
+          heureRetour:nowHeure(),
+        });
+      }
+    }catch(e){ console.error("Erreur clôture fin de service:", e); }
     setSaving(false);
     if(onForcedSaved) onForcedSaved();
   };
@@ -2010,9 +2047,15 @@ function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, onClose,
             <div style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:9,padding:"10px 14px",marginBottom:16,fontSize:12,color:C.text}}>
               {forcedMission==="retour_domicile"?"🚗 Retour domicile du chauffeur":"🏠 Retour base"} — heure {nowHeure()}. Le km de fin est requis pour clôturer.
             </div>
+            {forcedMission==="retour_domicile"&&(
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Lieu (ville du domicile)</div>
+                <input value={finForm.destination} onChange={e=>setFinForm(f=>({...f,destination:capitalizeCity(e.target.value)}))} style={{width:"100%",background:C.bg,border:`1px solid ${finForm.destination.trim()?C.border:C.danger}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+              </div>
+            )}
             <div style={{marginBottom:16}}>
               <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Km de fin (obligatoire)</div>
-              <NumKeyboardField value={finForm.kmFin} onConfirm={v=>setFinForm({kmFin:v})} danger/>
+              <NumKeyboardField value={finForm.kmFin} onConfirm={v=>setFinForm(f=>({...f,kmFin:v}))} danger/>
             </div>
             <button disabled={!canSaveFin||saving} onClick={saveFin} style={{width:"100%",background:canSaveFin?C.success:C.panel2,border:"none",borderRadius:9,color:canSaveFin?"white":C.muted,padding:"13px",fontWeight:800,fontSize:14,cursor:canSaveFin?"pointer":"not-allowed"}}>{saving?"Enregistrement…":"✅ Clôturer le service"}</button>
           </>
@@ -2020,7 +2063,21 @@ function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, onClose,
 
         {mode==="list"&&(
           <>
-            <button onClick={startDepart} style={{width:"100%",marginBottom:10,background:C.successSoft,border:`1.5px dashed ${C.success}`,borderRadius:11,padding:"13px",color:C.success,fontWeight:700,fontSize:13,cursor:"pointer"}}>🚗 Départ</button>
+            {openEntries.length>0&&(
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,color:"#f59e0b",fontWeight:700,marginBottom:8,textTransform:"uppercase"}}>⏳ En cours — à clôturer</div>
+                {openEntries.map(e=>(
+                  <button key={e.id} onClick={()=>startArrivee(e)} style={{width:"100%",background:"#f59e0b18",border:"1.5px solid #f59e0b",borderRadius:11,padding:"13px",marginBottom:8,cursor:"pointer",textAlign:"left"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontWeight:700,fontSize:13,color:C.text}}>{natureIcon(e.natureMission)} {e.heureDepart} — {e.lieuDepart}</span>
+                      <span style={{background:C.success,borderRadius:7,color:"white",padding:"6px 14px",fontSize:12,fontWeight:800}}>🏁 Arrivée</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+            <button onClick={startDepart} style={{width:"100%",marginBottom:10,background:openEntries.length>0?"transparent":C.successSoft,border:openEntries.length>0?`1px dashed ${C.border}`:`1.5px dashed ${C.success}`,borderRadius:11,padding:openEntries.length>0?"10px":"13px",color:openEntries.length>0?C.muted:C.success,fontWeight:700,fontSize:openEntries.length>0?12:13,cursor:"pointer"}}>🚗 {openEntries.length>0?"Nouveau départ":"Départ"}</button>
+            {entries.length>0&&<button onClick={()=>{setPleinLitres("");setMode("plein");}} style={{width:"100%",marginBottom:14,background:C.blueSoft,border:`1px dashed ${C.blue}`,borderRadius:10,padding:"10px",color:C.blue,fontWeight:700,fontSize:12,cursor:"pointer"}}>⛽ Faire le plein</button>}
             {myCourses&&myCourses.length>0&&(
               <div style={{marginBottom:14}}>
                 <div style={{fontSize:10,color:C.muted,marginBottom:6,textTransform:"uppercase"}}>Ou partir depuis une course</div>
@@ -2029,19 +2086,6 @@ function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, onClose,
                     <button key={c.id} onClick={()=>startDepartFromCourse(c)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"7px 10px",color:C.text,fontSize:11,textAlign:"left",cursor:"pointer"}}>{c.heure} — {c.patient||c.nom}</button>
                   ))}
                 </div>
-              </div>
-            )}
-            {openEntries.length>0&&(
-              <div style={{marginBottom:12}}>
-                <div style={{fontSize:10,color:"#f59e0b",fontWeight:700,marginBottom:6,textTransform:"uppercase"}}>⏳ En cours</div>
-                {openEntries.map(e=>(
-                  <div key={e.id} style={{background:"#f59e0b18",border:"1px solid #f59e0b",borderRadius:10,padding:"10px 12px",marginBottom:7}}>
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                      <span style={{fontWeight:700,fontSize:12,color:C.text}}>{natureIcon(e.natureMission)} {e.heureDepart} — {e.lieuDepart}</span>
-                      <button onClick={()=>startArrivee(e)} style={{background:C.success,border:"none",borderRadius:7,color:"white",padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🏁 Arrivée</button>
-                    </div>
-                  </div>
-                ))}
               </div>
             )}
             {closedEntries.length>0&&(
@@ -2102,14 +2146,26 @@ function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, onClose,
               <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Km d'arrivée</div>
               <NumKeyboardField value={arriveeForm.kmFin} onConfirm={v=>setArriveeForm(f=>({...f,kmFin:v}))}/>
             </div>
-            <div style={{marginBottom:16}}>
-              <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Litres essence (facultatif)</div>
-              <NumKeyboardField value={arriveeForm.litres} onConfirm={v=>setArriveeForm(f=>({...f,litres:v}))} allowDecimal placeholder="27,46"/>
-              {arriveeForm.litres&&<div style={{fontSize:11,color:C.muted,marginTop:4}}>{arriveeForm.litres} Litres</div>}
-            </div>
-            <div style={{display:"flex",gap:8}}>
+            <div style={{display:"flex",gap:8,marginTop:16}}>
               <button onClick={()=>{setMode("list");setArrivingEntry(null);}} style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"11px",fontSize:13,cursor:"pointer"}}>Annuler</button>
               <button disabled={!canSaveArrivee||saving} onClick={saveArrivee} style={{flex:2,background:canSaveArrivee?C.success:C.panel2,border:"none",borderRadius:9,color:canSaveArrivee?"white":C.muted,padding:"11px",fontWeight:700,fontSize:13,cursor:canSaveArrivee?"pointer":"not-allowed"}}>{saving?"…":"✅ Clôturer la ligne"}</button>
+            </div>
+          </>
+        )}
+
+        {mode==="plein"&&(
+          <>
+            <div style={{background:C.blueSoft,border:`1px solid ${C.blue}`,borderRadius:9,padding:"10px 14px",marginBottom:16,fontSize:12,color:C.text}}>
+              ⛽ Le litrage s'inscrit sur {openEntries.length>0?"la ligne en cours":"la dernière ligne enregistrée aujourd'hui"}.
+            </div>
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Litres</div>
+              <NumKeyboardField value={pleinLitres} onConfirm={setPleinLitres} allowDecimal/>
+              {pleinLitres&&<div style={{fontSize:11,color:C.muted,marginTop:4}}>{pleinLitres} Litres</div>}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setMode("list")} style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"11px",fontSize:13,cursor:"pointer"}}>Annuler</button>
+              <button disabled={!canSavePlein||saving} onClick={savePlein} style={{flex:2,background:canSavePlein?C.success:C.panel2,border:"none",borderRadius:9,color:canSavePlein?"white":C.muted,padding:"11px",fontWeight:700,fontSize:13,cursor:canSavePlein?"pointer":"not-allowed"}}>{saving?"…":"✅ Enregistrer"}</button>
             </div>
           </>
         )}
@@ -2118,12 +2174,20 @@ function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, onClose,
   );
 }
 
-function DailyChecklistView({ vehicle, driverName, delayMessage, onComplete, themeMode, toggleTheme }){
+function DailyChecklistView({ vehicle, driverName, onComplete, themeMode, toggleTheme }){
   const vType = vehicle?.type || "AMB";
   const template = DAILY_TEMPLATES_BASE[vType] || DAILY_CHECKLIST_ALPHA;
   const [values, setValues] = useState({ nom1: driverName||"" });
   const [sending, setSending] = useState(false);
-  const [loadingYesterday, setLoadingYesterday] = useState(false);
+  const [yesterdayEntry, setYesterdayEntry] = useState(undefined); // undefined=chargement, null=aucune, sinon l'entrée
+
+  useEffect(()=>{
+    let cancelled=false;
+    findYesterdayDailyChecklist(vehicle.name).then(y=>{ if(!cancelled) setYesterdayEntry(y||null); });
+    return ()=>{ cancelled=true; };
+  },[vehicle.name]);
+
+  const sameDriverAsYesterday = !!(yesterdayEntry && yesterdayEntry.values && driverName && yesterdayEntry.values.nom1 && yesterdayEntry.values.nom1.trim().toLowerCase()===driverName.trim().toLowerCase());
 
   const set = (id,val) => setValues(v=>({ ...v, [id]:val }));
 
@@ -2142,11 +2206,9 @@ function DailyChecklistView({ vehicle, driverName, delayMessage, onComplete, the
     if(el){ el.scrollIntoView({behavior:"smooth",block:"center"}); el.style.outline=`3px solid ${C.danger}`; setTimeout(()=>{el.style.outline="";},3000); }
   };
 
-  const handleChauffeurIdentique = async () => {
-    setLoadingYesterday(true);
-    const y = await findYesterdayDailyChecklist(vehicle.name);
-    setLoadingYesterday(false);
-    if(y && y.values){ setValues({ ...y.values, nom1:driverName||y.values.nom1||"" }); }
+  const handleChauffeurIdentique = () => {
+    if(!sameDriverAsYesterday||!yesterdayEntry||!yesterdayEntry.values) return;
+    setValues({ ...yesterdayEntry.values, nom1:driverName||yesterdayEntry.values.nom1||"" });
   };
 
   const handleSkip = async () => {
@@ -2241,14 +2303,8 @@ function DailyChecklistView({ vehicle, driverName, delayMessage, onComplete, the
         <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
       </div>
 
-      {delayMessage&&(
-        <div style={{background:"#f59e0b22",borderBottom:"1px solid #f59e0b",padding:"9px 16px",fontSize:12,fontWeight:700,color:"#fbbf24",textAlign:"center"}}>
-          ⏱ Délai de 24h dépassé depuis ta dernière checklist — merci de la refaire.
-        </div>
-      )}
-
       <div style={{padding:"14px 16px 0",display:"flex",gap:8}}>
-        <button onClick={handleChauffeurIdentique} disabled={loadingYesterday} style={{flex:1,background:C.blueSoft,border:`1px solid ${C.blue}`,borderRadius:10,color:C.blue,padding:"10px",fontSize:12,fontWeight:700,cursor:"pointer"}}>{loadingYesterday?"Chargement…":"👤 Chauffeur identique"}</button>
+        <button onClick={handleChauffeurIdentique} disabled={!sameDriverAsYesterday} style={{flex:1,background:sameDriverAsYesterday?C.blueSoft:C.panel2,border:`1px solid ${sameDriverAsYesterday?C.blue:C.border}`,borderRadius:10,color:sameDriverAsYesterday?C.blue:C.muted,padding:"10px",fontSize:12,fontWeight:700,cursor:sameDriverAsYesterday?"pointer":"not-allowed",opacity:sameDriverAsYesterday?1:0.6}}>{yesterdayEntry===undefined?"Vérification…":"👤 Chauffeur identique"}</button>
         <button onClick={handleSkip} disabled={sending} style={{flex:1,background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:10,color:C.danger,padding:"10px",fontSize:12,fontWeight:700,cursor:"pointer"}}>⚠️ Passer (urgence)</button>
       </div>
 
@@ -2277,6 +2333,17 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
   const [showSignaler,setShowSignaler]=useState(false);
   const [showChangeConvoyeur,setShowChangeConvoyeur]=useState(false);
   const [showEndChoice,setShowEndChoice]=useState(false);
+  const [todaySkipped,setTodaySkipped]=useState(false);
+
+  useEffect(()=>{
+    if(screen!=="planning"||!vehicle) return;
+    let cancelled=false;
+    findLatestDailyChecklist(vehicle.name).then(latest=>{
+      if(cancelled) return;
+      setTodaySkipped(!!(latest && latest.date===todayISO() && latest.skipped));
+    });
+    return ()=>{ cancelled=true; };
+  },[screen, vehicle?.name]);
   const [showCarnetBord,setShowCarnetBord]=useState(false);
   const [endCarnetMission,setEndCarnetMission]=useState(null); // "retour_base" | "retour_domicile" | null
   const [signalVehicle,setSignalVehicle]=useState("");
@@ -2294,8 +2361,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
   const [convoyeur,setConvoyeur]=useState(null);
   const [stagiaireSelec,setStagiaireSelec]=useState(null);
   const [roleSwapped,setRoleSwapped]=useState(false);
-  const [checkingDaily,setCheckingDaily]=useState(false);
-  const [dailyDelayMessage,setDailyDelayMessage]=useState(false);
+
 
   const getStatut=id=>statuts[id]||"planifie";
   const isAmb=vehicle?.type==="AMB";
@@ -2384,7 +2450,14 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
         <Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge>
         <Clock/>
         <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
-        {showEnd&&<button onClick={()=>setShowEndChoice(true)} style={{background:C.danger,border:"none",borderRadius:7,color:"white",padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🔴 Fin de service</button>}
+        {showEnd&&<button onClick={async()=>{
+          try{
+            const snap=await getDocs(query(collection(dbChecklists,"dispatchai_carnet_bord"), where("vehicle","==",vehicle.name), where("date","==",todayISO()), where("status","==","open")));
+            const openWithMission=snap.docs.map(d=>d.data()).find(e=>e.natureMission==="retour_base"||e.natureMission==="retour_domicile");
+            if(openWithMission){ setEndCarnetMission(openWithMission.natureMission); return; }
+          }catch(e){ console.error("Erreur vérification fin de service:", e); }
+          setShowEndChoice(true);
+        }} style={{background:C.danger,border:"none",borderRadius:7,color:"white",padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🔴 Fin de service</button>}
       </div>
     </div>
   );
@@ -2408,7 +2481,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:9}}>
                 {group.map(v=>(
-                  <button key={v.id} onClick={()=>{if(v.active){setVehicle(v);setScreen("choix_vehicule");}}} disabled={!v.active}
+                  <button key={v.id} onClick={()=>{if(v.active){setVehicle(v);setScreen("choix_vehicule");window.scrollTo(0,0);}}} disabled={!v.active}
                     style={{background:v.active?C.panel:C.dangerSoft,border:`1.5px solid ${v.active?C.border:C.danger}`,borderRadius:13,padding:"18px 10px",color:v.active?C.text:C.danger,textAlign:"center",cursor:v.active?"pointer":"not-allowed",display:"flex",flexDirection:"column",alignItems:"center",gap:7,opacity:v.active?1:0.7}}>
                     <span style={{fontSize:28,color:v.active?vColor(type):C.danger}}>{vIcon(type)}</span>
                     <span style={{fontWeight:700,fontSize:13}}>{v.name}</span>
@@ -2483,23 +2556,13 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
         </div>
         <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.panel,borderTop:`1px solid ${C.border}`,padding:"12px 20px"}}>
           {!canContinue&&vType==="AMB"&&<div style={{fontSize:11,color:C.warning,textAlign:"center",marginBottom:8}}>⚠ Sélectionnez un chauffeur ET un convoyeur</div>}
-          <button onClick={async()=>{
-            if(!canContinue||checkingDaily) return;
-            setCheckingDaily(true);
-            const latest=await findLatestDailyChecklist(vehicle.name);
-            setCheckingDaily(false);
-            let needsChecklist=true, delay=false;
-            if(latest){
-              const hoursSince=(Date.now()-(latest.createdAt||0))/3600000;
-              if(latest.submittedBy===driver && hoursSince<24){ needsChecklist=false; }
-              else if(latest.submittedBy===driver && hoursSince>=24){ delay=true; }
-            }
+          <button onClick={()=>{
+            if(!canContinue) return;
             if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:null}:v));
-            if(needsChecklist){ setDailyDelayMessage(delay); setScreen("daily_checklist"); }
-            else{ setScreen("planning"); }
-          }} disabled={!canContinue||checkingDaily}
+            setScreen("daily_checklist");
+          }} disabled={!canContinue}
             style={{width:"100%",background:canContinue?C.success:C.panel2,border:"none",borderRadius:11,color:canContinue?"white":C.muted,padding:"13px",fontWeight:800,fontSize:15,cursor:canContinue?"pointer":"not-allowed",opacity:canContinue?1:0.6}}>
-            {checkingDaily?"Vérification…":"✅ Commencer le service"}
+            ✅ Commencer le service
           </button>
         </div>
       </div>
@@ -2507,7 +2570,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
   }
 
   if(screen==="daily_checklist"){
-    return <DailyChecklistView vehicle={vehicle} driverName={driver} delayMessage={dailyDelayMessage} onComplete={()=>setScreen("planning")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+    return <DailyChecklistView vehicle={vehicle} driverName={driver} onComplete={()=>setScreen("planning")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   }
 
   if(screen==="planning") return(
@@ -2567,7 +2630,14 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
             </div>
           </div>
         ):null}
-        <button onClick={()=>{setSignalVehicle(vehicle.name);setSignalNom(isAmb?[driver,convoyeur].filter(Boolean).join(" / "):driver);setShowSignaler(true);}} style={{width:"100%",marginBottom:8,background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:10,color:C.danger,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🚨 Signaler un problème</button>
+        {todaySkipped?(
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <button onClick={()=>{setSignalVehicle(vehicle.name);setSignalNom(isAmb?[driver,convoyeur].filter(Boolean).join(" / "):driver);setShowSignaler(true);}} style={{flex:1,background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:10,color:C.danger,padding:"11px",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🚨 Signaler</button>
+            <button onClick={()=>setScreen("daily_checklist")} style={{flex:1,background:C.successSoft,border:`1px solid ${C.success}`,borderRadius:10,color:C.success,padding:"11px",fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>✅ Effectuer checklist</button>
+          </div>
+        ):(
+          <button onClick={()=>{setSignalVehicle(vehicle.name);setSignalNom(isAmb?[driver,convoyeur].filter(Boolean).join(" / "):driver);setShowSignaler(true);}} style={{width:"100%",marginBottom:8,background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:10,color:C.danger,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🚨 Signaler un problème</button>
+        )}
         <button onClick={()=>setShowCarnetBord(true)} style={{width:"100%",marginBottom:8,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📓 Carnet de bord</button>
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <button onClick={()=>setShowPlans(true)} style={{flex:1,background:C.blueSoft,border:`1px solid ${C.blue}`,borderRadius:10,color:C.blue,padding:"11px",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🗺️ Plans</button>
@@ -3718,7 +3788,7 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
                           {item.n}
                           {item.t&&<span style={{ background:"#1d4ed820", border:"1px solid #1d4ed8", color:"#60a5fa", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>TEST</span>}
                           {item.s&&<span style={{ background:"#7c3aed20", border:"1px solid #7c3aed", color:"#a78bfa", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>SCELLÉ</span>}
-                          {item.p&&<span style={{ background:(peremptionMissingHere||peremptionExpired)?"#ef444420":"#f59e0b20", border:`1px solid ${(peremptionMissingHere||peremptionExpired)?"#ef4444":"#f59e0b"}`, color:(peremptionMissingHere||peremptionExpired)?"#f87171":"#fbbf24", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>PÉREMPTION{(peremptionMissingHere||peremptionExpired)?" ⚠":""}</span>}
+                          {item.p&&firstWeek&&<span style={{ background:(peremptionMissingHere||peremptionExpired)?"#ef444420":"#f59e0b20", border:`1px solid ${(peremptionMissingHere||peremptionExpired)?"#ef4444":"#f59e0b"}`, color:(peremptionMissingHere||peremptionExpired)?"#f87171":"#fbbf24", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>PÉREMPTION{(peremptionMissingHere||peremptionExpired)?" ⚠":""}</span>}
                         </div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:(item.t||item.s||item.bar)?6:0 }}>
                           <div style={{ fontSize:11, color:CK_C.muted, minWidth:80 }}>{item.okOnly?"État":"Présence"+(!isBinary?" (requis: "+item.q+")":"")}</div>
@@ -3761,7 +3831,7 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
                           <MonthYearPicker value={state.sealDate||""} onChange={v=>setDateField(key,"sealDate",v,item)} danger={sealDateMissingHere||sealDateExpired}/>
                         </div>
                         )}
-                        {item.p&&(
+                        {item.p&&firstWeek&&(
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginTop:6 }}>
                           <div style={{ fontSize:11, color:peremptionExpired?CK_C.danger:"#fbbf24", minWidth:80 }}>Péremption</div>
                           <MonthYearPicker value={state.date||""} onChange={v=>setDateField(key,"date",v,item)} danger={peremptionMissingHere||peremptionExpired}/>
@@ -3812,14 +3882,46 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
 // HISTORIQUE — liste des checklists envoyées (24 mois glissants)
 // ═══════════════════════════════════════
 function HistoriqueView({ onBack, vehicles, carnetBordTypes, themeMode, toggleTheme }){
-  const [screen,setScreen]=useState("home"); // home | checklists | o2 | daily | carnet
+  const [screen,setScreen]=useState("home"); // home | checklists | o2 | daily_date | daily | carnet_date | carnet_vehicles | carnet_detail
   const [carnetVehicle,setCarnetVehicle]=useState(null);
+  const [carnetDate,setCarnetDate]=useState(null);
+  const [dailyDate,setDailyDate]=useState(null);
 
   if(screen==="checklists") return <ChecklistHistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(screen==="o2") return <O2HistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(screen==="daily") return <DailyHistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(screen==="carnet"&&carnetVehicle) return <CarnetBordHistoriqueDetail vehicle={carnetVehicle} carnetBordTypes={carnetBordTypes} onBack={()=>setCarnetVehicle(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(screen==="carnet") return <CarnetBordVehiclePicker vehicles={vehicles} onSelect={setCarnetVehicle} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="daily_date") return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={()=>setScreen("home")} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div style={{ fontWeight:800, fontSize:16 }}>🚑 Choisir une date</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{ flex:1, padding:18, maxWidth:420, margin:"0 auto", width:"100%" }}>
+        <SimpleDatePicker themeC={CK_C} onSelect={(d)=>{setDailyDate(d);setScreen("daily");}}/>
+      </div>
+    </div>
+  );
+  if(screen==="daily") return <DailyHistoriqueSubView onBack={()=>setScreen("daily_date")} filterDate={dailyDate} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="carnet_date") return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={()=>setScreen("home")} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div style={{ fontWeight:800, fontSize:16 }}>📓 Choisir une date</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{ flex:1, padding:18, maxWidth:420, margin:"0 auto", width:"100%" }}>
+        <SimpleDatePicker themeC={CK_C} onSelect={(d)=>{setCarnetDate(d);setScreen("carnet_vehicles");}}/>
+      </div>
+    </div>
+  );
+  if(screen==="carnet_vehicles") return <CarnetBordDateVehiclePicker vehicles={vehicles} date={carnetDate} onSelect={(v)=>{setCarnetVehicle(v);setScreen("carnet_detail");}} onBack={()=>setScreen("carnet_date")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="carnet_detail") return <CarnetBordDateDetail vehicle={carnetVehicle} date={carnetDate} carnetBordTypes={carnetBordTypes} onBack={()=>setScreen("carnet_vehicles")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
@@ -3840,11 +3942,11 @@ function HistoriqueView({ onBack, vehicles, carnetBordTypes, themeMode, toggleTh
           <div style={{ fontSize:28, color:"#3b82f6", fontWeight:900 }}>O₂</div>
           <div><div style={{ fontWeight:800, fontSize:15 }}>Historique bouteilles O²</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Échanges véhicules et livraisons fournisseur</div></div>
         </button>
-        <button onClick={()=>setScreen("daily")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
+        <button onClick={()=>setScreen("daily_date")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
           <div style={{ fontSize:28 }}>🚑</div>
           <div><div style={{ fontWeight:800, fontSize:15 }}>Historique APS Daily</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Checklists journalières par véhicule</div></div>
         </button>
-        <button onClick={()=>setScreen("carnet")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
+        <button onClick={()=>setScreen("carnet_date")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
           <div style={{ fontSize:28 }}>📓</div>
           <div><div style={{ fontWeight:800, fontSize:15 }}>Carnet de bord</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Historique des trajets par véhicule (3 ans)</div></div>
         </button>
@@ -3853,20 +3955,73 @@ function HistoriqueView({ onBack, vehicles, carnetBordTypes, themeMode, toggleTh
   );
 }
 
-function CarnetBordVehiclePicker({ vehicles, onSelect, onBack, themeMode, toggleTheme }){
+// Petit calendrier réutilisable (choix d'une date, sans dépendance aux courses).
+function SimpleDatePicker({ onSelect, themeC }){
+  const [viewDate,setViewDate]=useState(new Date());
+  const year=viewDate.getFullYear(), month=viewDate.getMonth();
+  const firstDay=new Date(year,month,1);
+  const startOffset=(firstDay.getDay()+6)%7; // lundi=0
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const monthLabel=viewDate.toLocaleDateString("fr-FR",{month:"long",year:"numeric"});
+  const cells=[];
+  for(let i=0;i<startOffset;i++) cells.push(null);
+  for(let d=1;d<=daysInMonth;d++) cells.push(d);
+  const todayStr=todayISO();
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+        <button onClick={()=>setViewDate(new Date(year,month-1,1))} style={{background:themeC.panel2,border:`1px solid ${themeC.border}`,borderRadius:8,color:themeC.text,padding:"6px 12px",cursor:"pointer"}}>←</button>
+        <div style={{fontWeight:800,fontSize:14,textTransform:"capitalize",color:themeC.text}}>{monthLabel}</div>
+        <button onClick={()=>setViewDate(new Date(year,month+1,1))} style={{background:themeC.panel2,border:`1px solid ${themeC.border}`,borderRadius:8,color:themeC.text,padding:"6px 12px",cursor:"pointer"}}>→</button>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4,marginBottom:6}}>
+        {["L","M","M","J","V","S","D"].map((d,i)=>(<div key={i} style={{textAlign:"center",fontSize:10,color:themeC.muted,fontWeight:700}}>{d}</div>))}
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:4}}>
+        {cells.map((d,i)=>{
+          if(d===null) return <div key={i}/>;
+          const dateStr=`${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+          const isToday=dateStr===todayStr;
+          return(
+            <button key={i} onClick={()=>onSelect(dateStr)} style={{aspectRatio:"1",background:isToday?themeC.accent:themeC.panel2,border:`1px solid ${isToday?themeC.accent:themeC.border}`,borderRadius:8,color:isToday?"white":themeC.text,fontSize:12,fontWeight:isToday?800:500,cursor:"pointer"}}>{d}</button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function CarnetBordDateVehiclePicker({ vehicles, date, onSelect, onBack, themeMode, toggleTheme }){
+  const [vehicleNames,setVehicleNames]=useState(null); // null=chargement, sinon Set
+  useEffect(()=>{
+    if(!date) return;
+    cleanOldCarnetBord();
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_carnet_bord"), snap=>{
+      const set=new Set();
+      snap.forEach(d=>{ const data=d.data(); if(data.date===date) set.add(data.vehicle); });
+      setVehicleNames(set);
+    });
+    return ()=>unsub();
+  },[date]);
+
+  const dateLabel=date?new Date(date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}):"";
+  const available=(vehicles||[]).filter(v=>vehicleNames&&vehicleNames.has(v.name));
+
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
       <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
-          <div style={{ fontWeight:800, fontSize:16 }}>📓 Carnet de bord</div>
+          <div><div style={{ fontWeight:800, fontSize:16 }}>📓 Carnet de bord</div><div style={{ fontSize:11, color:CK_C.muted, textTransform:"capitalize" }}>{dateLabel}</div></div>
         </div>
         <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
       </div>
       <div style={{ flex:1, padding:"16px", maxWidth:480, margin:"0 auto", width:"100%" }}>
+        {vehicleNames===null&&<div style={{ textAlign:"center", color:CK_C.muted, padding:40 }}>Chargement…</div>}
+        {vehicleNames!==null&&available.length===0&&<div style={{ textAlign:"center", color:CK_C.muted, padding:40 }}>Aucun véhicule n'a roulé ce jour-là</div>}
         {[["TPMR","TPMR"],["VSL","VSL"],["AMB","Ambulances ALPHA"]].map(([type,label])=>{
-          const group=(vehicles||[]).filter(v=>v.type===type);
+          const group=available.filter(v=>v.type===type);
           if(group.length===0) return null;
           return(
             <div key={type} style={{ marginBottom:18 }}>
@@ -3886,25 +4041,23 @@ function CarnetBordVehiclePicker({ vehicles, onSelect, onBack, themeMode, toggle
   );
 }
 
-function CarnetBordHistoriqueDetail({ vehicle, carnetBordTypes, onBack, themeMode, toggleTheme }){
+function CarnetBordDateDetail({ vehicle, date, carnetBordTypes, onBack, themeMode, toggleTheme }){
   const [entries,setEntries]=useState([]);
   const [loaded,setLoaded]=useState(false);
 
   useEffect(()=>{
-    cleanOldCarnetBord();
     const unsub=onSnapshot(collection(dbChecklists,"dispatchai_carnet_bord"), snap=>{
-      const data=snap.docs.map(d=>d.data()).filter(e=>e.vehicle===vehicle.name);
-      data.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      const data=snap.docs.map(d=>d.data()).filter(e=>e.vehicle===vehicle.name && e.date===date);
+      data.sort((a,b)=>(a.createdAt||0)-(b.createdAt||0));
       setEntries(data);
       setLoaded(true);
     }, ()=>setLoaded(true));
     return ()=>unsub();
-  },[vehicle.name]);
+  },[vehicle.name,date]);
 
   const cbTypes=(carnetBordTypes&&carnetBordTypes.length)?carnetBordTypes:INIT_CARNET_TYPES;
   const natureLabel=(id)=>cbTypes.find(t=>t.id===id)?.label||id;
-  const groups={};
-  entries.forEach(e=>{ if(!groups[e.date]) groups[e.date]=[]; groups[e.date].push(e); });
+  const dateLabel=date?new Date(date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"}):"";
 
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
@@ -3912,30 +4065,25 @@ function CarnetBordHistoriqueDetail({ vehicle, carnetBordTypes, onBack, themeMod
       <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
-          <div style={{ fontWeight:800, fontSize:16 }}>📓 {vehicle.name}</div>
+          <div><div style={{ fontWeight:800, fontSize:16 }}>📓 {vehicle.name}</div><div style={{ fontSize:11, color:CK_C.muted, textTransform:"capitalize" }}>{dateLabel}</div></div>
         </div>
         <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
       </div>
       <div style={{ flex:1, padding:"14px", overflowY:"auto" }}>
         {!loaded&&<div style={{ textAlign:"center", color:CK_C.muted, padding:40 }}>Chargement…</div>}
-        {loaded&&entries.length===0&&<div style={{ textAlign:"center", color:CK_C.muted, padding:40 }}>Aucune ligne pour ce véhicule</div>}
-        {Object.entries(groups).map(([date,items])=>(
-          <div key={date} style={{ marginBottom:16 }}>
-            <div style={{ fontSize:12, fontWeight:700, letterSpacing:2, color:CK_C.muted, textTransform:"uppercase", marginBottom:8 }}>📅 {new Date(date+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>
-            {items.map(e=>(
-              <div key={e.id} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:14, marginBottom:8 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                  <span style={{ fontWeight:700, fontSize:13, color:CK_C.text }}>{e.heureDepart} — {natureLabel(e.natureMission)}</span>
-                  {e.kmDepart&&e.kmFin&&<span style={{ fontSize:11, color:CK_C.muted }}>{e.kmDepart} → {e.kmFin} km</span>}
-                </div>
-                <div style={{ fontSize:12, color:CK_C.muted, marginTop:4 }}>{e.lieuDepart} → {e.destination}</div>
-                <div style={{ fontSize:11, color:CK_C.muted, marginTop:6, display:"flex", gap:12, flexWrap:"wrap" }}>
-                  <span>👤 {e.chauffeur}</span>
-                  {e.litres&&<span>⛽ {e.litres} L</span>}
-                  {e.heureRetour&&<span>🏠 Retour {e.heureRetour}</span>}
-                </div>
-              </div>
-            ))}
+        {loaded&&entries.length===0&&<div style={{ textAlign:"center", color:CK_C.muted, padding:40 }}>Aucune ligne pour ce véhicule ce jour-là</div>}
+        {entries.map(e=>(
+          <div key={e.id} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:14, marginBottom:8 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <span style={{ fontWeight:700, fontSize:13, color:CK_C.text }}>{e.heureDepart} — {natureLabel(e.natureMission)}</span>
+              {e.kmDepart&&e.kmFin&&<span style={{ fontSize:11, color:CK_C.muted }}>{e.kmDepart} → {e.kmFin} km</span>}
+            </div>
+            <div style={{ fontSize:12, color:CK_C.muted, marginTop:4 }}>{e.lieuDepart} → {e.destination}</div>
+            <div style={{ fontSize:11, color:CK_C.muted, marginTop:6, display:"flex", gap:12, flexWrap:"wrap" }}>
+              <span>👤 {e.chauffeur}</span>
+              {e.litres&&<span>⛽ {e.litres} L</span>}
+              {e.heureRetour&&<span>🏠 Retour {e.heureRetour}</span>}
+            </div>
           </div>
         ))}
       </div>
@@ -4106,7 +4254,7 @@ function O2HistoriqueSubView({ onBack, themeMode, toggleTheme }){
   );
 }
 
-function DailyHistoriqueSubView({ onBack, themeMode, toggleTheme }){
+function DailyHistoriqueSubView({ onBack, filterDate, themeMode, toggleTheme }){
   const [checklists,setChecklists]=useState([]);
   const [loaded,setLoaded]=useState(false);
   const [filter,setFilter]=useState("all");
@@ -4153,7 +4301,7 @@ function DailyHistoriqueSubView({ onBack, themeMode, toggleTheme }){
     return { text:String(val), color:CK_C.muted };
   };
 
-  const filtered=checklists.filter(c=>filter==="all"?true:c.type===filter);
+  const filtered=checklists.filter(c=>(filter==="all"?true:c.type===filter)&&(!filterDate||c.date===filterDate));
   const groups={};
   filtered.forEach(c=>{ const date=c.createdAt?formatDate(c.createdAt):"Date inconnue"; if(!groups[date]) groups[date]=[]; groups[date].push(c); });
 
@@ -4207,7 +4355,7 @@ function DailyHistoriqueSubView({ onBack, themeMode, toggleTheme }){
       <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
-          <div style={{ fontWeight:800, fontSize:16 }}>🚑 Historique APS Daily</div>
+          <div><div style={{ fontWeight:800, fontSize:16 }}>🚑 Historique APS Daily</div>{filterDate&&<div style={{ fontSize:10, color:CK_C.muted, textTransform:"capitalize" }}>{new Date(filterDate+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>}</div>
         </div>
         <div style={{ display:"flex", gap:8 }}>
           <button onClick={()=>{setSelectMode(!selectMode);setSelected([]);}} style={{ padding:"6px 12px", background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:selectMode?CK_C.danger:CK_C.muted, fontSize:11, cursor:"pointer" }}>{selectMode?"Annuler":"Sélectionner"}</button>
@@ -5143,7 +5291,7 @@ function useDailyActiveVehicleNames(){
 async function saveCarnetBordEntry(entry){
   const id=entry.id||("cb"+Date.now());
   try{
-    await setDoc(doc(dbChecklists,"dispatchai_carnet_bord",id), {...entry, id, createdAt:entry.createdAt||Date.now()});
+    await setDoc(doc(dbChecklists,"dispatchai_carnet_bord",id), sanitizeUndefined({...entry, id, createdAt:entry.createdAt||Date.now()}));
   }catch(e){ console.error("Erreur sauvegarde carnet de bord:", e); }
   return id;
 }
@@ -5417,6 +5565,37 @@ function PatientsHabituelsBody({patients,setPatients,categories,setCategories,co
               <div style={{fontSize:10,fontWeight:700,color:C.mutedLight,textTransform:"uppercase",marginBottom:6}}>Heure habituelle</div>
               <HeureInput value={editing.heureHabituelle||""} onChange={v=>setEditing({...editing,heureHabituelle:v})}/>
             </div>
+            {editing.categorie==="Dialyse"&&(
+              <div style={{marginBottom:10,background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,padding:"12px"}}>
+                <div style={{fontSize:10,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:8}}>🔁 Récurrence automatique (dialyse)</div>
+                <div style={{fontSize:11,color:C.muted,marginBottom:10}}>Un ou plusieurs horaires possibles (ex: Lun/Mer/Ven → Dialyse Enghien, Sam → Dialyse Ath). Chaque jour coché crée la course automatiquement (en attente, à assigner).</div>
+                {(editing.recurringSlots||[]).map((slot,idx)=>(
+                  <div key={slot.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px",marginBottom:8}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                      <span style={{fontSize:10,fontWeight:700,color:C.mutedLight,textTransform:"uppercase"}}>Horaire {idx+1}</span>
+                      <button onClick={()=>setEditing({...editing,recurringSlots:editing.recurringSlots.filter(s=>s.id!==slot.id)})} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"3px 8px",fontSize:10,cursor:"pointer"}}>🗑</button>
+                    </div>
+                    <div style={{display:"flex",gap:5,marginBottom:8}}>
+                      {[["lun","L"],["mar","M"],["mer","M"],["jeu","J"],["ven","V"],["sam","S"],["dim","D"]].map(([id,l])=>{
+                        const active=(slot.days||[]).includes(id);
+                        return(
+                          <button key={id} onClick={()=>{
+                            const days=slot.days||[];
+                            const newDays=active?days.filter(d=>d!==id):[...days,id];
+                            setEditing({...editing,recurringSlots:editing.recurringSlots.map(s=>s.id===slot.id?{...s,days:newDays}:s)});
+                          }} style={{flex:1,padding:"8px 0",borderRadius:6,border:`1.5px solid ${active?C.purple:C.border}`,background:active?C.purple:"transparent",color:active?"white":C.muted,fontSize:11,fontWeight:700,cursor:"pointer"}}>{l}</button>
+                        );
+                      })}
+                    </div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6}}>
+                      <HeureInput value={slot.heure||""} onChange={v=>setEditing({...editing,recurringSlots:editing.recurringSlots.map(s=>s.id===slot.id?{...s,heure:v}:s)})} placeholder="Heure"/>
+                      <input value={slot.destination||""} onChange={e=>setEditing({...editing,recurringSlots:editing.recurringSlots.map(s=>s.id===slot.id?{...s,destination:capitalizeWords(e.target.value)}:s)})} placeholder="Destination (ex: Dialyse Enghien)" style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"7px 9px",color:C.text,fontSize:12}}/>
+                    </div>
+                  </div>
+                ))}
+                <button onClick={()=>setEditing({...editing,recurringSlots:[...(editing.recurringSlots||[]),{id:"slot"+Date.now(),days:[],heure:"",destination:""}]})} style={{width:"100%",background:"transparent",border:`1.5px dashed ${C.purple}`,borderRadius:8,color:C.purple,padding:"9px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Ajouter un horaire</button>
+              </div>
+            )}
             <div style={{marginBottom:10}}>
               <div style={{fontSize:10,fontWeight:700,color:C.mutedLight,textTransform:"uppercase",marginBottom:6}}>Statut</div>
               <div style={{display:"flex",gap:6}}>
@@ -5545,6 +5724,13 @@ export default function App(){
   const checklistStatuses = useChecklistsWeekStatus(checklistsData);
   const dailyActiveCount = useDailyActiveVehiclesCount();
   const [themeMode, setThemeMode] = useState(()=>getStoredThemeMode());
+  // Le fond de page (body) était figé au premier chargement dans le CSS
+  // global (GS) et ne suivait plus les changements de thème ensuite — on le
+  // met à jour ici à chaque bascule pour que tout reste bien synchronisé.
+  useEffect(()=>{
+    document.body.style.background = C.bg;
+    document.documentElement.style.background = C.bg;
+  },[themeMode]);
   const toggleTheme = () => { const next=themeMode==="light"?"dark":"light"; applyThemeMode(next); applyCkThemeMode(next); setThemeMode(next); };
 
   const [cDriver,   setCDriver]   = useState(()=>lsGet("aps_cDriver",null));
@@ -5625,6 +5811,46 @@ export default function App(){
     setNextId(n=>n+2);
   };
 
+  // Génération automatique des courses de dialyse récurrentes : dès que le
+  // jour courant correspond à un jour coché sur un des horaires du patient,
+  // une course "en attente" est créée automatiquement (une seule fois par jour et par destination).
+  useEffect(()=>{
+    const WEEKDAY_CODES=["dim","lun","mar","mer","jeu","ven","sam"];
+    const todayCode=WEEKDAY_CODES[new Date().getDay()];
+    const todayF=todayFR();
+    patientsHabituels.forEach(p=>{
+      if(p.categorie!=="Dialyse") return;
+      if(p.statut!=="actif") return;
+      (p.recurringSlots||[]).forEach(slot=>{
+        if(!(slot.days||[]).includes(todayCode)) return;
+        const fullName=`${p.prenom} ${p.nom}`;
+        const destination=slot.destination||p.adresseArrivee;
+        const alreadyPending=pending.some(x=>x.patient===fullName && x.date===todayF && x.arrivee===destination);
+        const alreadyCourse=courses.some(x=>x.patient===fullName && x.date===todayF && x.arrivee===destination);
+        if(!alreadyPending && !alreadyCourse){
+          const newP={
+            id:nextId+1,
+            patient:fullName,
+            depart:p.adresseDepart, arrivee:destination,
+            heure:slot.heure||p.heureHabituelle||"—",
+            type:p.typeTransport,
+            convention:p.convention, mobilite:p.mobilite,
+            equipSelected:p.equipSelected||[],
+            oxygene:(p.equipSelected||[]).includes("oxygene"),
+            litrageO2:p.litrageO2,
+            telephone:p.telephone,
+            notes:p.notes,
+            date:todayF, dateISO:todayISO(),
+            statut:"en_attente", heures:[],
+          };
+          setPending(pr=>[...pr,newP]);
+          setNextId(n=>n+2);
+        }
+      });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[patientsHabituels]);
+
   const saveBon = (bon) => {
     setCBons(p=>{
       const exists=p.find(b=>b.id===bon.id);
@@ -5654,7 +5880,7 @@ export default function App(){
         <div style={{display:"flex",alignItems:"center",gap:12}}>
           <Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge>
           <Clock/>
-          <button onClick={()=>{const next=themeMode==="light"?"dark":"light";applyThemeMode(next);setThemeMode(next);}} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
+          <button onClick={()=>{const next=themeMode==="light"?"dark":"light";applyThemeMode(next);applyCkThemeMode(next);setThemeMode(next);}} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
           <button onClick={()=>setShowPin(true)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>⚙️ Paramètres</button>
         </div>
       </div>
