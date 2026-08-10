@@ -5788,6 +5788,8 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
   const [touched,setTouched]=useState({});
   const [done,setDone]=useState(false);
   const [showContactsPicker,setShowContactsPicker]=useState(false);
+  const [showEmailPaste,setShowEmailPaste]=useState(false);
+  const [emailPasteText,setEmailPasteText]=useState("");
   const set=(k,v)=>setForm(f=>({...f,[k]:v}));
   const touch=(...ks)=>setTouched(t=>{const n={...t};ks.forEach(k=>n[k]=true);return n;});
   const errors=validateF(form,step);
@@ -5846,6 +5848,7 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
             <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:"22px 24px",animation:"fadeUp 0.3s ease"}}>
               {step===1&&(
                 <>
+                  <button onClick={()=>setShowEmailPaste(true)} style={{width:"100%",marginBottom:16,background:C.blueSoft,border:`1.5px dashed ${C.blue}`,borderRadius:11,padding:"13px",color:C.blue,fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>📋 Coller un email</button>
                   <SectionTitle icon="📞" title="Appelant"/>
                   <FieldWrap label="Appelant" error={errors.convention} touched={touched.convention} required>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginTop:2}}>
@@ -6012,6 +6015,20 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
           </>
         )}
       </div>
+      {showEmailPaste&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:250}}>
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:480,maxWidth:"92vw",maxHeight:"90vh",overflowY:"auto",animation:"pop 0.2s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <div style={{fontWeight:800,fontSize:16,color:C.blue}}>📋 Coller un email</div>
+              <button onClick={()=>{setShowEmailPaste(false);setEmailPasteText("");}} style={{background:"transparent",border:"none",color:C.muted,fontSize:22,cursor:"pointer"}}>×</button>
+            </div>
+            <div style={{fontSize:12,color:C.muted,marginBottom:16}}>Colle le texte de l'email de l'hôpital ci-dessous, l'IA remplira automatiquement le formulaire.</div>
+            <textarea value={emailPasteText} onChange={e=>setEmailPasteText(e.target.value)} placeholder="Colle ici le texte complet de l'email…" style={{width:"100%",minHeight:180,background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,padding:"12px 14px",color:C.text,fontSize:13,resize:"vertical",boxSizing:"border-box",fontFamily:"inherit",marginBottom:16}}/>
+            <div style={{background:C.warningSoft,border:`1px solid ${C.warning}`,borderRadius:9,padding:"10px 14px",marginBottom:16,fontSize:12,color:C.text}}>🚧 Analyse IA pas encore branchée — arrive bientôt.</div>
+            <button disabled style={{width:"100%",background:C.panel2,border:"none",borderRadius:10,color:C.muted,padding:14,fontWeight:800,fontSize:14,cursor:"not-allowed"}}>🔍 Analyser (bientôt disponible)</button>
+          </div>
+        </div>
+      )}
       {showContactsPicker&&<ContactsPickerModal contacts={contacts} pickMode onSelect={(tel)=>set("telephone",tel)} onClose={()=>setShowContactsPicker(false)}/>}
     </div>
   );
