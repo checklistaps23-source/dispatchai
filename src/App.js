@@ -2498,6 +2498,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
       setTodaySkipped(!!(latest && latest.date===todayISO() && latest.skipped));
     });
     return ()=>{ cancelled=true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   },[screen, vehicle?.name]);
   const [showCarnetBord,setShowCarnetBord]=useState(false);
   const [endCarnetMission,setEndCarnetMission]=useState(null); // "retour_base" | "retour_domicile" | null
