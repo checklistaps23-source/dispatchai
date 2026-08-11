@@ -724,6 +724,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                     {f:"priseEnCharge",l:"Prise en charge — 10 premiers km inclus (€)"},
                     {f:"km11_20",l:"Tarif €/km — 11 à 20 km"},
                     {f:"km21plus",l:"Tarif €/km — 21 km et +"},
+                    {f:"oxygeneDemiH",l:"Oxygène — forfait par demi-heure (€)"},
                   ].map(f=>(
                     <div key={f.f}>
                       <div style={{fontSize:10,color:C.mutedLight,marginBottom:5,textTransform:"uppercase"}}>{f.l}</div>
@@ -1261,6 +1262,9 @@ function DevisModal({tarifs,onClose}){
   const [adresseArrivee,setAdresseArrivee]=useState("");
   const [km,setKm]=useState("");
   const [allerRetour,setAllerRetour]=useState(false);
+  const [oxygene,setOxygene]=useState(false);
+  const [demiH,setDemiH]=useState(1);
+  const [majoration,setMajoration]=useState(false);
 
   const raw=tarifs[type];
   const kmSaisi=parseFloat(km)||0;
@@ -1280,6 +1284,17 @@ function DevisModal({tarifs,onClose}){
     const km21plus=Math.max(0,kmNum-20);
     total=priseEnCharge+km11_20*t11_20+km21plus*t21plus;
     breakdown=[["Prise en charge (10 premiers km inclus)",priseEnCharge],["11 à 20 km"+(allerRetour?" (A/R)":""),km11_20*t11_20],["21 km et +"+(allerRetour?" (A/R)":""),km21plus*t21plus]];
+    if(oxygene){
+      const tarifO2=parseFloat(raw.oxygeneDemiH)||0;
+      const coutO2=demiH*tarifO2;
+      total+=coutO2;
+      breakdown.push([`Oxygène (${demiH} × ½h)`,coutO2]);
+    }
+  }
+  if(majoration){
+    const avantMajoration=total;
+    total=total*1.2;
+    breakdown.push(["Majoration nuit/dimanche/férié (+20%)",total-avantMajoration]);
   }
 
   return(
@@ -1315,6 +1330,27 @@ function DevisModal({tarifs,onClose}){
             style={{width:"100%",background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none",fontFamily:"inherit"}}/>
           <div style={{fontSize:10,color:C.muted,marginTop:5}}>ℹ️ Calcul automatique via Google Maps à venir — pour l'instant entre les km manuellement.{allerRetour&&" Les km saisis sont doublés automatiquement pour l'aller-retour."}</div>
         </div>
+
+        {type==="ambulance"&&(
+          <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:9,padding:"12px",marginTop:10}}>
+            <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",marginBottom:oxygene?10:0}}>
+              <input type="checkbox" checked={oxygene} onChange={e=>setOxygene(e.target.checked)} style={{width:16,height:16,cursor:"pointer"}}/>
+              <span style={{fontSize:13,fontWeight:600,color:C.text}}>🫁 Oxygène (forfait par demi-heure)</span>
+            </label>
+            {oxygene&&(
+              <div style={{display:"flex",alignItems:"center",gap:12,justifyContent:"center"}}>
+                <button onClick={()=>setDemiH(d=>Math.max(1,d-1))} style={{width:34,height:34,borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:16,fontWeight:700,cursor:"pointer"}}>−</button>
+                <span style={{fontSize:15,fontWeight:800,color:C.text,minWidth:60,textAlign:"center"}}>{demiH} × ½h</span>
+                <button onClick={()=>setDemiH(d=>d+1)} style={{width:34,height:34,borderRadius:8,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:16,fontWeight:700,cursor:"pointer"}}>+</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",background:C.warningSoft,border:`1px solid ${C.warning}`,borderRadius:9,padding:"12px",marginTop:10}}>
+          <input type="checkbox" checked={majoration} onChange={e=>setMajoration(e.target.checked)} style={{width:16,height:16,cursor:"pointer"}}/>
+          <span style={{fontSize:13,fontWeight:600,color:C.text}}>🌙 Majoration nuit (20h-6h) / dimanche / férié (+20%)</span>
+        </label>
 
         <div style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",marginTop:16}}>
           <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:10}}>Détail</div>
@@ -5830,7 +5866,7 @@ export default function App(){
   const [patientCategories, setPatientCategories] = useFirestoreState("patientCategories", ["Dialyse","Radiothérapie","Oncologie"]);
   const [tarifs, setTarifs] = useFirestoreState("tarifs", {
     tpmr:{priseEnCharge:"0", kmAudela10:"0"},
-    ambulance:{priseEnCharge:"0", km11_20:"0", km21plus:"0"},
+    ambulance:{priseEnCharge:"0", km11_20:"0", km21plus:"0", oxygeneDemiH:"0"},
   });
   const [plans,       setPlans]       = useFirestoreState("plans", INIT_PLANS);
   const [nextId,      setNextId]      = useFirestoreState("nextId", 100);
