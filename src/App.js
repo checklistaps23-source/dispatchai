@@ -241,8 +241,8 @@ const INIT_COURSES = [
   {id:4,vehicleId:"T3",patient:"Lambert Jeanne", depart:"67 rue Bara, Frameries",     arrivee:"CHU Mons — Ophtalmo",  heure:"11:00",type:"consultation",statut:"planifie",convention:"home",    mobilite:"assis"},
 ].map(c=>({...c,dateISO:(()=>{const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;})()}));
 
-const vIcon  = t => t==="AMB"?"🚑":t==="VSL"?"🚗":"♿";
-const vColor = t => t==="AMB"?C.danger:t==="VSL"?C.purple:C.blue;
+const vIcon  = t => t==="AMB"?"🚑":t==="VSL"?"🚗":t==="PREV"?"🚙":"♿";
+const vColor = t => t==="AMB"?C.danger:t==="VSL"?C.purple:t==="PREV"?C.warning:C.blue;
 const needsAmb = (mobilite, equip) => mobilite==="brancard"||(equip||[]).some(e=>["perfusion","oxygene","chaise_evac"].includes(e));
 
 const CONV_MAP = {"epicura":"Épicura","partenamut":"Partenamut","home":"Home","chwapi":"CHWAPI","chm":"CHM","prive":"Privé","mutas":"Mutas","prison":"Prison","az_glorieux":"AZ Glorieux"};
@@ -560,10 +560,10 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
           {tab==="vehicules"&&(
             <div>
               <SectionTitle icon="🚐" title="Gestion des véhicules"/>
-              {["TPMR","VSL","AMB"].map(type=>(
+              {["TPMR","VSL","AMB","PREV"].map(type=>(
                 <div key={type} style={{marginBottom:20}}>
                   <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8,display:"flex",alignItems:"center",gap:7}}>
-                    {vIcon(type)} {type==="AMB"?"Ambulances ALPHA":type}<div style={{flex:1,height:1,background:C.border}}/>
+                    {vIcon(type)} {type==="AMB"?"Ambulances ALPHA":type==="PREV"?"Véhicules Préventif":type}<div style={{flex:1,height:1,background:C.border}}/>
                   </div>
                   {vehicles.filter(v=>v.type===type).map(v=>(
                     <div key={v.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:6}}>
@@ -576,7 +576,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
               <div style={{display:"flex",gap:8,marginTop:8}}>
                 <TextInput value={newVehName} onChange={e=>setNewVehName(e.target.value)} onBlur={()=>{}} placeholder="Nom du véhicule…"/>
                 <select value={newVehType} onChange={e=>setNewVehType(e.target.value)} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,cursor:"pointer",flexShrink:0}}>
-                  <option value="TPMR">TPMR</option><option value="VSL">VSL</option><option value="AMB">ALPHA</option>
+                  <option value="TPMR">TPMR</option><option value="VSL">VSL</option><option value="AMB">ALPHA</option><option value="PREV">Véhicule Préventif</option>
                 </select>
                 <button onClick={()=>{if(newVehName.trim()){const id=`${newVehType[0]}${Date.now()}`;setVehicles(p=>[...p,{id,name:newVehName.trim(),type:newVehType,driver:"—",status:"disponible",active:false,x:50,y:50}]);setNewVehName("");}}} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
               </div>
@@ -1692,10 +1692,10 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
               <button onClick={()=>setShowGarage(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:22,cursor:"pointer"}}>×</button>
             </div>
             <div style={{overflowY:"auto",flex:1}}>
-              {["TPMR","VSL","AMB"].map(type=>(
+              {["TPMR","VSL","AMB","PREV"].map(type=>(
                 <div key={type} style={{marginBottom:16}}>
                   <div style={{fontSize:10,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"1px",marginBottom:8,display:"flex",alignItems:"center",gap:7}}>
-                    {vIcon(type)} {type==="AMB"?"Ambulances ALPHA":type}<div style={{flex:1,height:1,background:C.border}}/><span style={{color:C.accent}}>{vehicles.filter(v=>v.type===type&&v.active).length}/{vehicles.filter(v=>v.type===type).length}</span>
+                    {vIcon(type)} {type==="AMB"?"Ambulances ALPHA":type==="PREV"?"Véhicules Préventif":type}<div style={{flex:1,height:1,background:C.border}}/><span style={{color:C.accent}}>{vehicles.filter(v=>v.type===type&&v.active).length}/{vehicles.filter(v=>v.type===type).length}</span>
                   </div>
                   {vehicles.filter(v=>v.type===type).map(v=>(
                     <div key={v.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:v.active?C.successSoft:C.panel2,border:`1px solid ${v.active?C.success:C.border}`,borderRadius:8,padding:"9px 13px",marginBottom:5}}>
@@ -3029,7 +3029,16 @@ function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, onClose,
 
 function DailyChecklistView({ vehicle, driverName, onComplete, themeMode, toggleTheme }){
   const vType = vehicle?.type || "AMB";
-  const template = DAILY_TEMPLATES_BASE[vType] || DAILY_CHECKLIST_ALPHA;
+  const [overrideTemplate, setOverrideTemplate] = useState(undefined); // undefined=chargement, null=aucune, sinon tableau
+  useEffect(()=>{
+    let cancelled=false;
+    getDoc(doc(dbChecklists,"dispatchai_daily_templates",vehicle.id)).then(snap=>{
+      if(cancelled) return;
+      setOverrideTemplate(snap.exists()&&snap.data().sections?snap.data().sections:null);
+    }).catch(()=>{ if(!cancelled) setOverrideTemplate(null); });
+    return ()=>{ cancelled=true; };
+  },[vehicle.id]);
+  const template = overrideTemplate!=null ? overrideTemplate : (DAILY_TEMPLATES_BASE[vType] || (vType==="PREV"?[]:DAILY_CHECKLIST_ALPHA));
   const [values, setValues] = useState({ nom1: driverName||"" });
   const [sending, setSending] = useState(false);
   const [yesterdayEntry, setYesterdayEntry] = useState(undefined); // undefined=chargement, null=aucune, sinon l'entrée
@@ -3043,6 +3052,12 @@ function DailyChecklistView({ vehicle, driverName, onComplete, themeMode, toggle
   const sameDriverAsYesterday = !!(yesterdayEntry && yesterdayEntry.values && driverName && yesterdayEntry.values.nom1 && yesterdayEntry.values.nom1.trim().toLowerCase()===driverName.trim().toLowerCase());
 
   const set = (id,val) => setValues(v=>({ ...v, [id]:val }));
+
+  if(overrideTemplate===undefined){
+    return(
+      <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.muted,fontFamily:"'IBM Plex Sans',sans-serif"}}>Chargement…</div>
+    );
+  }
 
   const missingRequired = () => {
     const missing=[];
@@ -3323,14 +3338,14 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
       <div style={{flex:1,padding:"24px 20px",maxWidth:640,margin:"0 auto",width:"100%"}}>
         <div style={{fontSize:26,fontWeight:800,marginBottom:4}}>Bonjour 👋</div>
         <div style={{fontSize:13,color:C.muted,marginBottom:24}}>Choisissez votre véhicule</div>
-        {["TPMR","VSL","AMB"].map(type=>{
+        {["TPMR","VSL","AMB","PREV"].map(type=>{
           const group=vehicles.filter(v=>v.type===type);
           if(!group.length) return null;
           return(
             <div key={type} style={{marginBottom:22}}>
               <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
                 <span style={{fontSize:18,color:vColor(type)}}>{vIcon(type)}</span>
-                <span style={{fontSize:11,fontWeight:800,color:vColor(type),textTransform:"uppercase",letterSpacing:"1px"}}>{type==="AMB"?"Ambulances ALPHA":type}</span>
+                <span style={{fontSize:11,fontWeight:800,color:vColor(type),textTransform:"uppercase",letterSpacing:"1px"}}>{type==="AMB"?"Ambulances ALPHA":type==="PREV"?"Véhicules Préventif":type}</span>
                 <div style={{flex:1,height:1,background:C.border}}/>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:9}}>
