@@ -5817,7 +5817,7 @@ function ChecklistsHome({ onBack, checklists, emails, o2Emails, peremptionEmails
   const [screen, setScreen] = useState("home"); // "home" | "historique" | "reappro" | "peremption" | "tpmrvsl_list"
   const [selectedTpmrVsl, setSelectedTpmrVsl] = useState(null);
   const statuses = useChecklistsWeekStatus(checklists);
-  const [tpmrVslTemplate, setTpmrVslTemplate] = useFirestoreState("tpmrVslChecklistTemplate", { sections: [] });
+  const [tpmrVslTemplate] = useFirestoreState("tpmrVslChecklistTemplate", { sections: [] });
   const monthKey = getChecklistMonthKey();
   const tpmrVslStatuses = useTpmrVslMonthStatus(tpmrVslTemplate);
 
