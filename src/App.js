@@ -754,7 +754,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                     <div key={name} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7}}>
                       <div>
                         <div style={{fontSize:13,fontWeight:700}}>🚑 {name}</div>
-                        <div style={{fontSize:10,color:C.muted}}>Éd. {checklistsData[name].edition} · Norme {checklistsData[name].norme} · {(checklistsData[name].sections||[]).length} section(s)</div>
+                        <div style={{fontSize:10,color:C.muted}}>Norme {checklistsData[name].norme} · {(checklistsData[name].sections||[]).length} section(s)</div>
                       </div>
                       <div style={{display:"flex",gap:6}}>
                         <button onClick={()=>openEditChecklist(name)} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,color:C.muted,padding:"6px 10px",fontSize:12,cursor:"pointer"}}>✏️</button>
@@ -4577,7 +4577,7 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
             <div style={{ width:34, height:34, background:CK_C.red, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", fontSize:17 }}>🚑</div>
             <div>
               <div style={{ fontWeight:800, fontSize:15 }}>{vehicleName} — Checklist</div>
-              <div style={{ fontSize:10, color:CK_C.muted, textTransform:"uppercase", letterSpacing:"0.8px" }}>Norme {data.norme} · Éd. {data.edition}</div>
+              <div style={{ fontSize:10, color:CK_C.muted, textTransform:"uppercase", letterSpacing:"0.8px" }}>Norme {data.norme}</div>
             </div>
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -5907,7 +5907,7 @@ function ChecklistsHome({ onBack, checklists, emails, o2Emails, peremptionEmails
                 </div>
                 <div>
                   <div style={{ fontWeight:800, fontSize:16 }}>{name}</div>
-                  <div style={{ fontSize:11, color:CK_C.muted }}>Éd. {checklists[name].edition} · Norme {checklists[name].norme}</div>
+                  <div style={{ fontSize:11, color:CK_C.muted }}>Norme {checklists[name].norme}</div>
                   <div style={{ fontSize:11, fontWeight:700, color:dotColor, marginTop:2 }}>{dotLabel}</div>
                 </div>
               </div>
