@@ -2005,6 +2005,7 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, onSav
       departEffectif:"", heureSurPlace:"", heureFinMission:"", heureRetourBaseMission:"",
       personnel:[{id:"pers"+Date.now(),nom:form.responsableMission.trim(),prenom:"",fonction:"Responsable de mission",heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}],
       remarque:"", signature:"",
+      visibleTerrain:false, statutBureau:"orange",
       createdAt:Date.now(),
     });
   };
@@ -2118,12 +2119,13 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, onSav
   );
 }
 
-function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb, driversTpmr, carnetBordTypes, bureau, onSave, onBack, themeMode, toggleTheme }){
+function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb, driversTpmr, carnetBordTypes, bureau, onSave, onDelete, onBack, themeMode, toggleTheme }){
   const [f,setF]=useState(fiche);
   const [newNom,setNewNom]=useState(""); const [newPrenom,setNewPrenom]=useState(""); const [newFonction,setNewFonction]=useState("");
   const [pickPersonId,setPickPersonId]=useState("");
   const [checklistVehicle,setChecklistVehicle]=useState(null); // objet véhicule en cours de check
   const [carnetVehicle,setCarnetVehicle]=useState(null); // objet véhicule en cours de carnet de bord
+  const [showDeleteConfirm,setShowDeleteConfirm]=useState(false);
   const allDrivers=[...(driversAmb||[]),...(driversTpmr||[])];
 
   const save=(next)=>{ setF(next); onSave(next); };
@@ -2170,11 +2172,39 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div><div style={{fontWeight:800,fontSize:15,color:C.purple}}>{f.nomEvenement}{f.terminee&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:C.success,background:C.successSoft,borderRadius:6,padding:"2px 7px"}}>TERMINÉE</span>}</div><div style={{fontSize:10,color:C.muted}}>{f.lieu} — {new Date(f.date+"T00:00:00").toLocaleDateString("fr-FR")}</div></div>
         </div>
+        {bureau&&(
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <button onClick={()=>save({...f,statutBureau:f.statutBureau==="vert"?"orange":"vert"})} title="Statut visible uniquement au Bureau" style={{width:16,height:16,borderRadius:"50%",border:"none",cursor:"pointer",background:f.statutBureau==="vert"?C.success:"#f59e0b"}}/>
+            <button onClick={()=>save({...f,visibleTerrain:!f.visibleTerrain})} style={{background:f.visibleTerrain?C.successSoft:C.panel2,border:`1px solid ${f.visibleTerrain?C.success:C.border}`,borderRadius:8,color:f.visibleTerrain?C.success:C.muted,padding:"6px 11px",fontSize:11,fontWeight:700,cursor:"pointer"}}>{f.visibleTerrain?"👁️ Visible terrain":"🙈 Masquée terrain"}</button>
+          </div>
+        )}
       </div>
       <div style={{flex:1,padding:16,paddingBottom:60,maxWidth:700,margin:"0 auto",width:"100%"}}>
 
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
           <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:8}}>Infos mission</div>
+          {bureau?(
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+              {[["nomEvenement","Nom événement"],["lieu","Lieu"],["adresse","Adresse"],["nature","Nature"],["dispositif","Dispositif"],["responsableOrga","Responsable orga"],["gsmOrga","GSM"],["canalRadio","Canal radio"]].map(([field,label])=>(
+                <div key={field}>
+                  <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>{label}</div>
+                  <input value={f[field]||""} onChange={e=>save({...f,[field]:e.target.value})} style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12,boxSizing:"border-box"}}/>
+                </div>
+              ))}
+              <div>
+                <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Date</div>
+                <input type="date" value={f.date} onChange={e=>save({...f,date:e.target.value})} style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12,boxSizing:"border-box"}}/>
+              </div>
+              <div>
+                <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Subsistance</div>
+                <div style={{display:"flex",gap:6}}>
+                  {[[true,"Oui"],[false,"Non"]].map(([v,l])=>(
+                    <button key={l} onClick={()=>save({...f,subsistance:v})} style={{flex:1,padding:"7px",borderRadius:7,border:`1.5px solid ${f.subsistance===v?C.purple:C.border}`,background:f.subsistance===v?C.purpleSoft:"transparent",color:f.subsistance===v?C.purple:C.muted,fontWeight:700,fontSize:11,cursor:"pointer"}}>{l}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ):(
           <div style={{fontSize:12,color:C.muted,lineHeight:1.8}}>
             <div><b style={{color:C.text}}>Adresse :</b> {f.adresse||"—"}</div>
             <div><b style={{color:C.text}}>Nature :</b> {f.nature||"—"}</div>
@@ -2183,6 +2213,7 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb
             <div><b style={{color:C.text}}>Organisation :</b> {f.responsableOrga||"—"} {f.gsmOrga&&`(${f.gsmOrga})`}</div>
             <div><b style={{color:C.text}}>Canal radio :</b> {f.canalRadio||"—"}</div>
           </div>
+          )}
         </div>
 
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
@@ -2199,6 +2230,19 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb
 
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
           <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Véhicules engagés</div>
+          {bureau&&(
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:12}}>
+              {(vehicles||[]).map(v=>{
+                const active=f.vehiculesEngages.some(x=>x.vehicleId===v.id);
+                return(
+                  <button key={v.id} onClick={()=>{
+                    const exists=f.vehiculesEngages.find(x=>x.vehicleId===v.id);
+                    save({...f, vehiculesEngages: exists ? f.vehiculesEngages.filter(x=>x.vehicleId!==v.id) : [...f.vehiculesEngages,{vehicleId:v.id,vehicleName:v.name,chauffeur:""}]});
+                  }} style={{padding:"7px 4px",borderRadius:7,border:`1px solid ${active?C.purple:C.border}`,background:active?C.purpleSoft:"transparent",color:active?C.purple:C.muted,fontSize:11,fontWeight:700,cursor:"pointer"}}>{v.name}</button>
+                );
+              })}
+            </div>
+          )}
           {f.vehiculesEngages.length===0&&<div style={{fontSize:12,color:C.muted}}>Aucun véhicule engagé</div>}
           {f.vehiculesEngages.map(v=>{
             const vehObj=(vehicles||[]).find(x=>x.id===v.vehicleId)||{id:v.vehicleId,name:v.vehicleName,type:"AMB"};
@@ -2308,7 +2352,24 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb
             {f.terminee?"✅ Fiche terminée":"📤 Envoyer"}
           </button>
         </div>
+
+        {bureau&&onDelete&&(
+          <button onClick={()=>setShowDeleteConfirm(true)} style={{width:"100%",marginTop:16,background:"transparent",border:`1.5px solid ${C.danger}`,borderRadius:10,color:C.danger,padding:12,fontWeight:700,fontSize:13,cursor:"pointer"}}>🗑 Supprimer cette fiche</button>
+        )}
       </div>
+
+      {showDeleteConfirm&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}}>
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:360,maxWidth:"92vw"}}>
+            <div style={{fontWeight:800,fontSize:16,marginBottom:8,color:C.danger}}>🗑 Supprimer la fiche ?</div>
+            <div style={{fontSize:13,color:C.muted,marginBottom:20}}>"{f.nomEvenement}" sera définitivement supprimée. Cette action est irréversible.</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setShowDeleteConfirm(false)} style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"11px",fontSize:13,cursor:"pointer"}}>Annuler</button>
+              <button onClick={()=>{onDelete(f.id);onBack();}} style={{flex:1,background:C.danger,border:"none",borderRadius:9,color:"white",padding:"11px",fontWeight:700,fontSize:13,cursor:"pointer"}}>Supprimer</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {carnetVehicle&&(
         <CarnetBordModal vehicle={carnetVehicle} driver={f.vehiculesEngages.find(v=>v.vehicleId===carnetVehicle.id)?.chauffeur||""} myCourses={[]} carnetBordTypes={carnetBordTypes} onClose={()=>setCarnetVehicle(null)}/>
@@ -2355,11 +2416,11 @@ function PreventifInventaireView({ materiel, fiches, onBack, themeMode, toggleTh
   );
 }
 
-function PreventifHistorique({ fiches, materiel, personnel, vehicles, driversAmb, driversTpmr, carnetBordTypes, onSave, onBack, themeMode, toggleTheme }){
+function PreventifHistorique({ fiches, materiel, personnel, vehicles, driversAmb, driversTpmr, carnetBordTypes, onSave, onDelete, onBack, themeMode, toggleTheme }){
   const [selected,setSelected]=useState(null);
   const [showInventaire,setShowInventaire]=useState(false);
   if(showInventaire) return <PreventifInventaireView materiel={materiel} fiches={fiches} onBack={()=>setShowInventaire(false)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(selected) return <PreventifFicheDetail fiche={selected} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} bureau={true} onSave={(next)=>{onSave(next);setSelected(next);}} onBack={()=>setSelected(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(selected) return <PreventifFicheDetail fiche={selected} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} bureau={true} onSave={(next)=>{onSave(next);setSelected(next);}} onDelete={(id)=>{onDelete(id);setSelected(null);}} onBack={()=>setSelected(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   const sorted=[...fiches].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -2399,13 +2460,14 @@ function PreventifView({ onBack, vehicles, driversAmb, driversTpmr, carnetBordTy
     const exists=prev.find(x=>x.id===next.id);
     return exists?prev.map(x=>x.id===next.id?next:x):[...prev,next];
   });
+  const deleteFiche=(id)=>setFiches(prev=>prev.filter(x=>x.id!==id));
 
   if(screen==="parametres") return <PreventifParametresView personnel={personnel} setPersonnel={setPersonnel} materiel={materiel} setMateriel={setMateriel} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(screen==="nouvelle") return <PreventifFicheForm vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} materiel={materiel} onCancel={()=>setScreen("home")} onSave={(f)=>{saveFiche(f);setScreen("home");}}/>;
-  if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} onSave={saveFiche} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} onSave={saveFiche} onDelete={deleteFiche} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onDelete={deleteFiche} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
-  const todayFiches=fiches.filter(f=>f.date===todayISO());
+  const todayFiches=fiches.filter(f=>f.date===todayISO() && !f.terminee && (bureau||f.visibleTerrain));
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -2434,9 +2496,12 @@ function PreventifView({ onBack, vehicles, driversAmb, driversTpmr, carnetBordTy
             <div style={{fontSize:14}}>Aucun événement Préventif prévu aujourd'hui</div>
           </div>
         ):todayFiches.map(f=>(
-          <button key={f.id} onClick={()=>setOpenFiche(f)} style={{width:"100%",background:C.panel,border:`1.5px solid ${C.purple}`,borderRadius:12,padding:"16px",marginBottom:10,cursor:"pointer",textAlign:"left"}}>
-            <div style={{fontWeight:800,fontSize:15,color:C.text}}>{f.nomEvenement}</div>
-            <div style={{fontSize:12,color:C.muted,marginTop:3}}>{f.lieu}</div>
+          <button key={f.id} onClick={()=>setOpenFiche(f)} style={{width:"100%",background:C.panel,border:`1.5px solid ${C.purple}`,borderRadius:12,padding:"16px",marginBottom:10,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",justifyContent:"space-between",gap:10}}>
+            <div>
+              <div style={{fontWeight:800,fontSize:15,color:C.text}}>{f.nomEvenement}</div>
+              <div style={{fontSize:12,color:C.muted,marginTop:3}}>{f.lieu}</div>
+            </div>
+            {bureau&&<div style={{width:12,height:12,borderRadius:"50%",flexShrink:0,background:f.statutBureau==="vert"?C.success:"#f59e0b"}}/>}
           </button>
         ))}
       </div>
