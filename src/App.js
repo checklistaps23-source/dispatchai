@@ -2213,7 +2213,7 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb
                 </div>
                 <div style={{display:"flex",gap:8}}>
                   <button onClick={()=>setChecklistVehicle(vehObj)} style={{flex:1,background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:7,color:C.accent,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 Checklist</button>
-                  <button onClick={()=>setCarnetVehicle(vehObj)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📓 Carnet de bord</button>
+                  {vehObj.type!=="PREV"&&<button onClick={()=>setCarnetVehicle(vehObj)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📓 Carnet de bord</button>}
                 </div>
               </div>
             );
@@ -3507,7 +3507,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
         ):(
           <button onClick={()=>{setSignalVehicle(vehicle.name);setSignalNom(isAmb?[driver,convoyeur].filter(Boolean).join(" / "):driver);setShowSignaler(true);}} style={{width:"100%",marginBottom:8,background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:10,color:C.danger,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🚨 Signaler un problème</button>
         )}
-        <button onClick={()=>setShowCarnetBord(true)} style={{width:"100%",marginBottom:8,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📓 Carnet de bord</button>
+        {vehicle?.type!=="PREV"&&<button onClick={()=>setShowCarnetBord(true)} style={{width:"100%",marginBottom:8,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📓 Carnet de bord</button>}
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <button onClick={()=>setShowPlans(true)} style={{flex:1,background:C.blueSoft,border:`1px solid ${C.blue}`,borderRadius:10,color:C.blue,padding:"11px",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🗺️ Plans</button>
           <button onClick={()=>setShowContacts(true)} style={{flex:1,background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:10,color:C.accent,padding:"11px",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📞 Contacts</button>
