@@ -1878,6 +1878,7 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
   const [newName,setNewName]=useState("");
   const [newGrade,setNewGrade]=useState(PREVENTIF_GRADES[0]);
   const [newMateriel,setNewMateriel]=useState("");
+  const [newMaterielQty,setNewMaterielQty]=useState("1");
   const PTABS=[{id:"personnel",icon:"👥",label:"Personnel"},{id:"materiel",icon:"🎒",label:"Matériel"}];
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -1936,13 +1937,18 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
               <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:6}}>🎒 Matériel</div>
               <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Liste utilisée pour toutes les fiches événements.</div>
               <div style={{display:"flex",gap:8,marginBottom:16}}>
-                <input value={newMateriel} onChange={e=>setNewMateriel(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newMateriel.trim()){setMateriel(p=>[...p,{id:"pm"+Date.now(),name:newMateriel.trim()}]);setNewMateriel("");}}} placeholder="Ex: Table, Chaise, Défibrillateur..." style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 12px",color:C.text,fontSize:13}}/>
-                <button onClick={()=>{if(newMateriel.trim()){setMateriel(p=>[...p,{id:"pm"+Date.now(),name:newMateriel.trim()}]);setNewMateriel("");}}} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+                <input value={newMateriel} onChange={e=>setNewMateriel(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newMateriel.trim()){setMateriel(p=>[...p,{id:"pm"+Date.now(),name:newMateriel.trim(),quantiteTotale:parseInt(newMaterielQty)||1}]);setNewMateriel("");setNewMaterielQty("1");}}} placeholder="Ex: Table, Chaise, Défibrillateur..." style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 12px",color:C.text,fontSize:13}}/>
+                <input type="number" min="1" value={newMaterielQty} onChange={e=>setNewMaterielQty(e.target.value)} title="Quantité totale possédée" style={{width:60,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 8px",color:C.text,fontSize:13,textAlign:"center"}}/>
+                <button onClick={()=>{if(newMateriel.trim()){setMateriel(p=>[...p,{id:"pm"+Date.now(),name:newMateriel.trim(),quantiteTotale:parseInt(newMaterielQty)||1}]);setNewMateriel("");setNewMaterielQty("1");}}} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
               </div>
               {materiel.map(m=>(
                 <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",marginBottom:6}}>
                   <span style={{fontSize:13,color:C.text}}>{m.name}</span>
-                  <button onClick={()=>setMateriel(prev=>prev.filter(x=>x.id!==m.id))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:10,color:C.muted}}>Total :</span>
+                    <input type="number" min="0" value={m.quantiteTotale||0} onChange={e=>setMateriel(prev=>prev.map(x=>x.id===m.id?{...x,quantiteTotale:parseInt(e.target.value)||0}:x))} style={{width:50,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 6px",color:C.text,fontSize:12,textAlign:"center"}}/>
+                    <button onClick={()=>setMateriel(prev=>prev.filter(x=>x.id!==m.id))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                  </div>
                 </div>
               ))}
               {materiel.length===0&&<div style={{textAlign:"center",color:C.muted,fontSize:13,padding:"20px 0"}}>Aucun article enregistré</div>}
@@ -1982,7 +1988,12 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, onSav
     });
   };
   const setChauffeur=(vehicleId,chauffeur)=>setForm(f=>({...f,vehiculesEngages:f.vehiculesEngages.map(x=>x.vehicleId===vehicleId?{...x,chauffeur}:x)}));
-  const toggleMateriel=(id)=>setForm(f=>({...f,materielChecked:f.materielChecked.includes(id)?f.materielChecked.filter(x=>x!==id):[...f.materielChecked,id]}));
+  const toggleMateriel=(m)=>setForm(f=>{
+    const exists=f.materielChecked.find(x=>x.id===m.id);
+    if(exists) return {...f,materielChecked:f.materielChecked.filter(x=>x.id!==m.id)};
+    return {...f,materielChecked:[...f.materielChecked,{id:m.id,name:m.name,qty:1}]};
+  });
+  const setMaterielQty=(id,qty)=>setForm(f=>({...f,materielChecked:f.materielChecked.map(x=>x.id===id?{...x,qty:Math.max(1,qty)}:x)}));
 
   const canSave=form.nomEvenement.trim()&&form.date&&form.responsableMission.trim();
 
@@ -2081,12 +2092,21 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, onSav
 
         <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginTop:20,marginBottom:10}}>Matériel à embarquer</div>
         {(materiel||[]).map(m=>{
-          const active=form.materielChecked.includes(m.id);
+          const sel=form.materielChecked.find(x=>x.id===m.id);
           return(
-            <label key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",cursor:"pointer"}}>
-              <input type="checkbox" checked={active} onChange={()=>toggleMateriel(m.id)} style={{width:16,height:16,cursor:"pointer"}}/>
-              <span style={{fontSize:13,color:C.text}}>{m.name}</span>
-            </label>
+            <div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0"}}>
+              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+                <input type="checkbox" checked={!!sel} onChange={()=>toggleMateriel(m)} style={{width:16,height:16,cursor:"pointer"}}/>
+                <span style={{fontSize:13,color:C.text}}>{m.name}</span>
+              </label>
+              {sel&&(
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <button onClick={()=>setMaterielQty(m.id,sel.qty-1)} style={{width:26,height:26,borderRadius:7,border:`1px solid ${C.border}`,background:C.panel,color:C.text,fontSize:14,fontWeight:700,cursor:"pointer"}}>−</button>
+                  <span style={{fontSize:13,fontWeight:800,color:C.purple,minWidth:18,textAlign:"center"}}>{sel.qty}</span>
+                  <button onClick={()=>setMaterielQty(m.id,sel.qty+1)} style={{width:26,height:26,borderRadius:7,border:`1px solid ${C.border}`,background:C.panel,color:C.text,fontSize:14,fontWeight:700,cursor:"pointer"}}>+</button>
+                </div>
+              )}
+            </div>
           );
         })}
         {(!materiel||materiel.length===0)&&<div style={{fontSize:12,color:C.muted}}>Aucun article défini (Paramètres → Matériel)</div>}
@@ -2098,32 +2118,58 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, onSav
   );
 }
 
-function PreventifFicheDetail({ fiche, materiel, onSave, onBack }){
+function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb, driversTpmr, carnetBordTypes, bureau, onSave, onBack, themeMode, toggleTheme }){
   const [f,setF]=useState(fiche);
   const [newNom,setNewNom]=useState(""); const [newPrenom,setNewPrenom]=useState(""); const [newFonction,setNewFonction]=useState("");
+  const [pickPersonId,setPickPersonId]=useState("");
+  const [checklistVehicle,setChecklistVehicle]=useState(null); // objet véhicule en cours de check
+  const [carnetVehicle,setCarnetVehicle]=useState(null); // objet véhicule en cours de carnet de bord
+  const allDrivers=[...(driversAmb||[]),...(driversTpmr||[])];
 
   const save=(next)=>{ setF(next); onSave(next); };
   const updatePersonnel=(id,field,val)=>{
-    const personnel=f.personnel.map(p=>p.id===id?{...p,[field]:val}:p);
-    save({...f,personnel});
+    const personnelList=f.personnel.map(p=>p.id===id?{...p,[field]:val}:p);
+    save({...f,personnel:personnelList});
   };
-  const addPersonnel=()=>{
+  const addPersonnelManuel=()=>{
     if(!newNom.trim()) return;
     save({...f,personnel:[...f.personnel,{id:"pers"+Date.now(),nom:newNom.trim(),prenom:newPrenom.trim(),fonction:newFonction.trim(),heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}]});
     setNewNom("");setNewPrenom("");setNewFonction("");
   };
-  const removePersonnel=(id)=>save({...f,personnel:f.personnel.filter(p=>p.id!==id)});
-  const toggleMateriel=(id)=>{
-    const checked=f.materielChecked||[];
-    save({...f,materielChecked:checked.includes(id)?checked.filter(x=>x!==id):[...checked,id]});
+  const addPersonnelFromList=()=>{
+    if(!pickPersonId) return;
+    const p=(personnel||[]).find(x=>x.id===pickPersonId);
+    if(!p) return;
+    const parts=p.name.trim().split(" ");
+    const prenom=parts.shift()||""; const nom=parts.join(" ")||"";
+    save({...f,personnel:[...f.personnel,{id:"pers"+Date.now(),nom:nom||p.name,prenom,fonction:p.grade,heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}]});
+    setPickPersonId("");
   };
+  const removePersonnel=(id)=>save({...f,personnel:f.personnel.filter(p=>p.id!==id)});
+  const toggleMaterielOk=(id)=>{
+    const confirmed=f.materielConfirmed||{};
+    save({...f,materielConfirmed:{...confirmed,[id]:confirmed[id]==="ok"?"nok":"ok"}});
+  };
+  const setVehiculeChauffeur=(vehicleId,chauffeur)=>save({...f,vehiculesEngages:f.vehiculesEngages.map(v=>v.vehicleId===vehicleId?{...v,chauffeur}:v)});
+
+  const canEnvoyer=(f.signature||"").trim().length>0 && !f.terminee;
+  const handleEnvoyer=()=>{
+    if(!canEnvoyer) return;
+    save({...f, terminee:true, termineeAt:Date.now()});
+  };
+
+  if(checklistVehicle){
+    return <DailyChecklistView vehicle={checklistVehicle} driverName={f.vehiculesEngages.find(v=>v.vehicleId===checklistVehicle.id)?.chauffeur||""} onComplete={()=>setChecklistVehicle(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  }
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",gap:10,position:"sticky",top:0,zIndex:50}}>
-        <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
-        <div><div style={{fontWeight:800,fontSize:15,color:C.purple}}>{f.nomEvenement}</div><div style={{fontSize:10,color:C.muted}}>{f.lieu} — {new Date(f.date+"T00:00:00").toLocaleDateString("fr-FR")}</div></div>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div><div style={{fontWeight:800,fontSize:15,color:C.purple}}>{f.nomEvenement}{f.terminee&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:C.success,background:C.successSoft,borderRadius:6,padding:"2px 7px"}}>TERMINÉE</span>}</div><div style={{fontSize:10,color:C.muted}}>{f.lieu} — {new Date(f.date+"T00:00:00").toLocaleDateString("fr-FR")}</div></div>
+        </div>
       </div>
       <div style={{flex:1,padding:16,paddingBottom:60,maxWidth:700,margin:"0 auto",width:"100%"}}>
 
@@ -2136,20 +2182,42 @@ function PreventifFicheDetail({ fiche, materiel, onSave, onBack }){
             <div><b style={{color:C.text}}>Subsistance :</b> {f.subsistance?"Oui":"Non"}</div>
             <div><b style={{color:C.text}}>Organisation :</b> {f.responsableOrga||"—"} {f.gsmOrga&&`(${f.gsmOrga})`}</div>
             <div><b style={{color:C.text}}>Canal radio :</b> {f.canalRadio||"—"}</div>
-            <div><b style={{color:C.text}}>Véhicules :</b> {f.vehiculesEngages.map(v=>`${v.vehicleName} (${v.chauffeur||"?"})`).join(", ")||"—"}</div>
           </div>
         </div>
 
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
           <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Horaires mission</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            {[["departEffectif","Départ effectif"],["heureSurPlace","Heure sur place"],["heureFinMission","Heure de fin"],["heureRetourBaseMission","Retour base"]].map(([field,label])=>(
+            {[["departEffectif","Départ base"],["heureSurPlace","Heure sur place"],["heureFinMission","Heure de fin"],["heureRetourBaseMission","Retour base"]].map(([field,label])=>(
               <div key={field}>
                 <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>{label}</div>
                 <HeureInput value={f[field]||""} onChange={v=>save({...f,[field]:v})}/>
               </div>
             ))}
           </div>
+        </div>
+
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Véhicules engagés</div>
+          {f.vehiculesEngages.length===0&&<div style={{fontSize:12,color:C.muted}}>Aucun véhicule engagé</div>}
+          {f.vehiculesEngages.map(v=>{
+            const vehObj=(vehicles||[]).find(x=>x.id===v.vehicleId)||{id:v.vehicleId,name:v.vehicleName,type:"AMB"};
+            return(
+              <div key={v.vehicleId} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",marginBottom:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                  <span style={{fontWeight:700,fontSize:13,color:C.text,width:70}}>{v.vehicleName}</span>
+                  <select value={v.chauffeur} onChange={e=>setVehiculeChauffeur(v.vehicleId,e.target.value)} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12}}>
+                    <option value="">— Chauffeur —</option>
+                    {allDrivers.map(d=>(<option key={d} value={d}>{d}</option>))}
+                  </select>
+                </div>
+                <div style={{display:"flex",gap:8}}>
+                  <button onClick={()=>setChecklistVehicle(vehObj)} style={{flex:1,background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:7,color:C.accent,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 Checklist</button>
+                  <button onClick={()=>setCarnetVehicle(vehObj)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📓 Carnet de bord</button>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16,overflowX:"auto"}}>
@@ -2161,35 +2229,69 @@ function PreventifFicheDetail({ fiche, materiel, onSave, onBack }){
             <tbody>
               {f.personnel.map(p=>(
                 <tr key={p.id}>
-                  <td style={{padding:"4px 6px"}}><input value={p.nom} onChange={e=>updatePersonnel(p.id,"nom",e.target.value)} style={{width:70,background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,padding:"4px 6px",color:C.text,fontSize:11}}/></td>
-                  <td style={{padding:"4px 6px"}}><input value={p.prenom} onChange={e=>updatePersonnel(p.id,"prenom",e.target.value)} style={{width:70,background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,padding:"4px 6px",color:C.text,fontSize:11}}/></td>
-                  <td style={{padding:"4px 6px"}}><input value={p.fonction} onChange={e=>updatePersonnel(p.id,"fonction",e.target.value)} style={{width:90,background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,padding:"4px 6px",color:C.text,fontSize:11}}/></td>
+                  {bureau?(
+                    <>
+                      <td style={{padding:"4px 6px"}}><input value={p.nom} onChange={e=>updatePersonnel(p.id,"nom",e.target.value)} style={{width:70,background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,padding:"4px 6px",color:C.text,fontSize:11}}/></td>
+                      <td style={{padding:"4px 6px"}}><input value={p.prenom} onChange={e=>updatePersonnel(p.id,"prenom",e.target.value)} style={{width:70,background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,padding:"4px 6px",color:C.text,fontSize:11}}/></td>
+                      <td style={{padding:"4px 6px"}}>
+                        <select value={p.fonction} onChange={e=>updatePersonnel(p.id,"fonction",e.target.value)} style={{width:100,background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,padding:"4px 6px",color:C.text,fontSize:11}}>
+                          <option value={p.fonction}>{p.fonction||"—"}</option>
+                          {PREVENTIF_GRADES.filter(g=>g!==p.fonction).map(g=>(<option key={g} value={g}>{g}</option>))}
+                        </select>
+                      </td>
+                    </>
+                  ):(
+                    <>
+                      <td style={{padding:"4px 6px",fontSize:11,color:C.text}}>{p.nom}</td>
+                      <td style={{padding:"4px 6px",fontSize:11,color:C.text}}>{p.prenom}</td>
+                      <td style={{padding:"4px 6px",fontSize:11,color:C.text}}>{p.fonction}</td>
+                    </>
+                  )}
                   {PREVENTIF_HEURE_FIELDS.map(hf=>(
                     <td key={hf} style={{padding:"4px 6px"}}><div style={{width:70}}><HeureInput value={p[hf]||""} onChange={v=>updatePersonnel(p.id,hf,v)}/></div></td>
                   ))}
                   <td style={{padding:"4px 6px",fontSize:11,fontWeight:700,color:C.text}}>{calcTotalHeures(p)}</td>
-                  <td style={{padding:"4px 6px"}}>{f.personnel.length>1&&<button onClick={()=>removePersonnel(p.id)} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:5,color:C.danger,padding:"2px 6px",fontSize:10,cursor:"pointer"}}>🗑</button>}</td>
+                  <td style={{padding:"4px 6px"}}>{bureau&&f.personnel.length>1&&<button onClick={()=>removePersonnel(p.id)} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:5,color:C.danger,padding:"2px 6px",fontSize:10,cursor:"pointer"}}>🗑</button>}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <div style={{display:"flex",gap:6,marginTop:10}}>
-            <input value={newNom} onChange={e=>setNewNom(e.target.value)} placeholder="Nom" style={{width:80,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}/>
-            <input value={newPrenom} onChange={e=>setNewPrenom(e.target.value)} placeholder="Prénom" style={{width:80,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}/>
-            <input value={newFonction} onChange={e=>setNewFonction(e.target.value)} placeholder="Fonction" style={{width:100,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}/>
-            <button onClick={addPersonnel} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:6,color:C.purple,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
-          </div>
+          {bureau&&(
+            <>
+              <div style={{display:"flex",gap:6,marginTop:10,flexWrap:"wrap"}}>
+                <select value={pickPersonId} onChange={e=>setPickPersonId(e.target.value)} style={{flex:1,minWidth:160,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"7px 9px",color:C.text,fontSize:12}}>
+                  <option value="">— Choisir dans le personnel —</option>
+                  {PREVENTIF_GRADES.map(grade=>{
+                    const group=(personnel||[]).filter(p=>p.grade===grade);
+                    if(group.length===0) return null;
+                    return <optgroup key={grade} label={grade}>{group.map(p=>(<option key={p.id} value={p.id}>{p.name}</option>))}</optgroup>;
+                  })}
+                </select>
+                <button onClick={addPersonnelFromList} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:6,color:C.purple,padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+              </div>
+              <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+                <input value={newNom} onChange={e=>setNewNom(e.target.value)} placeholder="Nom (hors liste)" style={{width:100,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}/>
+                <input value={newPrenom} onChange={e=>setNewPrenom(e.target.value)} placeholder="Prénom" style={{width:90,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}/>
+                <input value={newFonction} onChange={e=>setNewFonction(e.target.value)} placeholder="Fonction" style={{width:100,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}/>
+                <button onClick={addPersonnelManuel} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:6,color:C.text,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+              </div>
+            </>
+          )}
         </div>
 
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
           <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Matériel</div>
-          {(materiel||[]).map(m=>{
-            const active=(f.materielChecked||[]).includes(m.id);
+          {(f.materielChecked||[]).length===0&&<div style={{fontSize:12,color:C.muted}}>Aucun matériel sélectionné à la création</div>}
+          {(f.materielChecked||[]).map(m=>{
+            const status=(f.materielConfirmed||{})[m.id];
             return(
-              <label key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",cursor:"pointer"}}>
-                <input type="checkbox" checked={active} onChange={()=>toggleMateriel(m.id)} style={{width:16,height:16,cursor:"pointer"}}/>
-                <span style={{fontSize:13,color:C.text}}>{m.name}</span>
-              </label>
+              <div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+                <span style={{fontSize:13,color:C.text}}>{m.name} <span style={{color:C.muted,fontSize:11}}>× {m.qty}</span></span>
+                <div style={{display:"flex",gap:6}}>
+                  <button onClick={()=>toggleMaterielOk(m.id)} style={{background:status==="ok"?C.success:"transparent",border:`1px solid ${status==="ok"?C.success:C.border}`,borderRadius:7,color:status==="ok"?"white":C.muted,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
+                  <button onClick={()=>save({...f,materielConfirmed:{...(f.materielConfirmed||{}),[m.id]:(f.materielConfirmed||{})[m.id]==="nok"?null:"nok"}})} style={{background:status==="nok"?C.danger:"transparent",border:`1px solid ${status==="nok"?C.danger:C.border}`,borderRadius:7,color:status==="nok"?"white":C.muted,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>NOK</button>
+                </div>
+              </div>
             );
           })}
         </div>
@@ -2201,16 +2303,63 @@ function PreventifFicheDetail({ fiche, materiel, onSave, onBack }){
 
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
           <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:8}}>Signature du responsable de mission</div>
-          <input value={f.signature||""} onChange={e=>save({...f,signature:e.target.value})} placeholder="Nom du responsable pour valider" style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+          <input value={f.signature||""} onChange={e=>save({...f,signature:e.target.value})} placeholder="Nom du responsable pour valider" style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box",marginBottom:12}}/>
+          <button disabled={!canEnvoyer} onClick={handleEnvoyer} style={{width:"100%",background:!canEnvoyer?C.panel2:C.success,border:"none",borderRadius:10,color:!canEnvoyer?C.muted:"white",padding:14,fontWeight:800,fontSize:15,cursor:canEnvoyer?"pointer":"not-allowed"}}>
+            {f.terminee?"✅ Fiche terminée":"📤 Envoyer"}
+          </button>
         </div>
+      </div>
+
+      {carnetVehicle&&(
+        <CarnetBordModal vehicle={carnetVehicle} driver={f.vehiculesEngages.find(v=>v.vehicleId===carnetVehicle.id)?.chauffeur||""} myCourses={[]} carnetBordTypes={carnetBordTypes} onClose={()=>setCarnetVehicle(null)}/>
+      )}
+    </div>
+  );
+}
+
+function PreventifInventaireView({ materiel, fiches, onBack, themeMode, toggleTheme }){
+  const usedById={};
+  fiches.filter(f=>!f.terminee).forEach(f=>{
+    (f.materielChecked||[]).forEach(m=>{ usedById[m.id]=(usedById[m.id]||0)+(m.qty||1); });
+  });
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div style={{fontWeight:800,fontSize:16,color:C.purple}}>📦 Inventaire matériel</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{flex:1,padding:16,maxWidth:640,margin:"0 auto",width:"100%"}}>
+        <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Le matériel des fiches non terminées est déduit ; il redevient disponible dès qu'une fiche est marquée "Envoyée".</div>
+        {(!materiel||materiel.length===0)&&<div style={{textAlign:"center",color:C.muted,padding:40}}>Aucun article défini</div>}
+        {(materiel||[]).map(m=>{
+          const total=m.quantiteTotale||0;
+          const used=usedById[m.id]||0;
+          const dispo=total-used;
+          return(
+            <div key={m.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 16px",marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontWeight:700,fontSize:14,color:C.text}}>{m.name}</span>
+              <div style={{display:"flex",gap:14,textAlign:"center"}}>
+                <div><div style={{fontSize:16,fontWeight:800,color:C.text}}>{total}</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase"}}>Total</div></div>
+                <div><div style={{fontSize:16,fontWeight:800,color:C.warning}}>{used}</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase"}}>Engagé</div></div>
+                <div><div style={{fontSize:16,fontWeight:800,color:dispo<0?C.danger:C.success}}>{dispo}</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase"}}>Dispo</div></div>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function PreventifHistorique({ fiches, materiel, onSave, onBack, themeMode, toggleTheme }){
+function PreventifHistorique({ fiches, materiel, personnel, vehicles, driversAmb, driversTpmr, carnetBordTypes, onSave, onBack, themeMode, toggleTheme }){
   const [selected,setSelected]=useState(null);
-  if(selected) return <PreventifFicheDetail fiche={selected} materiel={materiel} onSave={(next)=>{onSave(next);setSelected(next);}} onBack={()=>setSelected(null)}/>;
+  const [showInventaire,setShowInventaire]=useState(false);
+  if(showInventaire) return <PreventifInventaireView materiel={materiel} fiches={fiches} onBack={()=>setShowInventaire(false)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(selected) return <PreventifFicheDetail fiche={selected} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} bureau={true} onSave={(next)=>{onSave(next);setSelected(next);}} onBack={()=>setSelected(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   const sorted=[...fiches].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -2220,13 +2369,16 @@ function PreventifHistorique({ fiches, materiel, onSave, onBack, themeMode, togg
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div style={{fontWeight:800,fontSize:16,color:C.purple}}>📅 Historique Préventif</div>
         </div>
-        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <button onClick={()=>setShowInventaire(true)} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:8,color:C.purple,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📦 Inventaire matériel</button>
+          <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+        </div>
       </div>
       <div style={{flex:1,padding:16,maxWidth:640,margin:"0 auto",width:"100%"}}>
         {sorted.length===0&&<div style={{textAlign:"center",color:C.muted,padding:40}}>Aucun événement enregistré</div>}
         {sorted.map(f=>(
           <button key={f.id} onClick={()=>setSelected(f)} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px",marginBottom:8,cursor:"pointer",textAlign:"left"}}>
-            <div style={{fontWeight:700,fontSize:14,color:C.text}}>{f.nomEvenement}</div>
+            <div style={{fontWeight:700,fontSize:14,color:C.text}}>{f.nomEvenement}{f.terminee&&<span style={{marginLeft:8,fontSize:9,fontWeight:700,color:C.success,background:C.successSoft,borderRadius:5,padding:"2px 6px"}}>TERMINÉE</span>}</div>
             <div style={{fontSize:11,color:C.muted,marginTop:2}}>{f.lieu} — {new Date(f.date+"T00:00:00").toLocaleDateString("fr-FR")}</div>
           </button>
         ))}
@@ -2235,7 +2387,7 @@ function PreventifHistorique({ fiches, materiel, onSave, onBack, themeMode, togg
   );
 }
 
-function PreventifView({ onBack, vehicles, driversAmb, driversTpmr, themeMode, toggleTheme }){
+function PreventifView({ onBack, vehicles, driversAmb, driversTpmr, carnetBordTypes, themeMode, toggleTheme }){
   const [bureau,setBureau]=useState(false);
   const [screen,setScreen]=useState("home"); // home | parametres | nouvelle | historique
   const [personnel,setPersonnel]=useFirestoreState("preventifPersonnel", []);
@@ -2250,8 +2402,8 @@ function PreventifView({ onBack, vehicles, driversAmb, driversTpmr, themeMode, t
 
   if(screen==="parametres") return <PreventifParametresView personnel={personnel} setPersonnel={setPersonnel} materiel={materiel} setMateriel={setMateriel} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(screen==="nouvelle") return <PreventifFicheForm vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} materiel={materiel} onCancel={()=>setScreen("home")} onSave={(f)=>{saveFiche(f);setScreen("home");}}/>;
-  if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} onSave={saveFiche} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onBack={()=>setOpenFiche(null)}/>;
+  if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} onSave={saveFiche} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   const todayFiches=fiches.filter(f=>f.date===todayISO());
 
@@ -7023,7 +7175,7 @@ export default function App(){
   if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} peremptionEmails={peremptionEmails} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="bons") return <BonsMenuView bases={bases} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="signaler") return <SignalerCompletView onBack={()=>setAppView("menu")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} peremptionEmails={peremptionEmails} setPeremptionEmails={setPeremptionEmails} listeRouge={listeRouge} setListeRouge={setListeRouge} carnetBordTypes={carnetBordTypes} setCarnetBordTypes={setCarnetBordTypes} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
