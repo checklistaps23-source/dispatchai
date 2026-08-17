@@ -383,8 +383,9 @@ function PinModal({onSuccess,onCancel}){
   );
 }
 
-function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,listeRouge,setListeRouge,carnetBordTypes,setCarnetBordTypes,onBack,themeMode,toggleTheme}){
+function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,peremptionEmails,setPeremptionEmails,listeRouge,setListeRouge,carnetBordTypes,setCarnetBordTypes,onBack,themeMode,toggleTheme}){
   const [tab,setTab]=useState("chauffeurs");
+  const [tpmrVslTemplate,setTpmrVslTemplate]=useFirestoreState("tpmrVslChecklistTemplate",{ sections:[] });
   const [newVal,setNewVal]=useState("");
   const [newVehName,setNewVehName]=useState("");
   const [newVehType,setNewVehType]=useState("TPMR");
@@ -408,6 +409,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const [confirmDeleteChecklist,setConfirmDeleteChecklist]=useState(null); // vehicle name pending delete
   const [newEmail,setNewEmail]=useState("");
   const [newO2Email,setNewO2Email]=useState("");
+  const [newPeremptionEmail,setNewPeremptionEmail]=useState("");
 
   const openNewChecklist=()=>{
     setEditingChecklist({key:"",origKey:null,isNew:true,norme:"",edition:"",sections:[]});
@@ -760,6 +762,44 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                       </div>
                     </div>
                   ))}
+
+                  <div style={{marginTop:28,paddingTop:20,borderTop:`1px solid ${C.border}`}}>
+                    <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:6}}>♿ Sac TPMR/VSL</div>
+                    <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Modèle unique, partagé par les 10 véhicules TPMR/VSL — une seule modification s'applique à tous. Check mensuelle.</div>
+                    {tpmrVslTemplate.sections.map((section,sIdx)=>(
+                      <div key={sIdx} style={{border:`1px solid ${C.border}`,borderRadius:10,padding:"12px",marginBottom:10,background:C.panel}}>
+                        <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:10}}>
+                          <input value={section.label} onChange={e=>setTpmrVslTemplate(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,label:e.target.value}:s)}))} placeholder="Nom de la section" style={{flex:1,background:C.bg,color:C.text,fontSize:12,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 10px"}}/>
+                          <button onClick={()=>setTpmrVslTemplate(p=>({...p,sections:p.sections.filter((_,i)=>i!==sIdx)}))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"6px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                        </div>
+                        {(section.shelves[0]?.items||[]).map((item,itIdx)=>(
+                          <div key={itIdx} style={{marginBottom:8,paddingBottom:8,borderBottom:`1px solid ${C.border}`}}>
+                            <div style={{display:"flex",gap:6,alignItems:"center",marginBottom:5,flexWrap:"wrap"}}>
+                              <input value={item.n} onChange={e=>setTpmrVslTemplate(p=>({...p,sections:p.sections.map((s,i)=>i!==sIdx?s:{...s,shelves:[{...s.shelves[0],items:s.shelves[0].items.map((it,j)=>j!==itIdx?it:{...it,n:e.target.value})}]})}))} placeholder="Nom de l'article" style={{flex:2,minWidth:120,background:C.bg,color:C.text,fontSize:11,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 9px"}}/>
+                              {[["t","TEST"],["s","SCELLÉ"],["p","PÉREMPT."],["container","CONTENANT"]].map(([f,l])=>(
+                                <button key={f} onClick={()=>setTpmrVslTemplate(p=>({...p,sections:p.sections.map((s,i)=>i!==sIdx?s:{...s,shelves:[{...s.shelves[0],items:s.shelves[0].items.map((it,j)=>j!==itIdx?it:{...it,[f]:!it[f]})}]})}))} style={{padding:"4px 7px",borderRadius:5,border:`1px solid ${item[f]?C.accent:C.border}`,background:item[f]?C.accentSoft:"transparent",color:item[f]?C.accent:C.muted,fontSize:9,fontWeight:700,cursor:"pointer"}}>{l}</button>
+                              ))}
+                              <button onClick={()=>setTpmrVslTemplate(p=>({...p,sections:p.sections.map((s,i)=>i!==sIdx?s:{...s,shelves:[{...s.shelves[0],items:s.shelves[0].items.filter((_,j)=>j!==itIdx)}]})}))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:5,color:C.danger,padding:"4px 8px",fontSize:10,cursor:"pointer"}}>🗑</button>
+                            </div>
+                            {item.container&&(
+                              <div style={{marginLeft:14,paddingLeft:10,borderLeft:`2px solid ${C.border}`}}>
+                                <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",marginBottom:5}}>Contenu (articles à l'intérieur, avec péremption individuelle)</div>
+                                {(item.subItems||[]).map((sub,subIdx)=>(
+                                  <div key={subIdx} style={{display:"flex",gap:6,marginBottom:4}}>
+                                    <input value={sub.n} onChange={e=>setTpmrVslTemplate(p=>({...p,sections:p.sections.map((s,i)=>i!==sIdx?s:{...s,shelves:[{...s.shelves[0],items:s.shelves[0].items.map((it,j)=>j!==itIdx?it:{...it,subItems:it.subItems.map((su,k)=>k!==subIdx?su:{...su,n:e.target.value})})}]})}))} placeholder="Nom de l'article intérieur" style={{flex:1,background:C.bg,color:C.text,fontSize:11,border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 8px"}}/>
+                                    <button onClick={()=>setTpmrVslTemplate(p=>({...p,sections:p.sections.map((s,i)=>i!==sIdx?s:{...s,shelves:[{...s.shelves[0],items:s.shelves[0].items.map((it,j)=>j!==itIdx?it:{...it,subItems:it.subItems.filter((_,k)=>k!==subIdx)})}]})}))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:5,color:C.danger,padding:"4px 8px",fontSize:10,cursor:"pointer"}}>🗑</button>
+                                  </div>
+                                ))}
+                                <button onClick={()=>setTpmrVslTemplate(p=>({...p,sections:p.sections.map((s,i)=>i!==sIdx?s:{...s,shelves:[{...s.shelves[0],items:s.shelves[0].items.map((it,j)=>j!==itIdx?it:{...it,subItems:[...(it.subItems||[]),{n:""}]})}]})}))} style={{background:"transparent",border:`1px dashed ${C.border}`,borderRadius:6,color:C.muted,padding:"5px 10px",fontSize:10,cursor:"pointer"}}>+ Article dans la trousse</button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                        <button onClick={()=>setTpmrVslTemplate(p=>({...p,sections:p.sections.map((s,i)=>i!==sIdx?s:{...s,shelves:[{...s.shelves[0],items:[...s.shelves[0].items,{n:"",p:false}]}]})}))} style={{background:"transparent",border:`1px dashed ${C.border}`,borderRadius:7,color:C.muted,padding:"7px 12px",fontSize:11,cursor:"pointer"}}>+ Article</button>
+                      </div>
+                    ))}
+                    <button onClick={()=>setTpmrVslTemplate(p=>({...p,sections:[...p.sections,{id:"s"+Date.now(),label:"",color:"#dc2626",shelves:[{id:"A",label:"",items:[]}]}]}))} style={{width:"100%",background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:9,color:C.accent,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Nouvelle section</button>
+                  </div>
                 </>
               ):(
                 <div>
@@ -981,6 +1021,22 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                   <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:7}}>
                     <span style={{fontSize:13}}>🅾️ {em}</span>
                     <button onClick={()=>setO2Emails(p=>p.filter((_,j)=>j!==i))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"5px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{marginTop:28,paddingTop:20,borderTop:`1px solid ${C.border}`}}>
+                <SectionTitle icon="🗓️" title="Emails — Alerte Péremption"/>
+                <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Ces adresses reçoivent un email 1 mois avant l'échéance d'un article périssable, sur n'importe quel véhicule. Liste séparée des autres.</div>
+                <div style={{display:"flex",gap:8,marginBottom:16}}>
+                  <input value={newPeremptionEmail} onChange={e=>setNewPeremptionEmail(e.target.value)} placeholder="exemple@aps.be" style={{flex:1,background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none"}}/>
+                  <button onClick={()=>{if(newPeremptionEmail.trim()&&newPeremptionEmail.includes("@")){setPeremptionEmails(p=>[...p,newPeremptionEmail.trim()]);setNewPeremptionEmail("");}}} style={{background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:9,color:C.accent,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+                </div>
+                {peremptionEmails.length===0&&<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"20px 0"}}>Aucun destinataire configuré</div>}
+                {peremptionEmails.map((em,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:7}}>
+                    <span style={{fontSize:13}}>🗓️ {em}</span>
+                    <button onClick={()=>setPeremptionEmails(p=>p.filter((_,j)=>j!==i))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"5px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
                   </div>
                 ))}
               </div>
@@ -1897,13 +1953,306 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
   );
 }
 
-function PreventifView({ onBack, themeMode, toggleTheme }){
+const PREVENTIF_HEURE_FIELDS=["heureDepartBase","heureDebutPrestation","heureFinPrestation","heureRetourBase"];
+
+function calcTotalHeures(p){
+  const parse=(h)=>{ if(!h) return null; const m=h.match(/(\d{1,2})h(\d{2})/); if(!m) return null; return parseInt(m[1])*60+parseInt(m[2]); };
+  const d=parse(p.heureDepartBase), f=parse(p.heureRetourBase);
+  if(d===null||f===null) return "";
+  let diff=f-d; if(diff<0) diff+=24*60;
+  const h=Math.floor(diff/60), m=diff%60;
+  return `${h}h${String(m).padStart(2,"0")}`;
+}
+
+function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, onSave, onCancel }){
+  const [form,setForm]=useState({
+    nomEvenement:"", date:todayISO(), lieu:"", adresse:"", nature:"", subsistance:false, dispositif:"",
+    responsableOrga:"", gsmOrga:"",
+    responsableMission:"", departBaseAuPlusTard:"", canalRadio:"",
+    vehiculesEngages:[], materielChecked:[],
+  });
+  const allDrivers=[...(driversAmb||[]),...(driversTpmr||[])];
+
+  const toggleVehicule=(v)=>{
+    setForm(f=>{
+      const exists=f.vehiculesEngages.find(x=>x.vehicleId===v.id);
+      if(exists) return {...f,vehiculesEngages:f.vehiculesEngages.filter(x=>x.vehicleId!==v.id)};
+      return {...f,vehiculesEngages:[...f.vehiculesEngages,{vehicleId:v.id,vehicleName:v.name,chauffeur:""}]};
+    });
+  };
+  const setChauffeur=(vehicleId,chauffeur)=>setForm(f=>({...f,vehiculesEngages:f.vehiculesEngages.map(x=>x.vehicleId===vehicleId?{...x,chauffeur}:x)}));
+  const toggleMateriel=(id)=>setForm(f=>({...f,materielChecked:f.materielChecked.includes(id)?f.materielChecked.filter(x=>x!==id):[...f.materielChecked,id]}));
+
+  const canSave=form.nomEvenement.trim()&&form.date&&form.responsableMission.trim();
+
+  const handleSave=()=>{
+    if(!canSave) return;
+    onSave({
+      ...form,
+      id:"prev"+Date.now(),
+      departEffectif:"", heureSurPlace:"", heureFinMission:"", heureRetourBaseMission:"",
+      personnel:[{id:"pers"+Date.now(),nom:form.responsableMission.trim(),prenom:"",fonction:"Responsable de mission",heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}],
+      remarque:"", signature:"",
+      createdAt:Date.now(),
+    });
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onCancel} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div style={{fontWeight:800,fontSize:16,color:C.purple}}>+ Nouvelle fiche événement</div>
+        </div>
+      </div>
+      <div style={{flex:1,padding:20,paddingBottom:100,maxWidth:640,margin:"0 auto",width:"100%"}}>
+
+        <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Ordre et rapport de mission</div>
+        {[["nomEvenement","Nom de l'événement"],["lieu","Lieu"],["adresse","Adresse"],["nature","Nature (ex: soirée chapiteau)"]].map(([f,l])=>(
+          <div key={f} style={{marginBottom:10}}>
+            <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>{l}</div>
+            <input value={form[f]} onChange={e=>setForm(x=>({...x,[f]:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+          </div>
+        ))}
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Date</div>
+          <input type="date" value={form.date} onChange={e=>setForm(x=>({...x,date:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+        </div>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Subsistance</div>
+          <div style={{display:"flex",gap:8}}>
+            {[[true,"Oui"],[false,"Non"]].map(([v,l])=>(
+              <button key={l} onClick={()=>setForm(x=>({...x,subsistance:v}))} style={{flex:1,padding:"9px",borderRadius:8,border:`1.5px solid ${form.subsistance===v?C.purple:C.border}`,background:form.subsistance===v?C.purpleSoft:"transparent",color:form.subsistance===v?C.purple:C.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>{l}</button>
+            ))}
+          </div>
+        </div>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Dispositif</div>
+          <textarea value={form.dispositif} onChange={e=>setForm(x=>({...x,dispositif:e.target.value}))} placeholder="Ex: 1 PS sous toit, 1 ambu AMU, 2 PAPS" style={{width:"100%",minHeight:60,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box",resize:"vertical",fontFamily:"inherit"}}/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+          <div>
+            <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Responsable organisation</div>
+            <input value={form.responsableOrga} onChange={e=>setForm(x=>({...x,responsableOrga:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>GSM</div>
+            <input value={form.gsmOrga} onChange={e=>setForm(x=>({...x,gsmOrga:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+          </div>
+        </div>
+
+        <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Logistique équipe</div>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Responsable de mission</div>
+          <select value={form.responsableMission} onChange={e=>setForm(x=>({...x,responsableMission:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13}}>
+            <option value="">— Choisir —</option>
+            {allDrivers.map(d=>(<option key={d} value={d}>{d}</option>))}
+          </select>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+          <div>
+            <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Départ base au plus tard</div>
+            <HeureInput value={form.departBaseAuPlusTard} onChange={v=>setForm(x=>({...x,departBaseAuPlusTard:v}))}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Canal radio</div>
+            <input value={form.canalRadio} onChange={e=>setForm(x=>({...x,canalRadio:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+          </div>
+        </div>
+
+        <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Véhicules engagés</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:10}}>
+          {(vehicles||[]).map(v=>{
+            const active=form.vehiculesEngages.some(x=>x.vehicleId===v.id);
+            return(<button key={v.id} onClick={()=>toggleVehicule(v)} style={{padding:"8px 4px",borderRadius:8,border:`1px solid ${active?C.purple:C.border}`,background:active?C.purpleSoft:"transparent",color:active?C.purple:C.muted,fontSize:12,fontWeight:700,cursor:"pointer"}}>{v.name}</button>);
+          })}
+        </div>
+        {form.vehiculesEngages.map(v=>(
+          <div key={v.vehicleId} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+            <span style={{fontSize:12,color:C.muted,width:70}}>{v.vehicleName}</span>
+            <select value={v.chauffeur} onChange={e=>setChauffeur(v.vehicleId,e.target.value)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:12}}>
+              <option value="">— Chauffeur —</option>
+              {allDrivers.map(d=>(<option key={d} value={d}>{d}</option>))}
+            </select>
+          </div>
+        ))}
+
+        <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginTop:20,marginBottom:10}}>Matériel à embarquer</div>
+        {(materiel||[]).map(m=>{
+          const active=form.materielChecked.includes(m.id);
+          return(
+            <label key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 0",cursor:"pointer"}}>
+              <input type="checkbox" checked={active} onChange={()=>toggleMateriel(m.id)} style={{width:16,height:16,cursor:"pointer"}}/>
+              <span style={{fontSize:13,color:C.text}}>{m.name}</span>
+            </label>
+          );
+        })}
+        {(!materiel||materiel.length===0)&&<div style={{fontSize:12,color:C.muted}}>Aucun article défini (Paramètres → Matériel)</div>}
+      </div>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.panel,borderTop:`1px solid ${C.border}`,padding:"13px 16px"}}>
+        <button disabled={!canSave} onClick={handleSave} style={{width:"100%",background:canSave?C.purple:C.panel2,border:"none",borderRadius:10,color:canSave?"white":C.muted,padding:14,fontWeight:800,fontSize:15,cursor:canSave?"pointer":"not-allowed"}}>✅ Créer la fiche</button>
+      </div>
+    </div>
+  );
+}
+
+function PreventifFicheDetail({ fiche, materiel, onSave, onBack }){
+  const [f,setF]=useState(fiche);
+  const [newNom,setNewNom]=useState(""); const [newPrenom,setNewPrenom]=useState(""); const [newFonction,setNewFonction]=useState("");
+
+  const save=(next)=>{ setF(next); onSave(next); };
+  const updatePersonnel=(id,field,val)=>{
+    const personnel=f.personnel.map(p=>p.id===id?{...p,[field]:val}:p);
+    save({...f,personnel});
+  };
+  const addPersonnel=()=>{
+    if(!newNom.trim()) return;
+    save({...f,personnel:[...f.personnel,{id:"pers"+Date.now(),nom:newNom.trim(),prenom:newPrenom.trim(),fonction:newFonction.trim(),heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}]});
+    setNewNom("");setNewPrenom("");setNewFonction("");
+  };
+  const removePersonnel=(id)=>save({...f,personnel:f.personnel.filter(p=>p.id!==id)});
+  const toggleMateriel=(id)=>{
+    const checked=f.materielChecked||[];
+    save({...f,materielChecked:checked.includes(id)?checked.filter(x=>x!==id):[...checked,id]});
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",gap:10,position:"sticky",top:0,zIndex:50}}>
+        <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+        <div><div style={{fontWeight:800,fontSize:15,color:C.purple}}>{f.nomEvenement}</div><div style={{fontSize:10,color:C.muted}}>{f.lieu} — {new Date(f.date+"T00:00:00").toLocaleDateString("fr-FR")}</div></div>
+      </div>
+      <div style={{flex:1,padding:16,paddingBottom:60,maxWidth:700,margin:"0 auto",width:"100%"}}>
+
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:8}}>Infos mission</div>
+          <div style={{fontSize:12,color:C.muted,lineHeight:1.8}}>
+            <div><b style={{color:C.text}}>Adresse :</b> {f.adresse||"—"}</div>
+            <div><b style={{color:C.text}}>Nature :</b> {f.nature||"—"}</div>
+            <div><b style={{color:C.text}}>Dispositif :</b> {f.dispositif||"—"}</div>
+            <div><b style={{color:C.text}}>Subsistance :</b> {f.subsistance?"Oui":"Non"}</div>
+            <div><b style={{color:C.text}}>Organisation :</b> {f.responsableOrga||"—"} {f.gsmOrga&&`(${f.gsmOrga})`}</div>
+            <div><b style={{color:C.text}}>Canal radio :</b> {f.canalRadio||"—"}</div>
+            <div><b style={{color:C.text}}>Véhicules :</b> {f.vehiculesEngages.map(v=>`${v.vehicleName} (${v.chauffeur||"?"})`).join(", ")||"—"}</div>
+          </div>
+        </div>
+
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Horaires mission</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {[["departEffectif","Départ effectif"],["heureSurPlace","Heure sur place"],["heureFinMission","Heure de fin"],["heureRetourBaseMission","Retour base"]].map(([field,label])=>(
+              <div key={field}>
+                <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>{label}</div>
+                <HeureInput value={f[field]||""} onChange={v=>save({...f,[field]:v})}/>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16,overflowX:"auto"}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Feuille de prestation</div>
+          <table style={{width:"100%",borderCollapse:"collapse",minWidth:640}}>
+            <thead>
+              <tr>{["Nom","Prénom","Fonction","Départ base","Début prest.","Fin prest.","Retour base","Total",""].map(h=>(<th key={h} style={{fontSize:10,color:C.muted,textAlign:"left",padding:"4px 6px",borderBottom:`1px solid ${C.border}`}}>{h}</th>))}</tr>
+            </thead>
+            <tbody>
+              {f.personnel.map(p=>(
+                <tr key={p.id}>
+                  <td style={{padding:"4px 6px"}}><input value={p.nom} onChange={e=>updatePersonnel(p.id,"nom",e.target.value)} style={{width:70,background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,padding:"4px 6px",color:C.text,fontSize:11}}/></td>
+                  <td style={{padding:"4px 6px"}}><input value={p.prenom} onChange={e=>updatePersonnel(p.id,"prenom",e.target.value)} style={{width:70,background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,padding:"4px 6px",color:C.text,fontSize:11}}/></td>
+                  <td style={{padding:"4px 6px"}}><input value={p.fonction} onChange={e=>updatePersonnel(p.id,"fonction",e.target.value)} style={{width:90,background:C.bg,border:`1px solid ${C.border}`,borderRadius:5,padding:"4px 6px",color:C.text,fontSize:11}}/></td>
+                  {PREVENTIF_HEURE_FIELDS.map(hf=>(
+                    <td key={hf} style={{padding:"4px 6px"}}><div style={{width:70}}><HeureInput value={p[hf]||""} onChange={v=>updatePersonnel(p.id,hf,v)}/></div></td>
+                  ))}
+                  <td style={{padding:"4px 6px",fontSize:11,fontWeight:700,color:C.text}}>{calcTotalHeures(p)}</td>
+                  <td style={{padding:"4px 6px"}}>{f.personnel.length>1&&<button onClick={()=>removePersonnel(p.id)} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:5,color:C.danger,padding:"2px 6px",fontSize:10,cursor:"pointer"}}>🗑</button>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{display:"flex",gap:6,marginTop:10}}>
+            <input value={newNom} onChange={e=>setNewNom(e.target.value)} placeholder="Nom" style={{width:80,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}/>
+            <input value={newPrenom} onChange={e=>setNewPrenom(e.target.value)} placeholder="Prénom" style={{width:80,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}/>
+            <input value={newFonction} onChange={e=>setNewFonction(e.target.value)} placeholder="Fonction" style={{width:100,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}/>
+            <button onClick={addPersonnel} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:6,color:C.purple,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+          </div>
+        </div>
+
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Matériel</div>
+          {(materiel||[]).map(m=>{
+            const active=(f.materielChecked||[]).includes(m.id);
+            return(
+              <label key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"5px 0",cursor:"pointer"}}>
+                <input type="checkbox" checked={active} onChange={()=>toggleMateriel(m.id)} style={{width:16,height:16,cursor:"pointer"}}/>
+                <span style={{fontSize:13,color:C.text}}>{m.name}</span>
+              </label>
+            );
+          })}
+        </div>
+
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:8}}>Remarque</div>
+          <textarea value={f.remarque||""} onChange={e=>save({...f,remarque:e.target.value})} style={{width:"100%",minHeight:70,background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box",resize:"vertical",fontFamily:"inherit"}}/>
+        </div>
+
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:8}}>Signature du responsable de mission</div>
+          <input value={f.signature||""} onChange={e=>save({...f,signature:e.target.value})} placeholder="Nom du responsable pour valider" style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PreventifHistorique({ fiches, materiel, onSave, onBack, themeMode, toggleTheme }){
+  const [selected,setSelected]=useState(null);
+  if(selected) return <PreventifFicheDetail fiche={selected} materiel={materiel} onSave={(next)=>{onSave(next);setSelected(next);}} onBack={()=>setSelected(null)}/>;
+  const sorted=[...fiches].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div style={{fontWeight:800,fontSize:16,color:C.purple}}>📅 Historique Préventif</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{flex:1,padding:16,maxWidth:640,margin:"0 auto",width:"100%"}}>
+        {sorted.length===0&&<div style={{textAlign:"center",color:C.muted,padding:40}}>Aucun événement enregistré</div>}
+        {sorted.map(f=>(
+          <button key={f.id} onClick={()=>setSelected(f)} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px",marginBottom:8,cursor:"pointer",textAlign:"left"}}>
+            <div style={{fontWeight:700,fontSize:14,color:C.text}}>{f.nomEvenement}</div>
+            <div style={{fontSize:11,color:C.muted,marginTop:2}}>{f.lieu} — {new Date(f.date+"T00:00:00").toLocaleDateString("fr-FR")}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PreventifView({ onBack, vehicles, driversAmb, driversTpmr, themeMode, toggleTheme }){
   const [bureau,setBureau]=useState(false);
-  const [screen,setScreen]=useState("home"); // home | parametres
+  const [screen,setScreen]=useState("home"); // home | parametres | nouvelle | historique
   const [personnel,setPersonnel]=useFirestoreState("preventifPersonnel", []);
   const [materiel,setMateriel]=useFirestoreState("preventifMateriel", []);
+  const [fiches,setFiches]=useFirestoreState("preventifFiches", []);
+  const [openFiche,setOpenFiche]=useState(null);
+
+  const saveFiche=(next)=>setFiches(prev=>{
+    const exists=prev.find(x=>x.id===next.id);
+    return exists?prev.map(x=>x.id===next.id?next:x):[...prev,next];
+  });
 
   if(screen==="parametres") return <PreventifParametresView personnel={personnel} setPersonnel={setPersonnel} materiel={materiel} setMateriel={setMateriel} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="nouvelle") return <PreventifFicheForm vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} materiel={materiel} onCancel={()=>setScreen("home")} onSave={(f)=>{saveFiche(f);setScreen("home");}}/>;
+  if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} onSave={saveFiche} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onBack={()=>setOpenFiche(null)}/>;
+
+  const todayFiches=fiches.filter(f=>f.date===todayISO());
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -1920,11 +2269,207 @@ function PreventifView({ onBack, themeMode, toggleTheme }){
         </div>
       </div>
       <div style={{flex:1,padding:20,maxWidth:640,margin:"0 auto",width:"100%"}}>
-        {bureau&&<button style={{width:"100%",marginBottom:20,background:C.purpleSoft,border:`1.5px dashed ${C.purple}`,borderRadius:12,padding:"16px",color:C.purple,fontWeight:700,fontSize:14,cursor:"pointer"}}>+ Nouvelle fiche événement</button>}
-        <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
-          <div style={{fontSize:48,marginBottom:14}}>🚑</div>
-          <div style={{fontSize:14}}>Aucun événement Préventif prévu aujourd'hui</div>
+        {bureau&&(
+          <div style={{display:"flex",gap:8,marginBottom:20}}>
+            <button onClick={()=>setScreen("nouvelle")} style={{flex:1,background:C.purpleSoft,border:`1.5px dashed ${C.purple}`,borderRadius:12,padding:"14px",color:C.purple,fontWeight:700,fontSize:13,cursor:"pointer"}}>+ Nouvelle fiche</button>
+            <button onClick={()=>setScreen("historique")} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px",color:C.text,fontWeight:700,fontSize:13,cursor:"pointer"}}>📅 Historique</button>
+          </div>
+        )}
+        {todayFiches.length===0?(
+          <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
+            <div style={{fontSize:48,marginBottom:14}}>🚑</div>
+            <div style={{fontSize:14}}>Aucun événement Préventif prévu aujourd'hui</div>
+          </div>
+        ):todayFiches.map(f=>(
+          <button key={f.id} onClick={()=>setOpenFiche(f)} style={{width:"100%",background:C.panel,border:`1.5px solid ${C.purple}`,borderRadius:12,padding:"16px",marginBottom:10,cursor:"pointer",textAlign:"left"}}>
+            <div style={{fontWeight:800,fontSize:15,color:C.text}}>{f.nomEvenement}</div>
+            <div style={{fontSize:12,color:C.muted,marginTop:3}}>{f.lieu}</div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// BONS DE TRANSPORT — réception (archive permanente, indépendante des sessions chauffeur)
+// ═══════════════════════════════════════
+function loadExternalScript(src, globalCheck){
+  return new Promise((resolve,reject)=>{
+    if(globalCheck()) return resolve();
+    const existing=document.querySelector(`script[src="${src}"]`);
+    if(existing){ existing.addEventListener("load",()=>resolve()); existing.addEventListener("error",reject); return; }
+    const s=document.createElement("script");
+    s.src=src; s.async=true;
+    s.onload=()=>resolve();
+    s.onerror=reject;
+    document.head.appendChild(s);
+  });
+}
+
+function printBon(bon){
+  const lignes=[
+    ["Véhicule",bon.vehicule],["Chauffeur",bon.chauffeurLabel||bon.chauffeur],["Convoyeur",bon.convoyeurLabel||""],
+    ["Patient",bon.patient],["Départ",bon.depart],["Arrivée",bon.arrivee],
+    ["Convention",bon.convention],["Type",bon.type],
+    ["Base",bon.base],["Heure PEC",bon.heurePC],["Départ 1",bon.heureDep1],["Arrivée 1",bon.heureArr1],
+    ["Temps d'attente",bon.tempsAttente],["Départ 2",bon.heureDep2],["Arrivée 2",bon.heureArr2],
+    ["Km départ",bon.kmDepart],["Observations",bon.observations],["Remarques",bon.remarques],
+  ].filter(([,v])=>v);
+  const html=`<html><head><title>Bon de transport</title><style>
+    body{font-family:Arial,sans-serif;padding:30px;color:#111}
+    h1{font-size:18px;border-bottom:2px solid #111;padding-bottom:8px}
+    table{width:100%;border-collapse:collapse;margin-top:14px}
+    td{padding:6px 8px;border-bottom:1px solid #ddd;font-size:13px}
+    td:first-child{font-weight:700;width:180px}
+  </style></head><body>
+    <h1>Bon de transport — ${new Date(bon.date).toLocaleDateString("fr-FR")}</h1>
+    <table>${lignes.map(([l,v])=>`<tr><td>${l}</td><td>${String(v).replace(/</g,"&lt;")}</td></tr>`).join("")}</table>
+  </body></html>`;
+
+  let iframe=document.getElementById("aps-print-frame");
+  if(iframe) iframe.remove();
+  iframe=document.createElement("iframe");
+  iframe.id="aps-print-frame";
+  iframe.style.position="fixed";
+  iframe.style.right="0"; iframe.style.bottom="0";
+  iframe.style.width="0"; iframe.style.height="0";
+  iframe.style.border="0";
+  document.body.appendChild(iframe);
+  const doc=iframe.contentWindow.document;
+  doc.open(); doc.write(html); doc.close();
+  iframe.onload=()=>{
+    setTimeout(()=>{
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+    },250);
+  };
+}
+
+async function exportBonsZip(bons){
+  await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js", ()=>!!window.JSZip);
+  await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", ()=>!!(window.jspdf&&window.jspdf.jsPDF));
+  const { jsPDF }=window.jspdf;
+  const zip=new window.JSZip();
+  bons.forEach(bon=>{
+    const d=new Date(bon.date);
+    const year=String(d.getFullYear()), month=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
+    const doc=new jsPDF();
+    let y=15;
+    doc.setFontSize(14); doc.text("Bon de transport — "+d.toLocaleDateString("fr-FR"),10,y); y+=10;
+    doc.setFontSize(10);
+    const lignes=[
+      ["Véhicule",bon.vehicule],["Chauffeur",bon.chauffeurLabel||bon.chauffeur],["Convoyeur",bon.convoyeurLabel||""],
+      ["Patient",bon.patient],["Départ",bon.depart],["Arrivée",bon.arrivee],
+      ["Convention",bon.convention],["Type",bon.type],
+      ["Base",bon.base],["Heure PEC",bon.heurePC],["Départ 1",bon.heureDep1],["Arrivée 1",bon.heureArr1],
+      ["Temps d'attente",bon.tempsAttente],["Départ 2",bon.heureDep2],["Arrivée 2",bon.heureArr2],
+      ["Km départ",bon.kmDepart],["Observations",bon.observations],["Remarques",bon.remarques],
+    ].filter(([,v])=>v);
+    lignes.forEach(([l,v])=>{ doc.text(`${l}: ${String(v)}`,10,y); y+=7; if(y>280){doc.addPage();y=15;} });
+    const pdfBlob=doc.output("blob");
+    const safeName=(bon.patient||bon.id).toString().replace(/[^a-z0-9]/gi,"_");
+    zip.folder(year).folder(month).folder(day).file(`bon_${safeName}_${bon.id}.pdf`, pdfBlob);
+  });
+  const content=await zip.generateAsync({type:"blob"});
+  const url=URL.createObjectURL(content);
+  const a=document.createElement("a");
+  a.href=url; a.download="bons_de_transport.zip";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function BonsListView({ traite, bases, onBack, themeMode, toggleTheme }){
+  const [bons,setBons]=useState([]);
+  const [openBon,setOpenBon]=useState(null);
+  const [exporting,setExporting]=useState(false);
+
+  useEffect(()=>{
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_bons_archive"), snap=>{
+      const data=snap.docs.map(d=>d.data()).filter(b=>!!b.traite===traite);
+      data.sort((a,b)=>new Date(b.date)-new Date(a.date));
+      setBons(data);
+    });
+    return ()=>unsub();
+  },[traite]);
+
+  const marquerTraite=(bon,e)=>{
+    if(e) e.stopPropagation();
+    saveBonArchive({...bon, traite:!traite});
+  };
+
+  if(openBon){
+    const vehicleGuess={ name:openBon.vehicule, type:/TPMR|VSL/i.test(openBon.vehicule||"")?"TPMR":"AMB" };
+    return <BonView bon={openBon} onSave={(b)=>{saveBonArchive(b);setOpenBon(null);}} onBack={()=>setOpenBon(null)} vehicle={vehicleGuess} driver={openBon.chauffeurLabel} bases={bases}/>;
+  }
+
+  const groups={};
+  bons.forEach(b=>{ const c=b.convention||"Non précisé"; if(!groups[c]) groups[c]=[]; groups[c].push(b); });
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div style={{fontWeight:800,fontSize:16,color:C.success}}>{traite?"📅 Historique":"🧾 Bons à traiter"}</div>
         </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {traite&&bons.length>0&&(
+            <button disabled={exporting} onClick={async()=>{setExporting(true); try{await exportBonsZip(bons);}catch(e){console.error("Erreur export ZIP:",e);} setExporting(false);}} style={{background:C.successSoft,border:`1px solid ${C.success}`,borderRadius:8,color:C.success,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>{exporting?"Génération…":"📦 Exporter ZIP"}</button>
+          )}
+          <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+        </div>
+      </div>
+      <div style={{flex:1,padding:16,paddingBottom:40,maxWidth:700,margin:"0 auto",width:"100%"}}>
+        {bons.length===0&&<div style={{textAlign:"center",color:C.muted,padding:40}}>{traite?"Aucun bon traité":"Aucun bon en attente"}</div>}
+        {Object.entries(groups).map(([conv,items])=>(
+          <div key={conv} style={{marginBottom:20}}>
+            <div style={{fontSize:11,fontWeight:700,color:C.success,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>{conv} ({items.length})</div>
+            {items.map(b=>(
+              <div key={b.id} onClick={()=>setOpenBon(b)} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 15px",marginBottom:8,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontWeight:700,fontSize:13,color:C.text}}>{b.patient||"Bon vierge"}</div>
+                  <div style={{fontSize:11,color:C.muted,marginTop:2}}>{b.vehicule} — {new Date(b.date).toLocaleDateString("fr-FR")} — {b.chauffeurLabel||b.chauffeur}</div>
+                </div>
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <button onClick={(e)=>{e.stopPropagation();printBon(b);}} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"7px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🖨️</button>
+                  <button onClick={(e)=>marquerTraite(b,e)} style={{background:traite?C.panel2:C.successSoft,border:`1px solid ${traite?C.border:C.success}`,borderRadius:8,color:traite?C.muted:C.success,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{traite?"↩️ Retraiter":"✅ Traité"}</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BonsMenuView({ bases, onBack, themeMode, toggleTheme }){
+  const [screen,setScreen]=useState("home"); // home | traiter | historique
+
+  if(screen==="traiter") return <BonsListView traite={false} bases={bases} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="historique") return <BonsListView traite={true} bases={bases} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div style={{fontWeight:800,fontSize:16,color:C.success}}>🧾 Bons de transport</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{flex:1,padding:20,maxWidth:480,margin:"0 auto",width:"100%",display:"flex",flexDirection:"column",gap:12}}>
+        <button onClick={()=>setScreen("traiter")} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:14,padding:20,color:C.text,display:"flex",alignItems:"center",gap:14,cursor:"pointer",textAlign:"left"}}>
+          <div style={{fontSize:28}}>🧾</div>
+          <div><div style={{fontWeight:800,fontSize:15}}>Bons à traiter</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>Envoyés par les chauffeurs, pas encore traités</div></div>
+        </button>
+        <button onClick={()=>setScreen("historique")} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:14,padding:20,color:C.text,display:"flex",alignItems:"center",gap:14,cursor:"pointer",textAlign:"left"}}>
+          <div style={{fontSize:28}}>📅</div>
+          <div><div style={{fontWeight:800,fontSize:15}}>Historique</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>Bons déjà traités</div></div>
+        </button>
       </div>
     </div>
   );
@@ -3614,6 +4159,12 @@ const INIT_CHECKLISTS = {
 // ═══════════════════════════════════════════════
 // Sélecteur mois/année ultra-rapide (2 menus déroulants), remplace le
 // calendrier complet — utilisé pour les dates de péremption/scellé.
+function monthYearLabel(ym){
+  if(!ym) return "";
+  const [y,m]=ym.split("-");
+  const idx=parseInt(m,10)-1;
+  return (MOIS_FR[idx]||m)+" "+y;
+}
 function MonthYearPicker({ value, onChange, danger }){
   const now=new Date();
   const [y,m]=value?value.split("-"):["",""];
@@ -3634,6 +4185,163 @@ function MonthYearPicker({ value, onChange, danger }){
   );
 }
 
+// ═══════════════════════════════════════
+// SAC TPMR/VSL — checklist mensuelle, modèle unique partagé par tous les véhicules TPMR/VSL
+// ═══════════════════════════════════════
+function TpmrVslChecklistView({ vehicleName, template, onBack, emails, themeMode, toggleTheme }){
+  const monthKey=getChecklistMonthKey();
+  const docId=`TPMRVSL_${vehicleName}_${monthKey}`;
+  const [doc_, updateDoc_]=useChecklistDoc(docId, { checks:{}, amb1:"", remarks:"" });
+  const checks=doc_.checks||{};
+  const amb1=doc_.amb1||"";
+  const remarks=doc_.remarks||"";
+  const [expanded,setExpanded]=useState({ [template.sections[0]?.id]:true });
+  const [submitted,setSubmitted]=useState(false);
+  const [sending,setSending]=useState(false);
+  const peremptionMap=usePeremptionMap();
+
+  const isMonthExpired=(ym)=>{ if(!ym) return false; const now=new Date(); const cur=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`; return ym<=cur; };
+
+  const setField=(key,field,value)=>updateDoc_({...doc_, checks:{...checks,[key]:{...(checks[key]||{}),[field]:value}}});
+
+  let total=0, checkedCount=0, missingValidations=[], issues=[];
+  template.sections.forEach(sec=>sec.shelves.forEach(sh=>sh.items.forEach(item=>{
+    if(item.okOnly) return;
+    total++;
+    const key=`${sec.id}__${sh.id}__${item.n}`;
+    const state=checks[key]||{};
+    if(state.found!=null) checkedCount++; else missingValidations.push(item.n);
+    if(item.t && state.testOk==null) missingValidations.push(item.n+" (test)");
+    if(item.s && state.sealOk==null) missingValidations.push(item.n+" (scellé)");
+    if(state.found===0) issues.push({ name:item.n, type:"missing", missing:item.q||1 });
+    if(item.t && state.testOk===false) issues.push({ name:item.n, type:"nok_test", missing:1 });
+    if(item.s && state.sealOk===false) issues.push({ name:item.n, type:"nok_seal", missing:1 });
+  })));
+  const progress=total>0?Math.round((checkedCount/total)*100):0;
+  const hasAmbulancier=amb1.trim().length>0;
+  const canSubmit=hasAmbulancier && missingValidations.length===0 && !sending;
+
+  const sendMissingReport=async()=>{
+    if(!emails||emails.length===0||issues.length===0) return;
+    const lines=issues.map(iss=>`- ${iss.name} : ${iss.type==="missing"?`manque ${iss.missing}`:iss.type==="nok_test"?"test NOK":"scellé NOK"}`).join("\n");
+    for(const to of emails){
+      try{
+        await emailjs.send("service_mrs8v2l","template_2sxsq4j",{ to_email:to, title:`Checklist ${vehicleName} — Matériel manquant`, content:`Rempli par: ${amb1}\n\n${lines}` },"Fhdx1kTE7vFmh4z07");
+      }catch(e){ console.error("Erreur envoi email checklist:", e); }
+    }
+  };
+
+  if(submitted){
+    return(
+      <div style={{ minHeight:"100vh", background:CK_C.bg, display:"flex", alignItems:"center", justifyContent:"center", flexDirection:"column", gap:16, color:CK_C.text, fontFamily:"'DM Sans',sans-serif" }}>
+        <div style={{ fontSize:56 }}>✅</div>
+        <div style={{ fontSize:18, fontWeight:800 }}>Checklist envoyée</div>
+        <button onClick={onBack} style={{ background:CK_C.red, border:"none", borderRadius:10, color:"white", padding:"12px 24px", fontWeight:700, fontSize:14, cursor:"pointer" }}>Retour</button>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div><div style={{ fontWeight:800, fontSize:16 }}>{vehicleName}</div><div style={{ fontSize:10, color:CK_C.muted, textTransform:"uppercase" }}>Sac TPMR/VSL — {monthYearLabel(monthKey)}</div></div>
+        </div>
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{ padding:"12px 18px", background:CK_C.panel2 }}>
+        <input value={amb1} onChange={e=>updateDoc_({...doc_,amb1:e.target.value})} placeholder="Nom du chauffeur" style={{ width:"100%", background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"9px 12px", color:CK_C.text, fontSize:13, boxSizing:"border-box" }}/>
+      </div>
+      <div style={{ flex:1, padding:14, paddingBottom:100, overflowY:"auto" }}>
+        {template.sections.length===0&&<div style={{ textAlign:"center", color:CK_C.muted, padding:40 }}>Aucun modèle défini — configure-le dans Paramètres → Checklists → Sac TPMR/VSL</div>}
+        {template.sections.map(sec=>(
+          <div key={sec.id} style={{ marginBottom:10 }}>
+            <button onClick={()=>setExpanded(p=>({...p,[sec.id]:!p[sec.id]}))} style={{ width:"100%", background:sec.color||CK_C.red, border:"none", borderRadius:10, color:"white", padding:"11px 14px", fontWeight:800, fontSize:13, textAlign:"left", cursor:"pointer", display:"flex", justifyContent:"space-between" }}>
+              <span>{sec.label}</span><span>{expanded[sec.id]?"▲":"▼"}</span>
+            </button>
+            {expanded[sec.id]&&sec.shelves.map(sh=>(
+              <div key={sh.id} style={{ marginTop:8 }}>
+                {sh.label&&<div style={{ fontSize:11, fontWeight:700, color:CK_C.muted, marginBottom:6 }}>{sh.label}</div>}
+                {sh.items.map(item=>{
+                  const key=`${sec.id}__${sh.id}__${item.n}`;
+                  const state=checks[key]||{};
+                  const centralPeremptionDate=item.p?getSoonestDate(peremptionMap[peremptionKey(vehicleName,item.n)]?.lots):"";
+                  const peremptionExpired=item.p&&isMonthExpired(centralPeremptionDate);
+                  return(
+                    <div key={key} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:10, padding:12, marginBottom:8 }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                        <div style={{ fontSize:13, fontWeight:600 }}>{item.n}{item.container&&<span style={{ marginLeft:6, fontSize:9, fontWeight:700, color:CK_C.muted, background:CK_C.panel2, borderRadius:5, padding:"2px 6px" }}>CONTENU DÉTAILLÉ</span>}</div>
+                        <div style={{ display:"flex", gap:6 }}>
+                          <button onClick={()=>setField(key,"found",1)} style={{ background:state.found===1?CK_C.success:"transparent", border:`1px solid ${state.found===1?CK_C.success:CK_C.border}`, borderRadius:7, color:state.found===1?"white":CK_C.muted, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer" }}>OK</button>
+                          <button onClick={()=>setField(key,"found",0)} style={{ background:state.found===0?CK_C.danger:"transparent", border:`1px solid ${state.found===0?CK_C.danger:CK_C.border}`, borderRadius:7, color:state.found===0?"white":CK_C.muted, padding:"5px 12px", fontSize:11, fontWeight:700, cursor:"pointer" }}>NOK</button>
+                        </div>
+                      </div>
+                      {item.t&&(
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
+                          <div style={{ fontSize:11, color:CK_C.muted }}>Test</div>
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button onClick={()=>setField(key,"testOk",true)} style={{ background:state.testOk===true?CK_C.success:"transparent", border:`1px solid ${state.testOk===true?CK_C.success:CK_C.border}`, borderRadius:7, color:state.testOk===true?"white":CK_C.muted, padding:"4px 10px", fontSize:10, fontWeight:700, cursor:"pointer" }}>OK</button>
+                            <button onClick={()=>setField(key,"testOk",false)} style={{ background:state.testOk===false?CK_C.danger:"transparent", border:`1px solid ${state.testOk===false?CK_C.danger:CK_C.border}`, borderRadius:7, color:state.testOk===false?"white":CK_C.muted, padding:"4px 10px", fontSize:10, fontWeight:700, cursor:"pointer" }}>NOK</button>
+                          </div>
+                        </div>
+                      )}
+                      {item.s&&(
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
+                          <div style={{ fontSize:11, color:CK_C.muted }}>Scellé</div>
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button onClick={()=>setField(key,"sealOk",true)} style={{ background:state.sealOk===true?CK_C.success:"transparent", border:`1px solid ${state.sealOk===true?CK_C.success:CK_C.border}`, borderRadius:7, color:state.sealOk===true?"white":CK_C.muted, padding:"4px 10px", fontSize:10, fontWeight:700, cursor:"pointer" }}>OK</button>
+                            <button onClick={()=>setField(key,"sealOk",false)} style={{ background:state.sealOk===false?CK_C.danger:"transparent", border:`1px solid ${state.sealOk===false?CK_C.danger:CK_C.border}`, borderRadius:7, color:state.sealOk===false?"white":CK_C.muted, padding:"4px 10px", fontSize:10, fontWeight:700, cursor:"pointer" }}>NOK</button>
+                          </div>
+                        </div>
+                      )}
+                      {item.p&&(
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginTop:6 }}>
+                          <div style={{ fontSize:11, color:peremptionExpired?CK_C.danger:"#fbbf24" }}>Péremption</div>
+                          <div style={{ fontSize:11, fontWeight:700, color:peremptionExpired?CK_C.danger:CK_C.text, background:CK_C.bg, border:`1px solid ${peremptionExpired?CK_C.danger:CK_C.border}`, borderRadius:7, padding:"4px 10px" }}>
+                            {centralPeremptionDate?monthYearLabel(centralPeremptionDate):"Non renseignée (bureau)"}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        ))}
+        <div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:14, marginTop:6 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:CK_C.muted, textTransform:"uppercase", marginBottom:8 }}>📝 Remarques</div>
+          <textarea value={remarks} onChange={e=>updateDoc_({...doc_,remarks:e.target.value})} placeholder="Matériel manquant, observations..." rows={3} style={{ width:"100%", background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"10px 12px", color:CK_C.text, fontSize:13, resize:"none", boxSizing:"border-box" }}/>
+        </div>
+      </div>
+      <div style={{ position:"fixed", bottom:0, left:0, right:0, background:CK_C.panel, borderTop:`1px solid ${CK_C.border}`, padding:"13px 16px" }}>
+        {!canSubmit&&(
+          <div style={{ background:CK_C.dangerSoft, border:`1px solid ${CK_C.danger}`, borderRadius:8, padding:"8px 12px", marginBottom:8, fontSize:11, color:CK_C.danger, fontWeight:600 }}>
+            {!hasAmbulancier?"⚠ Indique le nom du chauffeur":`⚠ ${missingValidations.length} validation(s) manquante(s)`}
+          </div>
+        )}
+        <button disabled={!canSubmit} onClick={async()=>{
+          if(!canSubmit) return;
+          setSending(true);
+          await sendMissingReport();
+          await saveChecklistHistorique({
+            id:`${vehicleName}_${monthKey}_${Date.now()}`,
+            vehicle:vehicleName, date:new Date().toLocaleDateString("fr-FR"), dateISO:new Date().toISOString(),
+            amb1, amb2:"", remarks:remarks||"", complete:progress===100, timestamp:Date.now(),
+            issues:issues.map(iss=>({ ...iss, remaining:iss.missing, resupplied:0 })),
+          });
+          setSending(false);
+          setSubmitted(true);
+        }} style={{ width:"100%", background:!canSubmit?CK_C.border:progress===100?CK_C.success:CK_C.accent, border:"none", borderRadius:10, color:"white", padding:"14px", fontWeight:800, fontSize:15, opacity:canSubmit?1:0.85, cursor:canSubmit?"pointer":"not-allowed" }}>
+          {sending?"Envoi…":canSubmit?"✅ Envoyer au responsable":`⚠ ${!hasAmbulancier?"Chauffeur requis":missingValidations.length+" oubli(s)"}`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, toggleTheme }) {
   const data = checklists[vehicleName];
   const weekKey = getChecklistWeekKey();
@@ -3647,6 +4355,7 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
   const [expanded, setExpanded] = useState({ [data.sections[0]?.id]: true });
   const [submitted, setSubmitted] = useState(false);
   const [sending, setSending] = useState(false);
+  const peremptionMap = usePeremptionMap();
 
   // "YYYY-MM" <= mois actuel ? (périmé ou en cours = à considérer comme expiré)
   const isMonthExpired = (ym) => {
@@ -3933,8 +4642,8 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
                     const isMissing=isChecked&&found<item.q;
                     const isOk=isChecked&&found>=item.q;
                     const isBinary=item.t||item.s||item.okOnly;
-                    const peremptionMissingHere=item.p&&firstWeek&&!isMissing&&!state.date;
-                    const peremptionExpired=item.p&&isMonthExpired(state.date);
+                    const centralPeremptionDate=item.p?getSoonestDate(peremptionMap[peremptionKey(vehicleName,item.n)]?.lots):"";
+                    const peremptionExpired=item.p&&isMonthExpired(centralPeremptionDate);
                     const sealDateMissingHere=item.s&&firstWeek&&!isMissing&&state.sealOk!==false&&!state.sealDate;
                     const sealDateExpired=item.s&&state.sealOk!==false&&isMonthExpired(state.sealDate);
                     const barMissingHere=item.bar&&state.bar==null;
@@ -3944,7 +4653,7 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
                           {item.n}
                           {item.t&&<span style={{ background:"#1d4ed820", border:"1px solid #1d4ed8", color:"#60a5fa", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>TEST</span>}
                           {item.s&&<span style={{ background:"#7c3aed20", border:"1px solid #7c3aed", color:"#a78bfa", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>SCELLÉ</span>}
-                          {item.p&&firstWeek&&<span style={{ background:(peremptionMissingHere||peremptionExpired)?"#ef444420":"#f59e0b20", border:`1px solid ${(peremptionMissingHere||peremptionExpired)?"#ef4444":"#f59e0b"}`, color:(peremptionMissingHere||peremptionExpired)?"#f87171":"#fbbf24", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>PÉREMPTION{(peremptionMissingHere||peremptionExpired)?" ⚠":""}</span>}
+                          {item.p&&<span style={{ background:peremptionExpired?"#ef444420":"#f59e0b20", border:`1px solid ${peremptionExpired?"#ef4444":"#f59e0b"}`, color:peremptionExpired?"#f87171":"#fbbf24", borderRadius:4, padding:"1px 5px", fontSize:9, fontWeight:700 }}>PÉREMPTION{peremptionExpired?" ⚠":""}</span>}
                         </div>
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginBottom:(item.t||item.s||item.bar)?6:0 }}>
                           <div style={{ fontSize:11, color:CK_C.muted, minWidth:80 }}>{item.okOnly?"État":"Présence"+(!isBinary?" (requis: "+item.q+")":"")}</div>
@@ -3987,10 +4696,12 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
                           <MonthYearPicker value={state.sealDate||""} onChange={v=>setDateField(key,"sealDate",v,item)} danger={sealDateMissingHere||sealDateExpired}/>
                         </div>
                         )}
-                        {item.p&&firstWeek&&(
+                        {item.p&&(
                         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginTop:6 }}>
                           <div style={{ fontSize:11, color:peremptionExpired?CK_C.danger:"#fbbf24", minWidth:80 }}>Péremption</div>
-                          <MonthYearPicker value={state.date||""} onChange={v=>setDateField(key,"date",v,item)} danger={peremptionMissingHere||peremptionExpired}/>
+                          <div style={{ fontSize:12, fontWeight:700, color:peremptionExpired?CK_C.danger:CK_C.text, background:CK_C.bg, border:`1px solid ${peremptionExpired?CK_C.danger:CK_C.border}`, borderRadius:8, padding:"6px 12px" }}>
+                            {centralPeremptionDate?monthYearLabel(centralPeremptionDate):"Non renseignée (bureau)"}
+                          </div>
                         </div>
                         )}
                       </div>
@@ -4555,7 +5266,140 @@ function DailyHistoriqueSubView({ onBack, filterDate, themeMode, toggleTheme }){
   );
 }
 
-function ReapprovisionnementView({ onBack, themeMode, toggleTheme, emails, o2Emails }){
+// ═══════════════════════════════════════
+// PÉREMPTION — vue d'ensemble bureau : tous les articles, tous les véhicules
+// ═══════════════════════════════════════
+async function checkAndSendPeremptionAlerts(checklistsData, peremptionEmails){
+  if(!peremptionEmails||peremptionEmails.length===0) return;
+  try{
+    const snap=await getDocs(collection(dbChecklists,"dispatchai_peremption_dates"));
+    const now=new Date();
+    const oneMonthOut=new Date(now.getFullYear(),now.getMonth()+1,now.getDate());
+    for(const d of snap.docs){
+      const data=d.data();
+      const soonest=getSoonestDate(data.lots);
+      if(!soonest) continue;
+      if(data.alertSentForDate===soonest) continue; // déjà alerté pour cette date précise
+      const expDate=new Date(soonest+"-01T00:00:00");
+      if(expDate<=oneMonthOut){
+        for(const to of peremptionEmails){
+          try{
+            await emailjs.send("service_mrs8v2l","template_2sxsq4j",{
+              to_email:to, title:"Alerte Péremption — "+data.vehicle,
+              content:`L'article "${data.itemName}" du véhicule ${data.vehicle} arrive à échéance : ${monthYearLabel(soonest)}.`,
+            },"Fhdx1kTE7vFmh4z07");
+          }catch(e){ console.error("Erreur envoi email péremption:", e); }
+        }
+        await setDoc(doc(dbChecklists,"dispatchai_peremption_dates",d.id), {...data, alertSentForDate:soonest});
+      }
+    }
+  }catch(e){ console.error("Erreur vérification alertes péremption:", e); }
+}
+
+function PeremptionView({ onBack, checklists, tpmrVslTemplate, peremptionEmails, themeMode, toggleTheme }){
+  const peremptionMap=usePeremptionMap();
+  const [filter,setFilter]=useState("");
+  const [newLotForm,setNewLotForm]=useState({}); // key -> {qty,date}
+
+  useEffect(()=>{ checkAndSendPeremptionAlerts(checklists, peremptionEmails); },[]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const rowsMap={};
+  const addItemRows=(vehicleName,item)=>{
+    if(item.p){
+      const k=peremptionKey(vehicleName,item.n);
+      if(!rowsMap[k]) rowsMap[k]={ vehicleName, itemName:item.n, key:k, lots:sortLots(peremptionMap[k]?.lots) };
+    }
+    if(item.container){
+      (item.subItems||[]).forEach(sub=>{
+        if(!sub.n) return;
+        const subLabel=`${item.n} — ${sub.n}`;
+        const k=peremptionKey(vehicleName,subLabel);
+        if(!rowsMap[k]) rowsMap[k]={ vehicleName, itemName:subLabel, key:k, lots:sortLots(peremptionMap[k]?.lots), isSubItem:true, parentName:item.n };
+      });
+    }
+  };
+  Object.keys(checklists).sort((a,b)=>a.localeCompare(b)).forEach(vehicleName=>{
+    const data=checklists[vehicleName];
+    data.sections.forEach(sec=>sec.shelves.forEach(sh=>sh.items.forEach(item=>addItemRows(vehicleName,item))));
+  });
+  if(tpmrVslTemplate){
+    TPMR_VSL_VEHICLES.forEach(vehicleName=>{
+      (tpmrVslTemplate.sections||[]).forEach(sec=>sec.shelves.forEach(sh=>sh.items.forEach(item=>addItemRows(vehicleName,item))));
+    });
+  }
+  const rows=Object.values(rowsMap);
+  const vehicleNames=[...new Set(rows.map(r=>r.vehicleName))];
+  const isExpired=(ym)=>{ if(!ym) return false; const now=new Date(); const cur=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`; return ym<=cur; };
+  const rowExpired=(r)=>r.lots.length>0 && isExpired(getSoonestDate(r.lots));
+  const filtered=filter
+    ?[...rows.filter(r=>r.vehicleName===filter)].sort((a,b)=>(rowExpired(b)?1:0)-(rowExpired(a)?1:0))
+    :[...rows].sort((a,b)=>{
+        const expDiff=(rowExpired(b)?1:0)-(rowExpired(a)?1:0);
+        if(expDiff!==0) return expDiff;
+        return a.itemName.localeCompare(b.itemName,"fr")||a.vehicleName.localeCompare(b.vehicleName,"fr");
+      });
+
+  const addLot=(r)=>{
+    const f=newLotForm[r.key];
+    if(!f||!f.qty||!f.date) return;
+    savePeremptionLots(r.vehicleName,r.itemName,[...r.lots,{id:"lot"+Date.now(),quantite:parseInt(f.qty),date:f.date}]);
+    setNewLotForm(p=>({...p,[r.key]:{qty:"",date:""}}));
+  };
+  const removeLot=(r,lotId)=>savePeremptionLots(r.vehicleName,r.itemName,r.lots.filter(l=>l.id!==lotId));
+
+  return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div style={{ fontWeight:800, fontSize:16 }}>🗓️ Péremption — vue d'ensemble</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{ flex:1, padding:16, maxWidth:700, margin:"0 auto", width:"100%" }}>
+        <div style={{ display:"flex", gap:8, marginBottom:16, overflowX:"auto" }}>
+          <button onClick={()=>setFilter("")} style={{ padding:"7px 14px", borderRadius:20, border:`1px solid ${!filter?CK_C.red:CK_C.border}`, background:!filter?CK_C.red:"transparent", color:!filter?"white":CK_C.muted, fontSize:12, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>Tous</button>
+          {vehicleNames.map(v=>(
+            <button key={v} onClick={()=>setFilter(v)} style={{ padding:"7px 14px", borderRadius:20, border:`1px solid ${filter===v?CK_C.red:CK_C.border}`, background:filter===v?CK_C.red:"transparent", color:filter===v?"white":CK_C.muted, fontSize:12, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>{v}</button>
+          ))}
+        </div>
+        {filtered.length===0&&<div style={{ textAlign:"center", color:CK_C.muted, padding:40 }}>Aucun article de péremption défini</div>}
+        {filtered.map(r=>{
+          const soonest=r.lots[0];
+          return(
+          <div key={r.key} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:"13px 15px", marginBottom:10 }}>
+            <div style={{ fontWeight:700, fontSize:14, color:CK_C.text, marginBottom:2 }}>{r.itemName}{r.isSubItem&&<span style={{ marginLeft:6, fontSize:9, fontWeight:700, color:CK_C.muted, background:CK_C.panel2, borderRadius:5, padding:"2px 6px" }}>DANS {r.parentName}</span>}</div>
+            <div style={{ fontSize:11, color:CK_C.muted, marginBottom:10 }}>{r.vehicleName}</div>
+            {r.lots.length===0&&<div style={{ fontSize:12, color:CK_C.muted, marginBottom:10 }}>Aucun lot enregistré</div>}
+            {r.lots.map(lot=>{
+              const isSoonest=soonest&&lot.id===soonest.id;
+              return(
+                <div key={lot.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, background:isExpired(lot.date)?"#ef444412":isSoonest?"#f59e0b12":CK_C.bg, border:`1px solid ${isExpired(lot.date)?"#ef4444":isSoonest?"#f59e0b":CK_C.border}`, borderRadius:8, padding:"7px 10px", marginBottom:6 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                    {isSoonest&&<span title="À utiliser en premier" style={{ width:9, height:9, borderRadius:"50%", background:isExpired(lot.date)?"#ef4444":"#f59e0b", flexShrink:0 }}/>}
+                    <span style={{ fontSize:12, fontWeight:700, color:CK_C.text }}>{lot.quantite}×</span>
+                    <span style={{ fontSize:12, color:isExpired(lot.date)?"#ef4444":isSoonest?"#f59e0b":CK_C.muted, fontWeight:isSoonest?700:400 }}>{monthYearLabel(lot.date)}</span>
+                    {isSoonest&&<span style={{ fontSize:9, fontWeight:700, color:isExpired(lot.date)?"#ef4444":"#f59e0b", textTransform:"uppercase" }}>{isExpired(lot.date)?"Périmé":"À utiliser en 1er"}</span>}
+                  </div>
+                  <button onClick={()=>removeLot(r,lot.id)} style={{ background:"transparent", border:`1px solid ${CK_C.danger}`, borderRadius:6, color:CK_C.danger, padding:"3px 7px", fontSize:10, cursor:"pointer" }}>🗑</button>
+                </div>
+              );
+            })}
+            <div style={{ display:"flex", gap:6, marginTop:8 }}>
+              <input type="number" min="1" placeholder="Qté" value={newLotForm[r.key]?.qty||""} onChange={e=>setNewLotForm(p=>({...p,[r.key]:{...p[r.key],qty:e.target.value}}))} style={{ width:55, background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:6, padding:"6px 8px", color:CK_C.text, fontSize:12 }}/>
+              <div style={{ flex:1 }}><MonthYearPicker value={newLotForm[r.key]?.date||""} onChange={v=>setNewLotForm(p=>({...p,[r.key]:{...p[r.key],date:v}}))}/></div>
+              <button onClick={()=>addLot(r)} style={{ background:CK_C.red, border:"none", borderRadius:6, color:"white", padding:"6px 12px", fontSize:12, fontWeight:700, cursor:"pointer" }}>+ Lot</button>
+            </div>
+          </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ReapprovisionnementView({ onBack, themeMode, toggleTheme, emails, o2Emails, checklists }){
   const [entries,setEntries]=useState([]);
   const [selections,setSelections]=useState({}); // key -> qty sélectionnée (0/absent = pas sélectionné)
   const [respName,setRespName]=useState("");
@@ -4586,8 +5430,16 @@ function ReapprovisionnementView({ onBack, themeMode, toggleTheme, emails, o2Ema
   const labelFor=(iss)=>iss.type==="missing"?`Manque : ${iss.remaining}`:iss.type==="nok_test"?"Test NOK":iss.type==="nok_seal"?"Scellé NOK":"Bouteille vide (0 bar)";
 
   const key=(item)=>`${item.entryId}_${item.issueIdx}`;
+  const [peremptionDates,setPeremptionDates]=useState({}); // key -> date saisie pour un article périssable réapprovisionné
+  const isPerishable=(vehicle,itemName)=>{
+    const data=checklists&&checklists[vehicle];
+    if(!data) return false;
+    for(const sec of data.sections) for(const sh of sec.shelves) for(const it of sh.items){ if(it.n===itemName && it.p) return true; }
+    return false;
+  };
   const selectedCount=Object.values(selections).filter(v=>v>0).length;
-  const canSend=respName.trim().length>0 && selectedCount>0 && !sending;
+  const selectedPerishableMissingDate=allManques.some(it=>(selections[key(it)]||0)>0 && isPerishable(it.vehicle,it.name) && !peremptionDates[key(it)]);
+  const canSend=respName.trim().length>0 && selectedCount>0 && !sending && !selectedPerishableMissingDate;
 
   const toggleBoolItem=(item)=>setSelections(p=>({...p,[key(item)]:p[key(item)]?0:1}));
 
@@ -4618,6 +5470,10 @@ function ReapprovisionnementView({ onBack, themeMode, toggleTheme, emails, o2Ema
     const toResolve=allManques.filter(it=>(selections[key(it)]||0)>0);
     for(const item of toResolve){
       await resolveHistoriqueIssue(item.entryId,item.issueIdx,selections[key(item)]);
+      if(isPerishable(item.vehicle,item.name) && peremptionDates[key(item)]){
+        const qty=item.type==="missing"?selections[key(item)]:1;
+        await addPeremptionLot(item.vehicle,item.name,qty,peremptionDates[key(item)]);
+      }
     }
     const vehicleEntries=Object.entries(byVehicle).map(([vehicle,items])=>{
       const resolvedItems=items.filter(it=>(selections[key(it)]||0)>0);
@@ -4704,8 +5560,10 @@ function ReapprovisionnementView({ onBack, themeMode, toggleTheme, emails, o2Ema
               const isQty=item.type==="missing";
               const selQty=selections[k]||0;
               const isSel=selQty>0;
+              const perishable=isPerishable(item.vehicle,item.name);
+              const dateMissing=isSel&&perishable&&!peremptionDates[k];
               return(
-                <div key={k} style={{ background:isSel?CK_C.successSoft:CK_C.panel, border:`1px solid ${isSel?CK_C.success:CK_C.border}`, borderRadius:10, padding:"12px 14px", marginBottom:8 }}>
+                <div key={k} style={{ background:isSel?CK_C.successSoft:CK_C.panel, border:`1px solid ${dateMissing?CK_C.danger:isSel?CK_C.success:CK_C.border}`, borderRadius:10, padding:"12px 14px", marginBottom:8 }}>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:14, fontWeight:700 }}>{item.name}</div>
@@ -4723,6 +5581,12 @@ function ReapprovisionnementView({ onBack, themeMode, toggleTheme, emails, o2Ema
                       )}
                     </div>
                   </div>
+                  {isSel&&perishable&&(
+                    <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, marginTop:10, paddingTop:10, borderTop:`1px dashed ${CK_C.border}` }}>
+                      <div style={{ fontSize:11, color:dateMissing?CK_C.danger:"#fbbf24", fontWeight:dateMissing?700:400 }}>Nouvelle date de péremption{dateMissing?" (obligatoire)":""}</div>
+                      <MonthYearPicker value={peremptionDates[k]||""} onChange={v=>setPeremptionDates(p=>({...p,[k]:v}))} danger={dateMissing}/>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -4948,14 +5812,51 @@ function O2ReserveView({ onBack, themeMode, toggleTheme, emails }){
   );
 }
 
-function ChecklistsHome({ onBack, checklists, emails, o2Emails, vehicles, carnetBordTypes, themeMode, toggleTheme }) {
+function ChecklistsHome({ onBack, checklists, emails, o2Emails, peremptionEmails, vehicles, carnetBordTypes, themeMode, toggleTheme }) {
   const [selected, setSelected] = useState(null);
-  const [screen, setScreen] = useState("home"); // "home" | "historique" | "reappro"
+  const [screen, setScreen] = useState("home"); // "home" | "historique" | "reappro" | "peremption" | "tpmrvsl_list"
+  const [selectedTpmrVsl, setSelectedTpmrVsl] = useState(null);
   const statuses = useChecklistsWeekStatus(checklists);
+  const [tpmrVslTemplate, setTpmrVslTemplate] = useFirestoreState("tpmrVslChecklistTemplate", { sections: [] });
+  const monthKey = getChecklistMonthKey();
+  const tpmrVslStatuses = useTpmrVslMonthStatus(tpmrVslTemplate);
 
   if (selected) return <ChecklistView vehicleName={selected} onBack={() => setSelected(null)} checklists={checklists} emails={emails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if (selectedTpmrVsl) return <TpmrVslChecklistView vehicleName={selectedTpmrVsl} template={tpmrVslTemplate} onBack={()=>setSelectedTpmrVsl(null)} emails={emails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if (screen==="historique") return <HistoriqueView onBack={()=>setScreen("home")} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if (screen==="reappro") return <ReapprovisionnementView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme} emails={emails} o2Emails={o2Emails}/>;
+  if (screen==="reappro") return <ReapprovisionnementView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme} emails={emails} o2Emails={o2Emails} checklists={checklists}/>;
+  if (screen==="peremption") return <PeremptionView onBack={()=>setScreen("home")} checklists={checklists} tpmrVslTemplate={tpmrVslTemplate} peremptionEmails={peremptionEmails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if (screen==="tpmrvsl_list") return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={()=>setScreen("home")} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div style={{ fontWeight:800, fontSize:16 }}>♿ Sac TPMR/VSL</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{ flex:1, padding:"20px", maxWidth:480, margin:"0 auto", width:"100%" }}>
+        <div style={{ fontSize:12, color:CK_C.muted, marginBottom:14, textTransform:"capitalize" }}>{monthYearLabel(monthKey)} — modèle unique partagé pour tous</div>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {TPMR_VSL_VEHICLES.map(v=>{
+            const st=tpmrVslStatuses[v];
+            const dotColor=st?.complete?CK_C.success:st?.started?"#f59e0b":CK_C.muted;
+            const dotLabel=st?.complete?"✅ Complète":st?.started?"🟠 En cours":"Non commencée";
+            return(
+              <button key={v} onClick={()=>setSelectedTpmrVsl(v)} style={{ background:CK_C.panel, border:`1px solid ${st?.complete?CK_C.success:st?.started?"#f59e0b":CK_C.border}`, borderRadius:13, padding:"14px 18px", color:CK_C.text, textAlign:"left", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <div style={{ width:36, height:36, background:CK_C.red, borderRadius:9, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18 }}>♿</div>
+                  <div><div style={{ fontWeight:700, fontSize:14 }}>{v}</div><div style={{ fontSize:11, fontWeight:700, color:dotColor }}>{dotLabel}</div></div>
+                </div>
+                <span style={{ color:CK_C.muted, fontSize:18 }}>→</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
@@ -4970,6 +5871,7 @@ function ChecklistsHome({ onBack, checklists, emails, o2Emails, vehicles, carnet
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <button onClick={()=>setScreen("peremption")} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"7px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>🗓️ Péremption</button>
           <button onClick={()=>setScreen("historique")} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"7px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>📅 Historique</button>
           <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
         </div>
@@ -4977,7 +5879,7 @@ function ChecklistsHome({ onBack, checklists, emails, o2Emails, vehicles, carnet
       <div style={{ textAlign:"center", padding:"10px 20px 0", fontSize:12, color:CK_C.muted, fontWeight:600 }}>Semaine {getChecklistWeekNumber()}</div>
       {isFirstWeekOfMonth()&&(
         <div style={{ background:"#f59e0b20", borderBottom:`1px solid #f59e0b`, padding:"9px 20px", fontSize:12, fontWeight:700, color:"#fbbf24", textAlign:"center" }}>
-          📅 1ère semaine du mois — les péremptions sont obligatoires
+          📅 1ère semaine du mois — les dates de scellé sont à renseigner
         </div>
       )}
       <div style={{ flex:1, padding:"24px 20px", maxWidth:480, margin:"0 auto", width:"100%" }}>
@@ -5013,6 +5915,16 @@ function ChecklistsHome({ onBack, checklists, emails, o2Emails, vehicles, carnet
             );
           })}
         </div>
+        <button onClick={()=>setScreen("tpmrvsl_list")} style={{ width:"100%", marginTop:14, background:CK_C.panel, border:`1.5px solid ${CK_C.border}`, borderRadius:13, padding:"16px 20px", color:CK_C.text, textAlign:"left", display:"flex", alignItems:"center", justifyContent:"space-between", cursor:"pointer" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ width:42, height:42, background:CK_C.panel2, border:`1px solid ${CK_C.border}`, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>♿</div>
+            <div>
+              <div style={{ fontWeight:800, fontSize:16 }}>TPMR / VSL</div>
+              <div style={{ fontSize:11, color:CK_C.muted }}>Sac — check mensuelle, modèle unique</div>
+            </div>
+          </div>
+          <span style={{ color:CK_C.muted, fontSize:20 }}>→</span>
+        </button>
       </div>
     </div>
   );
@@ -5051,6 +5963,12 @@ function getChecklistWeekKey(){
   monday.setHours(0,0,0,0);
   return monday.toISOString().slice(0,10);
 }
+// Clé mensuelle pour la checklist "Sac TPMR/VSL" (reset automatique chaque mois).
+function getChecklistMonthKey(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+}
+const TPMR_VSL_VEHICLES=["TPMR 1","TPMR 2","TPMR 3","TPMR 4","TPMR 5","TPMR 6","TPMR 7","TPMR 8","VSL 1","VSL 2"];
 // Numéro de semaine ISO (ex: "32" pour la semaine du 3 août 2026), calculé
 // à partir du lundi de la semaine en cours.
 function getChecklistWeekNumber(){
@@ -5444,6 +6362,63 @@ function useDailyActiveVehicleNames(){
 // ═══════════════════════════════════════
 // CARNET DE BORD — historique légal des trajets (rétention 36 mois, obligation 3 ans)
 // ═══════════════════════════════════════
+// ═══════════════════════════════════════
+// RÉCEPTION DES BONS — archive permanente (indépendante de la session chauffeur)
+// ═══════════════════════════════════════
+async function saveBonArchive(bon){
+  try{
+    await setDoc(doc(dbChecklists,"dispatchai_bons_archive",String(bon.id)), sanitizeUndefined({...bon}));
+  }catch(e){ console.error("Erreur archivage bon:", e); }
+}
+
+// ═══════════════════════════════════════
+// PÉREMPTION — base centrale par LOTS (quantité + date), gérée par le bureau
+// ═══════════════════════════════════════
+function peremptionKey(vehicle,itemName){ return (vehicle+"__"+itemName).replace(/[^a-zA-Z0-9_]/g,"_"); }
+function sortLots(lots){ return [...(lots||[])].sort((a,b)=>(a.date||"9999-99").localeCompare(b.date||"9999-99")); }
+function getSoonestDate(lots){ const s=sortLots(lots); return s.length?s[0].date:""; }
+
+async function getPeremptionDoc(vehicle,itemName){
+  try{
+    const snap=await getDoc(doc(dbChecklists,"dispatchai_peremption_dates",peremptionKey(vehicle,itemName)));
+    return snap.exists()?snap.data():null;
+  }catch(e){ console.error("Erreur lecture péremption:", e); return null; }
+}
+// Sauvegarde directe de la liste des lots (ajout/suppression/édition manuelle, bureau).
+async function savePeremptionLots(vehicle,itemName,lots){
+  try{
+    const existing=await getPeremptionDoc(vehicle,itemName);
+    await setDoc(doc(dbChecklists,"dispatchai_peremption_dates",peremptionKey(vehicle,itemName)), sanitizeUndefined({ vehicle, itemName, lots, alertSentForDate:existing?.alertSentForDate||null }));
+  }catch(e){ console.error("Erreur sauvegarde péremption:", e); }
+}
+// Réappro : ajoute un nouveau lot (quantité + date) et retire automatiquement la
+// même quantité en partant du/des lot(s) le(s) plus ancien(s) (celui consommé en premier).
+async function addPeremptionLot(vehicle,itemName,qty,date){
+  const existing=await getPeremptionDoc(vehicle,itemName);
+  const lots=sortLots(existing?.lots||[]);
+  let remaining=qty;
+  const newLots=[];
+  for(const lot of lots){
+    if(remaining<=0){ newLots.push(lot); continue; }
+    if(lot.quantite<=remaining){ remaining-=lot.quantite; }
+    else{ newLots.push({...lot, quantite:lot.quantite-remaining}); remaining=0; }
+  }
+  newLots.push({ id:"lot"+Date.now(), quantite:qty, date });
+  await setDoc(doc(dbChecklists,"dispatchai_peremption_dates",peremptionKey(vehicle,itemName)), sanitizeUndefined({ vehicle, itemName, lots:newLots, alertSentForDate:existing?.alertSentForDate||null }));
+}
+function usePeremptionMap(){
+  const [map,setMap]=useState({});
+  useEffect(()=>{
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_peremption_dates"), snap=>{
+      const next={};
+      snap.forEach(d=>{ const data=d.data(); next[peremptionKey(data.vehicle,data.itemName)]=data; });
+      setMap(next);
+    });
+    return ()=>unsub();
+  },[]);
+  return map;
+}
+
 async function saveCarnetBordEntry(entry){
   const id=entry.id||("cb"+Date.now());
   try{
@@ -5521,7 +6496,6 @@ function checklistStatus(checklistsData, vehicleName, checks){
   const total=checklistTotalItems(checklistsData, vehicleName);
   const checkedCount=Object.values(checks||{}).filter(c=>c.found!=null).length;
   const progress=total>0?Math.round((checkedCount/total)*100):0;
-  const firstWeek=isFirstWeekOfMonth();
   let allValidated=!!data;
   if(data){
     outer:
@@ -5534,7 +6508,6 @@ function checklistStatus(checklistsData, vehicleName, checks){
           if(!state||state.found==null){ allValidated=false; break outer; }
           if(item.t&&state.testOk==null){ allValidated=false; break outer; }
           if(item.s&&state.sealOk==null){ allValidated=false; break outer; }
-          if(item.p&&firstWeek&&!state.date){ allValidated=false; break outer; }
         }
       }
     }
@@ -5560,6 +6533,30 @@ function useChecklistsWeekStatus(checklistsData){
     return ()=>unsubs.forEach(u=>u());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekKey, JSON.stringify(vehicleNames)]);
+  return statuses;
+}
+
+// Statut mensuel (fait/en cours/pas commencé) de chaque véhicule TPMR/VSL,
+// tous basés sur le même modèle partagé unique.
+function useTpmrVslMonthStatus(template){
+  const monthKey=getChecklistMonthKey();
+  const [statuses,setStatuses]=useState({});
+  useEffect(()=>{
+    let total=0;
+    (template.sections||[]).forEach(sec=>sec.shelves.forEach(sh=>sh.items.forEach(item=>{ if(!item.okOnly) total++; })));
+    const unsubs=TPMR_VSL_VEHICLES.map(name=>{
+      const ref=doc(dbChecklists,"dispatchai_checklists",`TPMRVSL_${name}_${monthKey}`);
+      return onSnapshot(ref, snap=>{
+        const checks=snap.exists()?(snap.data().checks||{}):{};
+        const checkedCount=Object.values(checks).filter(s=>s&&s.found!=null).length;
+        const started=checkedCount>0;
+        const complete=total>0&&checkedCount>=total;
+        setStatuses(prev=>({...prev, [name]:{ started, complete, progress: total>0?Math.round((checkedCount/total)*100):0 }}));
+      }, ()=>{});
+    });
+    return ()=>unsubs.forEach(u=>u());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthKey, JSON.stringify(template)]);
   return statuses;
 }
 
@@ -5874,6 +6871,7 @@ export default function App(){
   const [checklistsData, setChecklistsData] = useFirestoreState("checklistsData", INIT_CHECKLISTS);
   const [checklistEmails, setChecklistEmails] = useFirestoreState("checklistEmails", []);
   const [o2Emails, setO2Emails] = useFirestoreState("o2Emails", []);
+  const [peremptionEmails, setPeremptionEmails] = useFirestoreState("peremptionEmails", []);
   const [appView,     setAppView]     = useState(()=>lsGet("aps_appView","menu"));
   const [showPin,     setShowPin]     = useState(false);
   const [showDispMenu,setShowDispMenu] = useState(false);
@@ -6013,6 +7011,7 @@ export default function App(){
       if(exists) return p.map(b=>b.id===bon.id?bon:b);
       return [...p,bon];
     });
+    if(bon.valide) saveBonArchive({...bon, traite: bon.traite||false});
   };
 
   if(showPin) return <PinModal onSuccess={()=>{setShowPin(false);setAppView("parametres");}} onCancel={()=>setShowPin(false)}/>;
@@ -6020,11 +7019,12 @@ export default function App(){
   if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} tarifs={tarifs} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="planning") return <PlanningView courses={courses} setCourses={setCourses} vehicles={vehicles} patients={patientsHabituels} setPatients={setPatientsHabituels} categories={patientCategories} setCategories={setPatientCategories} conventions={conventions} transportTypes={transportTypes} equipements={equipements} pending={pending} onAssignPending={validateCourse} onGoFormulaire={()=>setAppView("formulaire")} onBack={backToSubMenu} onSchedule={submitFromPatientHabituel} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} carnetBordTypes={carnetBordTypes} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} peremptionEmails={peremptionEmails} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="bons") return <BonsMenuView bases={bases} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="signaler") return <SignalerCompletView onBack={()=>setAppView("menu")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} listeRouge={listeRouge} setListeRouge={setListeRouge} carnetBordTypes={carnetBordTypes} setCarnetBordTypes={setCarnetBordTypes} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} peremptionEmails={peremptionEmails} setPeremptionEmails={setPeremptionEmails} listeRouge={listeRouge} setListeRouge={setListeRouge} carnetBordTypes={carnetBordTypes} setCarnetBordTypes={setCarnetBordTypes} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -6122,7 +7122,7 @@ export default function App(){
           ):(
             <div>
               <button onClick={()=>setShowDispMenu(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:6}}>← Retour</button>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:14}}>
                 <button onClick={()=>{setShowDispMenu(false);setAppView("formulaire");}}
                   style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"24px 20px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:10}}>
                   <div style={{width:48,height:48,background:C.blueSoft,border:`1.5px solid ${C.blue}`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>📋</div>
@@ -6154,6 +7154,16 @@ export default function App(){
                   </div>
                   <div style={{fontSize:12,color:C.purple,fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
                 </button>
+                <button onClick={()=>{setShowDispMenu(false);setAppView("bons");}}
+                  style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"24px 20px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:10}}>
+                  <div style={{width:48,height:48,background:C.successSoft,border:`1.5px solid ${C.success}`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>🧾</div>
+                  <div>
+                    <div style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Bons</div>
+                    <div style={{fontSize:11,color:C.success,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>Bons de transport</div>
+                    <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Réception et traitement des bons envoyés.</div>
+                  </div>
+                  <div style={{fontSize:12,color:C.success,fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
+                </button>
               </div>
             </div>
           )}
@@ -6164,7 +7174,7 @@ export default function App(){
 }
 
 const STEPS_F=[{id:1,icon:"📞",label:"Appelant"},{id:2,icon:"👤",label:"Patient"},{id:3,icon:"🗺",label:"Trajet"},{id:4,icon:"🔖",label:"Transport"},{id:5,icon:"🏥",label:"Médical"}];
-const EMPTY_F={convention:"",autreConvention:"",nom:"",prenom:"",dateNaissance:"",telephone:"",adresseDepart:"",adresseArrivee:"",typeTransport:"",sousType:"",date:"",heures:[{heure:"",description:""}],heurePC:"",mobilite:"assis",equipSelected:[],litrageO2:2,accompagnant:false,notes:""};
+const EMPTY_F={convention:"",autreConvention:"",epicuraType:"",nom:"",prenom:"",dateNaissance:"",telephone:"",adresseDepart:"",adresseArrivee:"",typeTransport:"",sousType:"",date:"",heures:[{heure:"",description:""}],heurePC:"",mobilite:"assis",equipSelected:[],litrageO2:2,accompagnant:false,notes:""};
 
 function validateF(form,step){
   const e={};
@@ -6245,7 +7255,7 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
                   <SectionTitle icon="📞" title="Appelant"/>
                   <FieldWrap label="Appelant" error={errors.convention} touched={touched.convention} required>
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:7,marginTop:2}}>
-                      {conventions.map(c=>{const active=form.convention===c.id;return(
+                      {[...conventions].sort((a,b)=>a.label.localeCompare(b.label,"fr")).map(c=>{const active=form.convention===c.id;return(
                         <button key={c.id} onClick={()=>{set("convention",c.id);touch("convention");}}
                           style={{padding:"11px 7px",borderRadius:9,cursor:"pointer",border:`1.5px solid ${active?C.accent:C.border}`,background:active?C.accentSoft:C.panel2,color:active?C.accent:C.muted,display:"flex",alignItems:"center",justifyContent:"center",gap:5,fontSize:12,fontWeight:active?700:500,transition:"all 0.15s"}}>
                           <span>{c.icon}</span>{c.label}
@@ -6254,6 +7264,17 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
                     </div>
                   </FieldWrap>
                   {form.convention==="autre"&&<div style={{marginTop:14}}><FieldWrap label="Précisez"><TextInput value={form.autreConvention||""} onChange={e=>set("autreConvention",e.target.value)} onBlur={()=>{}} placeholder="Nom de la convention…"/></FieldWrap></div>}
+                  {form.convention==="epicura"&&(
+                    <div style={{marginTop:14}}>
+                      <FieldWrap label="Facturation">
+                        <div style={{display:"flex",gap:8}}>
+                          {[["conventionne","Conventionné (facturé à l'hôpital)"],["non_conventionne","Non conventionné (facturé au patient)"]].map(([v,l])=>(
+                            <button key={v} onClick={()=>set("epicuraType",v)} style={{flex:1,padding:"11px 8px",borderRadius:9,cursor:"pointer",border:`1.5px solid ${form.epicuraType===v?C.accent:C.border}`,background:form.epicuraType===v?C.accentSoft:C.panel2,color:form.epicuraType===v?C.accent:C.muted,fontSize:12,fontWeight:form.epicuraType===v?700:500}}>{l}</button>
+                          ))}
+                        </div>
+                      </FieldWrap>
+                    </div>
+                  )}
                 </>
               )}
               {step===2&&(
