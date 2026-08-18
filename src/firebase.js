@@ -1,6 +1,7 @@
 // Configuration Firebase pour DispatchAI (projet dispatchai-aps)
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   apiKey: "AIzaSyBdqAtlMJdVATFwJbQyhOEN8R50GCOB2vI",
@@ -13,3 +14,4 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export const storage = getStorage(app);
