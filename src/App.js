@@ -443,13 +443,13 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={()=>{if(editingChecklist){setEditingChecklist(null);}else{onBack();}}} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:13,cursor:"pointer"}}>← Menu</button>
           <div style={{width:34,height:34,background:C.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>⚙️</div>
           <div><div style={{fontWeight:700,fontSize:14}}>Paramètres</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"1px"}}>Configuration</div></div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}><Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge><Clock/><button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button></div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge><Clock/><button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button></div>
       </div>
       <div style={{flex:1,display:"flex",overflow:"hidden"}}>
         <div style={{width:180,background:C.panel,borderRight:`1px solid ${C.border}`,padding:"12px 8px",display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
@@ -1480,7 +1480,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
           <button onClick={()=>setShowContacts(true)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>📒 Contacts</button>
           <button onClick={()=>setShowDevis(true)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>💶 Devis</button>
           <Clock/>
-          <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
+          <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
         </div>
       </div>
 
@@ -1822,7 +1822,7 @@ function SignalerCompletView({ onBack, vehicles, themeMode, toggleTheme }){
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div style={{fontWeight:800,fontSize:16,color:C.danger}}>🚨 Signaler un problème</div>
@@ -1883,7 +1883,7 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div style={{fontWeight:800,fontSize:16,color:C.purple}}>⚙️ Paramètres Préventif</div>
@@ -2013,7 +2013,7 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, onSav
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onCancel} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div style={{fontWeight:800,fontSize:16,color:C.purple}}>+ Nouvelle fiche événement</div>
@@ -2167,7 +2167,7 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div><div style={{fontWeight:800,fontSize:15,color:C.purple}}>{f.nomEvenement}{f.terminee&&<span style={{marginLeft:8,fontSize:10,fontWeight:700,color:C.success,background:C.successSoft,borderRadius:6,padding:"2px 7px"}}>TERMINÉE</span>}</div><div style={{fontSize:10,color:C.muted}}>{f.lieu} — {new Date(f.date+"T00:00:00").toLocaleDateString("fr-FR")}</div></div>
@@ -2386,7 +2386,7 @@ function PreventifInventaireView({ materiel, fiches, onBack, themeMode, toggleTh
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div style={{fontWeight:800,fontSize:16,color:C.purple}}>📦 Inventaire matériel</div>
@@ -2425,7 +2425,7 @@ function PreventifHistorique({ fiches, materiel, personnel, vehicles, driversAmb
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div style={{fontWeight:800,fontSize:16,color:C.purple}}>📅 Historique Préventif</div>
@@ -2472,7 +2472,7 @@ function PreventifView({ onBack, vehicles, driversAmb, driversTpmr, carnetBordTy
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div style={{fontWeight:800,fontSize:16,color:C.purple}}>🚑 Préventif</div>
@@ -2627,7 +2627,7 @@ function BonsListView({ traite, bases, onBack, themeMode, toggleTheme }){
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div style={{fontWeight:800,fontSize:16,color:C.success}}>{traite?"📅 Historique":"🧾 Bons à traiter"}</div>
@@ -2672,7 +2672,7 @@ function BonsMenuView({ bases, onBack, themeMode, toggleTheme }){
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div style={{fontWeight:800,fontSize:16,color:C.success}}>🧾 Bons de transport</div>
@@ -2751,7 +2751,7 @@ function GarageView({ onBack, themeMode, toggleTheme }){
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div style={{fontWeight:800,fontSize:16,color:C.danger}}>🔧 Garage</div>
@@ -3228,7 +3228,7 @@ function DailyChecklistView({ vehicle, driverName, onComplete, themeMode, toggle
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <div style={{width:36,height:36,background:C.accent,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📋</div>
           <div><div style={{fontWeight:800,fontSize:15}}>{vehicle?.name}</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"1px"}}>Checklist journalière</div></div>
@@ -3370,7 +3370,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
   };
 
   const HeaderC=({title,sub,showBack,showEnd})=>(
-    <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50,flexShrink:0}}>
+    <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50,flexShrink:0}}>
       <div style={{display:"flex",alignItems:"center",gap:10}}>
         {showBack
           ?<button onClick={()=>{if(screen==="choix_vehicule")setScreen("choix_nom");else setScreen("planning");}} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
@@ -3383,7 +3383,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
         {driver&&vehicle&&<div style={{textAlign:"right"}}><div style={{fontSize:12,fontWeight:700}}>{vIcon(vehicle.type)} {vehicle.name}</div><div style={{fontSize:10,color:C.muted}}>👤 {driver}</div></div>}
         <Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge>
         <Clock/>
-        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
+        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
         {showEnd&&<button onClick={async()=>{
           try{
             const snap=await getDocs(query(collection(dbChecklists,"dispatchai_carnet_bord"), where("vehicle","==",vehicle.name), where("date","==",todayISO()), where("status","==","open")));
@@ -3930,7 +3930,7 @@ function BonView({bon,onSave,onBack,vehicle,driver,bases}){
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 18px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div style={{width:36,height:36,background:C.accent,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>📄</div>
@@ -4477,7 +4477,7 @@ function TpmrVslChecklistView({ vehicleName, template, onBack, emails, themeMode
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
           <div><div style={{ fontWeight:800, fontSize:16 }}>{vehicleName}</div><div style={{ fontSize:10, color:CK_C.muted, textTransform:"uppercase" }}>Sac TPMR/VSL — {monthYearLabel(monthKey)}</div></div>
@@ -4992,7 +4992,7 @@ function HistoriqueView({ onBack, vehicles, carnetBordTypes, themeMode, toggleTh
   if(screen==="daily_date") return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={()=>setScreen("home")} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
           <div style={{ fontWeight:800, fontSize:16 }}>🚑 Choisir une date</div>
@@ -5008,7 +5008,7 @@ function HistoriqueView({ onBack, vehicles, carnetBordTypes, themeMode, toggleTh
   if(screen==="carnet_date") return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={()=>setScreen("home")} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
           <div style={{ fontWeight:800, fontSize:16 }}>📓 Choisir une date</div>
@@ -5026,7 +5026,7 @@ function HistoriqueView({ onBack, vehicles, carnetBordTypes, themeMode, toggleTh
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
           <div style={{ fontWeight:800, fontSize:16 }}>📅 Historique</div>
@@ -5110,7 +5110,7 @@ function CarnetBordDateVehiclePicker({ vehicles, date, onSelect, onBack, themeMo
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
           <div><div style={{ fontWeight:800, fontSize:16 }}>📓 Carnet de bord</div><div style={{ fontSize:11, color:CK_C.muted, textTransform:"capitalize" }}>{dateLabel}</div></div>
@@ -5162,7 +5162,7 @@ function CarnetBordDateDetail({ vehicle, date, carnetBordTypes, onBack, themeMod
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
           <div><div style={{ fontWeight:800, fontSize:16 }}>📓 {vehicle.name}</div><div style={{ fontSize:11, color:CK_C.muted, textTransform:"capitalize" }}>{dateLabel}</div></div>
@@ -5209,7 +5209,7 @@ function ChecklistHistoriqueSubView({ onBack, themeMode, toggleTheme }){
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
           <div style={{ fontWeight:800, fontSize:16 }}>📋 Historique checklists</div>
@@ -5286,7 +5286,7 @@ function O2HistoriqueSubView({ onBack, themeMode, toggleTheme }){
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
           <div style={{ fontWeight:800, fontSize:16 }}><span style={{color:"#3b82f6"}}>O₂</span> Historique bouteilles</div>
@@ -5411,7 +5411,7 @@ function DailyHistoriqueSubView({ onBack, filterDate, themeMode, toggleTheme }){
     return(
       <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
         <style>{CK_GS}</style>
-        <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
             <button onClick={()=>setDetail(null)} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
             <div><div style={{ fontWeight:800, fontSize:15 }}>{detail.vehicle}</div><div style={{ fontSize:10, color:CK_C.muted }}>{formatDate(detail.createdAt)} à {formatTime(detail.createdAt)}</div></div>
@@ -5452,7 +5452,7 @@ function DailyHistoriqueSubView({ onBack, filterDate, themeMode, toggleTheme }){
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
           <div><div style={{ fontWeight:800, fontSize:16 }}>🚑 Historique APS Daily</div>{filterDate&&<div style={{ fontSize:10, color:CK_C.muted, textTransform:"capitalize" }}>{new Date(filterDate+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>}</div>
@@ -5583,7 +5583,7 @@ function PeremptionView({ onBack, checklists, tpmrVslTemplate, peremptionEmails,
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
           <div style={{ fontWeight:800, fontSize:16 }}>🗓️ Péremption — vue d'ensemble</div>
@@ -5750,7 +5750,7 @@ function ReapprovisionnementView({ onBack, themeMode, toggleTheme, emails, o2Ema
   return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
           <div>
@@ -5945,7 +5945,7 @@ function O2ReserveView({ onBack, themeMode, toggleTheme, emails }){
   };
 
   const headerBar = (title) => (
-    <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:10 }}>
+    <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
       <div style={{ display:"flex", alignItems:"center", gap:10 }}>
         <button onClick={()=>{ if(screen==="home"){onBack();}else{setScreen("home");setSelectedVehicle(null);resetVehicleForm();} }} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
         <div style={{ fontWeight:800, fontSize:16 }}>{title}</div>
@@ -6062,7 +6062,7 @@ function ChecklistsHome({ onBack, checklists, emails, o2Emails, peremptionEmails
   if (screen==="tpmrvsl_list") return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 18px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
           <button onClick={()=>setScreen("home")} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
           <div style={{ fontWeight:800, fontSize:16 }}>♿ Sac TPMR/VSL</div>
@@ -6094,19 +6094,19 @@ function ChecklistsHome({ onBack, checklists, emails, o2Emails, peremptionEmails
   return (
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
-      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"18px 20px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
-          <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"7px 13px", fontSize:13, cursor:"pointer" }}>← Menu</button>
-          <div style={{ width:40, height:40, background:CK_C.red, borderRadius:10, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22 }}>🚑</div>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 11px", fontSize:13, cursor:"pointer" }}>←</button>
+          <div style={{ width:36, height:36, background:CK_C.red, borderRadius:9, display:"flex", alignItems:"center", justifyContent:"center", fontSize:19, flexShrink:0 }}>🚑</div>
           <div>
-            <div style={{ fontWeight:800, fontSize:18 }}>A.P.S. — Checklists</div>
-            <div style={{ fontSize:10, color:CK_C.muted, textTransform:"uppercase", letterSpacing:"1.2px" }}>Sélectionnez votre véhicule</div>
+            <div style={{ fontWeight:800, fontSize:16 }}>A.P.S. — Checklists</div>
+            <div style={{ fontSize:9, color:CK_C.muted, textTransform:"uppercase", letterSpacing:"1px" }}>Sélectionnez votre véhicule</div>
           </div>
         </div>
-        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-          <button onClick={()=>setScreen("peremption")} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"7px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>🗓️ Péremption</button>
-          <button onClick={()=>setScreen("historique")} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"7px 12px",fontSize:12,fontWeight:600,cursor:"pointer"}}>📅 Historique</button>
-          <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
+        <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
+          <button onClick={()=>setScreen("peremption")} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>🗓️</button>
+          <button onClick={()=>setScreen("historique")} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📅</button>
+          <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
         </div>
       </div>
       <div style={{ textAlign:"center", padding:"10px 20px 0", fontSize:12, color:CK_C.muted, fontWeight:600 }}>Semaine {getChecklistWeekNumber()}</div>
@@ -6559,22 +6559,6 @@ async function submitDailyChecklist({ vehicle, vType, values, template, skipped 
 }
 async function resolveDailyDefect(id){
   try{ await deleteDoc(doc(dbChecklists,"dispatchai_daily_defects",id)); }catch(e){ console.error("Erreur résolution défaut:", e); }
-}
-// Nombre de véhicules distincts ayant eu une checklist journalière envoyée
-// aujourd'hui (complétée normalement ou passée en urgence) — sert au
-// compteur "Véhicules actifs" du menu principal.
-function useDailyActiveVehiclesCount(){
-  const [count,setCount]=useState(0);
-  useEffect(()=>{
-    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_daily_checklists"), snap=>{
-      const today=todayISO();
-      const set=new Set();
-      snap.forEach(d=>{ const data=d.data(); if(data.date===today) set.add(data.vehicle); });
-      setCount(set.size);
-    });
-    return ()=>unsub();
-  },[]);
-  return count;
 }
 // Comme ci-dessus mais renvoie l'ensemble des noms (pour trier/marquer
 // individuellement les véhicules "en service" dans les listes).
@@ -7048,7 +7032,7 @@ function PlanningView({courses,setCourses,vehicles,patients,setPatients,categori
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:13,cursor:"pointer"}}>← Menu</button>
           <div style={{width:34,height:34,background:C.purple,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🗓️</div>
@@ -7061,7 +7045,7 @@ function PlanningView({courses,setCourses,vehicles,patients,setPatients,categori
             ))}
           </div>
           <Clock/>
-          <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
+          <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
         </div>
       </div>
       {tab==="calendrier"?(
@@ -7109,7 +7093,6 @@ export default function App(){
   const [showPin,     setShowPin]     = useState(false);
   const [showDispMenu,setShowDispMenu] = useState(false);
   const checklistStatuses = useChecklistsWeekStatus(checklistsData);
-  const dailyActiveCount = useDailyActiveVehiclesCount();
   const [themeMode, setThemeMode] = useState(()=>getStoredThemeMode());
   // Le fond de page (body) était figé au premier chargement dans le CSS
   // global (GS) et ne suivait plus les changements de thème ensuite — on le
@@ -7262,16 +7245,16 @@ export default function App(){
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"14px 28px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
-          <div style={{width:38,height:38,background:C.accent,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🚑</div>
-          <div><div style={{fontWeight:700,fontSize:16}}>DispatchAI</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"1.2px"}}>A.P.S. · Système de dispatch</div></div>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:34,height:34,background:C.accent,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🚑</div>
+          <div><div style={{fontWeight:700,fontSize:15}}>DispatchAI</div><div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"1px"}}>A.P.S. · Système de dispatch</div></div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge>
           <Clock/>
-          <button onClick={()=>{const next=themeMode==="light"?"dark":"light";applyThemeMode(next);applyCkThemeMode(next);setThemeMode(next);}} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button>
-          <button onClick={()=>setShowPin(true)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"7px 14px",fontSize:12,fontWeight:600,cursor:"pointer"}}>⚙️ Paramètres</button>
+          <button onClick={()=>{const next=themeMode==="light"?"dark":"light";applyThemeMode(next);applyCkThemeMode(next);setThemeMode(next);}} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+          <button onClick={()=>setShowPin(true)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>⚙️ Paramètres</button>
         </div>
       </div>
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"40px 20px"}}>
@@ -7280,17 +7263,9 @@ export default function App(){
             <div style={{fontSize:13,color:C.muted,textTransform:"uppercase",letterSpacing:"2px",marginBottom:10}}>Choisissez votre interface</div>
             <div style={{fontSize:30,fontWeight:700,letterSpacing:"-0.5px"}}>Où souhaitez-vous aller ?</div>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10,marginBottom:36}}>
-            {[{val:dailyActiveCount,label:"Véhicules actifs",color:C.accent},{val:vehicles.filter(v=>v.active&&v.status==="disponible"&&!v.horsBase).length,label:"Véhicules disponibles",color:C.success},{val:courses.length,label:"Courses du jour",color:C.blue},{val:Object.keys(checklistsData).filter(n=>!checklistStatuses[n]?.complete).length,label:"Checklists restantes",color:Object.keys(checklistsData).filter(n=>!checklistStatuses[n]?.complete).length===0?C.success:"#dc2626"}].map(s=>(
-              <div key={s.label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px",textAlign:"center"}}>
-                <div style={{fontSize:24,fontWeight:800,color:s.color,fontFamily:"'IBM Plex Mono',monospace"}}>{s.val}</div>
-                <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginTop:3}}>{s.label}</div>
-              </div>
-            ))}
-          </div>
           {!showDispMenu?(
             <>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:14}}>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:14}}>
               <button onClick={()=>setShowDispMenu(true)}
                 style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"24px 20px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:10,position:"relative",overflow:"hidden"}}>
                 {pendingTodayCount>0&&<div style={{position:"absolute",top:12,right:12,background:C.warningSoft,border:`1px solid ${C.warning}`,borderRadius:20,padding:"3px 9px",fontSize:10,color:C.warning,fontWeight:700,display:"flex",alignItems:"center",gap:4}}><div style={{width:5,height:5,borderRadius:"50%",background:C.warning,animation:"blink 1.2s infinite"}}/>{pendingTodayCount} en attente</div>}
@@ -7355,7 +7330,15 @@ export default function App(){
           ):(
             <div>
               <button onClick={()=>setShowDispMenu(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:6}}>← Retour</button>
-              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+                {[{val:courses.length,label:"Courses du jour",color:C.blue},{val:Object.keys(checklistsData).filter(n=>!checklistStatuses[n]?.complete).length,label:"Checklists ALPHA restantes",color:Object.keys(checklistsData).filter(n=>!checklistStatuses[n]?.complete).length===0?C.success:"#dc2626"}].map(s=>(
+                  <div key={s.label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px",textAlign:"center"}}>
+                    <div style={{fontSize:24,fontWeight:800,color:s.color,fontFamily:"'IBM Plex Mono',monospace"}}>{s.val}</div>
+                    <div style={{fontSize:10,color:C.muted,textTransform:"uppercase",letterSpacing:"0.5px",marginTop:3}}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:14}}>
                 <button onClick={()=>{setShowDispMenu(false);setAppView("formulaire");}}
                   style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"24px 20px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:10}}>
                   <div style={{width:48,height:48,background:C.blueSoft,border:`1.5px solid ${C.blue}`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>📋</div>
@@ -7450,13 +7433,13 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
-      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 22px",display:"flex",alignItems:"center",justifyContent:"space-between",position:"sticky",top:0,zIndex:50}}>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:13,cursor:"pointer"}}>← Menu</button>
           <div style={{width:34,height:34,background:C.accent,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>📋</div>
           <div><div style={{fontWeight:700,fontSize:14}}>Nouvelle course</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"1px"}}>Formulaire de saisie</div></div>
         </div>
-        <div style={{display:"flex",alignItems:"center",gap:10}}><Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge><Clock/><button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙 Sombre":"☀️ Clair"}</button></div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}><Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge><Clock/><button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button></div>
       </div>
       <div style={{flex:1,padding:"24px 20px 100px",maxWidth:620,margin:"0 auto",width:"100%"}}>
         {done?(
