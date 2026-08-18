@@ -2856,15 +2856,31 @@ function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, onClose,
     return ()=>unsub();
   },[vehicle.name]);
 
-  const startDepart=()=>{
+  const startDepart=async()=>{
     setSelectedCourseId("");
     setDepartForm({heureDepart:nowHeure(),kmDepart:"",lieuDepart:"",natureMission:""});
     setMode("depart");
+    try{
+      const snap=await getDocs(query(collection(dbChecklists,"dispatchai_carnet_bord"), where("vehicle","==",vehicle.name)));
+      const all=snap.docs.map(d=>d.data());
+      all.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      const last=all[0];
+      const lastKm=last?.kmFin||last?.kmDepart;
+      if(lastKm) setDepartForm(f=>({...f,kmDepart:String(lastKm)}));
+    }catch(e){ console.error("Erreur récupération dernier km:", e); }
   };
-  const startDepartFromCourse=(course)=>{
+  const startDepartFromCourse=async(course)=>{
     setSelectedCourseId(course.id);
     setDepartForm({heureDepart:course.heure||nowHeure(),kmDepart:"",lieuDepart:capitalizeCity(course.adresseDepart||""),natureMission:course.typeTransport||""});
     setMode("depart");
+    try{
+      const snap=await getDocs(query(collection(dbChecklists,"dispatchai_carnet_bord"), where("vehicle","==",vehicle.name)));
+      const all=snap.docs.map(d=>d.data());
+      all.sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
+      const last=all[0];
+      const lastKm=last?.kmFin||last?.kmDepart;
+      if(lastKm) setDepartForm(f=>({...f,kmDepart:String(lastKm)}));
+    }catch(e){ console.error("Erreur récupération dernier km:", e); }
   };
   const startArrivee=(entry)=>{
     setArrivingEntry(entry);
