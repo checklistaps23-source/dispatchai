@@ -138,10 +138,11 @@ const GS = `
   ::-webkit-scrollbar-track{background:transparent;}
   ::-webkit-scrollbar-thumb{background:#1a2d45;border-radius:2px;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
-  .menu-grid-4{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:14px;}
+  .menu-grid-4{display:grid;grid-template-columns:repeat(auto-fit, minmax(210px, 1fr));gap:14px;}
   .preventif-card{grid-column:1 / -1;padding:22px 20px !important;flex-direction:row !important;align-items:center;gap:16px;}
   .preventif-card .preventif-icon{width:52px;height:52px;font-size:28px;}
   @media (max-width:640px){
+    .menu-grid-4{grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)) !important;}
     .preventif-card{grid-column:auto !important;padding:24px 20px !important;flex-direction:column !important;align-items:flex-start;gap:10px;}
     .preventif-card .preventif-icon{width:48px;height:48px;font-size:26px;}
   }
@@ -7282,13 +7283,9 @@ export default function App(){
       </div>
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"40px 20px"}}>
         <div style={{width:"100%",maxWidth:700,animation:"fadeUp 0.4s ease"}}>
-          <div style={{textAlign:"center",marginBottom:44}}>
-            <div style={{fontSize:13,color:C.muted,textTransform:"uppercase",letterSpacing:"2px",marginBottom:10}}>Choisissez votre interface</div>
-            <div style={{fontSize:30,fontWeight:700,letterSpacing:"-0.5px"}}>Où souhaitez-vous aller ?</div>
-          </div>
           {!showDispMenu?(
             <>
-            <div className="menu-grid-4" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:14}}>
+            <div className="menu-grid-4" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(210px, 1fr))",gap:14}}>
               <button onClick={()=>setShowDispMenu(true)}
                 style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"24px 20px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:10,position:"relative",overflow:"hidden"}}>
                 {pendingTodayCount>0&&<div style={{position:"absolute",top:12,right:12,background:C.warningSoft,border:`1px solid ${C.warning}`,borderRadius:20,padding:"3px 9px",fontSize:10,color:C.warning,fontWeight:700,display:"flex",alignItems:"center",gap:4}}><div style={{width:5,height:5,borderRadius:"50%",background:C.warning,animation:"blink 1.2s infinite"}}/>{pendingTodayCount} en attente</div>}
