@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import React from "react";
-import { db } from "./firebase";
+import { db, storage } from "./firebase";
+import { ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage";
 import { dbChecklists } from "./firebaseChecklists";
 import { doc, onSnapshot, setDoc, getDoc, getDocs, deleteDoc, collection, query, where, addDoc } from "firebase/firestore";
 import emailjs from "@emailjs/browser";
@@ -394,6 +395,8 @@ function PinModal({onSuccess,onCancel}){
 function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,peremptionEmails,setPeremptionEmails,listeRouge,setListeRouge,carnetBordTypes,setCarnetBordTypes,onBack,themeMode,toggleTheme}){
   const [tab,setTab]=useState("chauffeurs");
   const [tpmrVslTemplate,setTpmrVslTemplate]=useFirestoreState("tpmrVslChecklistTemplate",{ sections:[] });
+  const [documentCategories,setDocumentCategories]=useFirestoreState("documentCategories",["Carte grise","Assurance","Contrôle technique"]);
+  const [newDocCategory,setNewDocCategory]=useState("");
   const [newVal,setNewVal]=useState("");
   const [newVehName,setNewVehName]=useState("");
   const [newVehType,setNewVehType]=useState("TPMR");
@@ -447,7 +450,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const removeItem=(sIdx,shIdx,itIdx)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.filter((_,k)=>k!==itIdx)}:sh)}:s)}));
   const updateItem=(sIdx,shIdx,itIdx,field,val)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.map((it,k)=>k===itIdx?{...it,[field]:val}:it)}:sh)}:s)}));
 
-  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"stagiaires",icon:"🎓",label:"Stag/Form."},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"daily",icon:"🚑",label:"APS Daily"},{id:"listerouge",icon:"🚫",label:"Liste rouge"},{id:"carnetbord",icon:"📓",label:"Carnet de bord"},{id:"emails",icon:"✉️",label:"Emails"}];
+  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"stagiaires",icon:"🎓",label:"Stag/Form."},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"daily",icon:"🚑",label:"APS Daily"},{id:"listerouge",icon:"🚫",label:"Liste rouge"},{id:"carnetbord",icon:"📓",label:"Carnet de bord"},{id:"documents",icon:"📁",label:"Documents"},{id:"emails",icon:"✉️",label:"Emails"}];
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
@@ -574,9 +577,10 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                     {vIcon(type)} {type==="AMB"?"Ambulances ALPHA":type==="PREV"?"Véhicules Préventif":type}<div style={{flex:1,height:1,background:C.border}}/>
                   </div>
                   {vehicles.filter(v=>v.type===type).map(v=>(
-                    <div key={v.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:6}}>
-                      <span style={{fontSize:13,fontWeight:600}}>{vIcon(type)} {v.name} — {v.driver}</span>
-                      <button onClick={()=>setVehicles(p=>p.filter(x=>x.id!==v.id))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
+                    <div key={v.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:6,gap:8}}>
+                      <span style={{fontSize:13,fontWeight:600,flexShrink:0}}>{vIcon(type)} {v.name} — {v.driver}</span>
+                      <input value={v.plaque||""} onChange={e=>setVehicles(p=>p.map(x=>x.id===v.id?{...x,plaque:e.target.value}:x))} placeholder="Plaque" style={{flex:1,minWidth:70,maxWidth:110,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 8px",color:C.text,fontSize:11}}/>
+                      <button onClick={()=>setVehicles(p=>p.filter(x=>x.id!==v.id))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0}}>Supprimer</button>
                     </div>
                   ))}
                 </div>
@@ -586,7 +590,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                 <select value={newVehType} onChange={e=>setNewVehType(e.target.value)} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",color:C.text,fontSize:13,cursor:"pointer",flexShrink:0}}>
                   <option value="TPMR">TPMR</option><option value="VSL">VSL</option><option value="AMB">ALPHA</option><option value="PREV">Véhicule Préventif</option>
                 </select>
-                <button onClick={()=>{if(newVehName.trim()){const id=`${newVehType[0]}${Date.now()}`;setVehicles(p=>[...p,{id,name:newVehName.trim(),type:newVehType,driver:"—",status:"disponible",active:false,x:50,y:50}]);setNewVehName("");}}} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
+                <button onClick={()=>{if(newVehName.trim()){const id=`${newVehType[0]}${Date.now()}`;setVehicles(p=>[...p,{id,name:newVehName.trim(),type:newVehType,driver:"—",status:"disponible",active:false,x:50,y:50,plaque:""}]);setNewVehName("");}}} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
               </div>
             </div>
           )}
@@ -1000,6 +1004,23 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                   <button onClick={()=>setCarnetBordTypes(p=>p.filter((_,j)=>j!==i))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"5px 9px",fontSize:11,cursor:"pointer",marginLeft:8}}>🗑</button>
                 </div>
               ))}
+            </div>
+          )}
+          {tab==="documents"&&(
+            <div>
+              <SectionTitle icon="📁" title="Catégories de documents"/>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Ces catégories apparaîtront pour chaque véhicule dans l'écran Documents (ex: Carte grise, Assurance, Contrôle technique...).</div>
+              <div style={{display:"flex",gap:8,marginBottom:16}}>
+                <TextInput value={newDocCategory} onChange={e=>setNewDocCategory(e.target.value)} onBlur={()=>{}} placeholder="Nom de la catégorie…"/>
+                <button onClick={()=>{if(newDocCategory.trim()){setDocumentCategories(p=>[...p,newDocCategory.trim()]);setNewDocCategory("");}}} style={{background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:9,color:C.accent,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer",flexShrink:0}}>+ Ajouter</button>
+              </div>
+              {documentCategories.map((cat,i)=>(
+                <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:6}}>
+                  <span style={{fontSize:13,fontWeight:600}}>📄 {cat}</span>
+                  <button onClick={()=>setDocumentCategories(p=>p.filter((_,j)=>j!==i))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
+                </div>
+              ))}
+              {documentCategories.length===0&&<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"20px 0"}}>Aucune catégorie définie</div>}
             </div>
           )}
           {tab==="emails"&&(
@@ -2696,6 +2717,127 @@ function BonsMenuView({ bases, onBack, themeMode, toggleTheme }){
           <div style={{fontSize:28}}>📅</div>
           <div><div style={{fontWeight:800,fontSize:15}}>Historique</div><div style={{fontSize:11,color:C.muted,marginTop:2}}>Bons déjà traités</div></div>
         </button>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════
+// DOCUMENTS VÉHICULES — carte grise, assurance, contrôle technique... (Firebase Storage)
+// ═══════════════════════════════════════
+function DocumentsView({ vehicles, documentCategories, onBack, themeMode, toggleTheme }){
+  const [selectedVehicle,setSelectedVehicle]=useState(null);
+  const [docsMeta,setDocsMeta]=useState({}); // { [category]: {url,fileName,uploadedAt} }
+  const [loaded,setLoaded]=useState(false);
+  const [uploadingCat,setUploadingCat]=useState(null);
+  const fileInputRef = useRef(null);
+
+  useEffect(()=>{
+    if(!selectedVehicle) return;
+    let cancelled=false;
+    setLoaded(false);
+    getDoc(doc(db,"dispatchai_documents_meta",selectedVehicle.id)).then(snap=>{
+      if(cancelled) return;
+      setDocsMeta(snap.exists()?snap.data():{});
+      setLoaded(true);
+    }).catch(()=>{ if(!cancelled) setLoaded(true); });
+    return ()=>{ cancelled=true; };
+  },[selectedVehicle]);
+
+  const handleFileChange=async(e)=>{
+    const file=e.target.files[0];
+    if(!file||!uploadingCat||!selectedVehicle) return;
+    try{
+      const path=`vehicule-documents/${selectedVehicle.id}/${uploadingCat}_${Date.now()}_${file.name}`;
+      const sRef=storageRef(storage,path);
+      await uploadBytes(sRef,file);
+      const url=await getDownloadURL(sRef);
+      const next={ ...docsMeta, [uploadingCat]:{ url, fileName:file.name, path, uploadedAt:Date.now() } };
+      await setDoc(doc(db,"dispatchai_documents_meta",selectedVehicle.id), next);
+      setDocsMeta(next);
+    }catch(err){ console.error("Erreur téléversement document:", err); }
+    setUploadingCat(null);
+    if(fileInputRef.current) fileInputRef.current.value="";
+  };
+
+  const handleDelete=async(cat)=>{
+    const meta=docsMeta[cat];
+    if(!meta) return;
+    try{
+      if(meta.path){ await deleteObject(storageRef(storage,meta.path)).catch(()=>{}); }
+      const next={...docsMeta};
+      delete next[cat];
+      await setDoc(doc(db,"dispatchai_documents_meta",selectedVehicle.id), next);
+      setDocsMeta(next);
+    }catch(err){ console.error("Erreur suppression document:", err); }
+  };
+
+  if(selectedVehicle){
+    return(
+      <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+        <style>{GS}</style>
+        <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button onClick={()=>setSelectedVehicle(null)} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+            <div><div style={{fontWeight:800,fontSize:15}}>{selectedVehicle.name}</div>{selectedVehicle.plaque&&<div style={{fontSize:11,color:C.muted}}>{selectedVehicle.plaque}</div>}</div>
+          </div>
+          <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+        </div>
+        <input ref={fileInputRef} type="file" accept="application/pdf,image/*" style={{display:"none"}} onChange={handleFileChange}/>
+        <div style={{flex:1,padding:16,maxWidth:640,margin:"0 auto",width:"100%"}}>
+          {!loaded&&<div style={{textAlign:"center",color:C.muted,padding:40}}>Chargement…</div>}
+          {loaded&&documentCategories.map(cat=>{
+            const meta=docsMeta[cat];
+            return(
+              <div key={cat} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px 16px",marginBottom:10}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontWeight:700,fontSize:14,color:C.text}}>{cat}</div>
+                    {meta?<div style={{fontSize:11,color:C.success,marginTop:2}}>✅ {meta.fileName}</div>:<div style={{fontSize:11,color:C.muted,marginTop:2}}>Aucun fichier</div>}
+                  </div>
+                  <div style={{display:"flex",gap:6,flexShrink:0}}>
+                    {meta&&<button onClick={()=>window.open(meta.url,"_blank")} style={{background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:7,color:C.accent,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>👁️ Voir</button>}
+                    <button onClick={()=>{setUploadingCat(cat);setTimeout(()=>fileInputRef.current?.click(),0);}} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>{meta?"🔄":"📤"}</button>
+                    {meta&&<button onClick={()=>handleDelete(cat)} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"7px 10px",fontSize:12,cursor:"pointer"}}>🗑</button>}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+          {documentCategories.length===0&&<div style={{textAlign:"center",color:C.muted,padding:40}}>Aucune catégorie définie (Paramètres → Documents)</div>}
+        </div>
+      </div>
+    );
+  }
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div style={{fontWeight:800,fontSize:16}}>📁 Documents véhicules</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{flex:1,padding:16,maxWidth:640,margin:"0 auto",width:"100%"}}>
+        {["TPMR","VSL","AMB","PREV"].map(type=>{
+          const group=(vehicles||[]).filter(v=>v.type===type);
+          if(group.length===0) return null;
+          return(
+            <div key={type} style={{marginBottom:18}}>
+              <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>{type==="AMB"?"Ambulances ALPHA":type==="PREV"?"Véhicules Préventif":type}</div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                {group.map(v=>(
+                  <button key={v.id} onClick={()=>setSelectedVehicle(v)} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px",textAlign:"left",cursor:"pointer"}}>
+                    <div style={{fontWeight:700,fontSize:14,color:C.text}}>{v.name}</div>
+                    <div style={{fontSize:11,color:C.muted,marginTop:2}}>{v.plaque||"Plaque non renseignée"}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -7112,6 +7254,7 @@ export default function App(){
   const [checklistsData, setChecklistsData] = useFirestoreState("checklistsData", INIT_CHECKLISTS);
   const [checklistEmails, setChecklistEmails] = useFirestoreState("checklistEmails", []);
   const [o2Emails, setO2Emails] = useFirestoreState("o2Emails", []);
+  const [documentCategories] = useFirestoreState("documentCategories", ["Carte grise","Assurance","Contrôle technique"]);
   const [peremptionEmails, setPeremptionEmails] = useFirestoreState("peremptionEmails", []);
   const [appView,     setAppView]     = useState(()=>lsGet("aps_appView","menu"));
   const [showPin,     setShowPin]     = useState(false);
@@ -7261,6 +7404,7 @@ export default function App(){
   if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} carnetBordTypes={carnetBordTypes} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} peremptionEmails={peremptionEmails} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="documents") return <DocumentsView vehicles={vehicles} documentCategories={documentCategories} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="bons") return <BonsMenuView bases={bases} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="signaler") return <SignalerCompletView onBack={()=>setAppView("menu")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
@@ -7277,6 +7421,7 @@ export default function App(){
         <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
           <Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge>
           <Clock/>
+          {showDispMenu&&<button onClick={()=>setAppView("documents")} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📁 Documents</button>}
           <button onClick={()=>{const next=themeMode==="light"?"dark":"light";applyThemeMode(next);applyCkThemeMode(next);setThemeMode(next);}} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
           <button onClick={()=>setShowPin(true)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>⚙️ Paramètres</button>
         </div>
