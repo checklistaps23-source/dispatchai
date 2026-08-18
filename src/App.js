@@ -138,6 +138,13 @@ const GS = `
   ::-webkit-scrollbar-track{background:transparent;}
   ::-webkit-scrollbar-thumb{background:#1a2d45;border-radius:2px;}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.3}}
+  .menu-grid-4{display:grid;grid-template-columns:repeat(auto-fit, minmax(150px, 1fr));gap:14px;}
+  .preventif-card{grid-column:1 / -1;padding:22px 20px !important;flex-direction:row !important;align-items:center;gap:16px;}
+  .preventif-card .preventif-icon{width:52px;height:52px;font-size:28px;}
+  @media (max-width:640px){
+    .preventif-card{grid-column:auto !important;padding:24px 20px !important;flex-direction:column !important;align-items:flex-start;gap:10px;}
+    .preventif-card .preventif-icon{width:48px;height:48px;font-size:26px;}
+  }
   @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
   @keyframes pop{from{opacity:0;transform:scale(0.94)}to{opacity:1;transform:scale(1)}}
   @keyframes slideIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
@@ -7265,7 +7272,7 @@ export default function App(){
           </div>
           {!showDispMenu?(
             <>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:14}}>
+            <div className="menu-grid-4" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:14}}>
               <button onClick={()=>setShowDispMenu(true)}
                 style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"24px 20px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:10,position:"relative",overflow:"hidden"}}>
                 {pendingTodayCount>0&&<div style={{position:"absolute",top:12,right:12,background:C.warningSoft,border:`1px solid ${C.warning}`,borderRadius:20,padding:"3px 9px",fontSize:10,color:C.warning,fontWeight:700,display:"flex",alignItems:"center",gap:4}}><div style={{width:5,height:5,borderRadius:"50%",background:C.warning,animation:"blink 1.2s infinite"}}/>{pendingTodayCount} en attente</div>}
@@ -7297,17 +7304,17 @@ export default function App(){
                 </div>
                 <div style={{fontSize:12,color:"#dc2626",fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
               </button>
+              <button onClick={()=>setAppView("preventif")} className="preventif-card"
+                style={{background:C.panel,border:`1.5px solid ${C.purple}`,borderRadius:16,padding:"22px 20px",display:"flex",flexDirection:"column",gap:10,cursor:"pointer",textAlign:"left"}}>
+                <div className="preventif-icon" style={{width:48,height:48,background:C.purpleSoft,border:`1.5px solid ${C.purple}`,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>🚑</div>
+                <div style={{flex:1}}>
+                  <div style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Préventif</div>
+                  <div style={{fontSize:11,color:C.purple,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:6}}>Postes de secours événementiels</div>
+                  <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Fiches événements, matériel, personnel et véhicule assigné.</div>
+                </div>
+                <div style={{fontSize:13,color:C.purple,fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
+              </button>
             </div>
-            <button onClick={()=>setAppView("preventif")}
-              style={{width:"100%",marginTop:14,background:C.panel,border:`1.5px solid ${C.purple}`,borderRadius:16,padding:"22px 20px",display:"flex",alignItems:"center",gap:16,cursor:"pointer",textAlign:"left"}}>
-              <div style={{width:52,height:52,background:C.purpleSoft,border:`1.5px solid ${C.purple}`,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",fontSize:28,flexShrink:0}}>🚑</div>
-              <div style={{flex:1}}>
-                <div style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Préventif</div>
-                <div style={{fontSize:11,color:C.purple,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:6}}>Postes de secours événementiels</div>
-                <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Fiches événements, matériel, personnel et véhicule assigné.</div>
-              </div>
-              <div style={{fontSize:13,color:C.purple,fontWeight:700}}>Ouvrir →</div>
-            </button>
             <div style={{display:"flex",gap:10,marginTop:14}}>
               <button onClick={()=>setAppView("garage")}
                 style={{flex:1,background:C.panel,border:`1.5px solid ${C.danger}55`,borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",gap:10,cursor:"pointer",textAlign:"left"}}>
