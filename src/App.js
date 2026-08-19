@@ -1902,13 +1902,15 @@ function SignalerCompletView({ onBack, vehicles, themeMode, toggleTheme }){
 // ═══════════════════════════════════════
 const PREVENTIF_GRADES=["Secouriste","ATNUP","AMU","Infirmier/ère","SISU","Médecin"];
 
-function PreventifParametresView({ personnel, setPersonnel, materiel, setMateriel, onBack, themeMode, toggleTheme }){
+function PreventifParametresView({ personnel, setPersonnel, materiel, setMateriel, radioCanaux, setRadioCanaux, onBack, themeMode, toggleTheme }){
   const [tab,setTab]=useState("personnel");
   const [newName,setNewName]=useState("");
   const [newGrade,setNewGrade]=useState(PREVENTIF_GRADES[0]);
   const [newMateriel,setNewMateriel]=useState("");
   const [newMaterielQty,setNewMaterielQty]=useState("1");
-  const PTABS=[{id:"personnel",icon:"👥",label:"Personnel"},{id:"materiel",icon:"🎒",label:"Matériel"}];
+  const [newCanalNum,setNewCanalNum]=useState("");
+  const [newCanalName,setNewCanalName]=useState("");
+  const PTABS=[{id:"personnel",icon:"👥",label:"Personnel"},{id:"materiel",icon:"🎒",label:"Matériel"},{id:"radio",icon:"📻",label:"Canaux radio"}];
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
@@ -1983,6 +1985,24 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
               {materiel.length===0&&<div style={{textAlign:"center",color:C.muted,fontSize:13,padding:"20px 0"}}>Aucun article enregistré</div>}
             </div>
           )}
+          {tab==="radio"&&(
+            <div>
+              <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:6}}>📻 Canaux radio</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Liste utilisée pour choisir le canal radio de chaque fiche événement.</div>
+              <div style={{display:"flex",gap:8,marginBottom:16}}>
+                <input type="number" value={newCanalNum} onChange={e=>setNewCanalNum(e.target.value)} placeholder="N°" style={{width:60,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 8px",color:C.text,fontSize:13,textAlign:"center"}}/>
+                <input value={newCanalName} onChange={e=>setNewCanalName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newCanalNum&&newCanalName.trim()){setRadioCanaux(p=>[...p,{num:parseInt(newCanalNum),name:newCanalName.trim()}]);setNewCanalNum("");setNewCanalName("");}}} placeholder="Nom du canal" style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 12px",color:C.text,fontSize:13}}/>
+                <button onClick={()=>{if(newCanalNum&&newCanalName.trim()){setRadioCanaux(p=>[...p,{num:parseInt(newCanalNum),name:newCanalName.trim()}]);setNewCanalNum("");setNewCanalName("");}}} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+              </div>
+              {[...radioCanaux].sort((a,b)=>a.num-b.num).map(c=>(
+                <div key={c.num} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",marginBottom:6}}>
+                  <span style={{fontSize:13,color:C.text}}><b>{c.num}</b> — {c.name}</span>
+                  <button onClick={()=>setRadioCanaux(prev=>prev.filter(x=>x.num!==c.num))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                </div>
+              ))}
+              {radioCanaux.length===0&&<div style={{textAlign:"center",color:C.muted,fontSize:13,padding:"20px 0"}}>Aucun canal enregistré</div>}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -2000,7 +2020,7 @@ function calcTotalHeures(p){
   return `${h}h${String(m).padStart(2,"0")}`;
 }
 
-function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, onSave, onCancel }){
+function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, radioCanaux, onSave, onCancel }){
   const [form,setForm]=useState({
     nomEvenement:"", date:todayISO(), lieu:"", adresse:"", nature:"", subsistance:false, dispositif:"",
     responsableOrga:"", gsmOrga:"",
@@ -2099,7 +2119,10 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, onSav
           </div>
           <div>
             <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Canal radio</div>
-            <input value={form.canalRadio} onChange={e=>setForm(x=>({...x,canalRadio:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+            <select value={form.canalRadio} onChange={e=>setForm(x=>({...x,canalRadio:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}>
+              <option value="">— Choisir —</option>
+              {(radioCanaux||[]).map(c=>(<option key={c.num} value={`${c.num} — ${c.name}`}>{c.num} — {c.name}</option>))}
+            </select>
           </div>
         </div>
 
@@ -2148,7 +2171,7 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, onSav
   );
 }
 
-function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb, driversTpmr, carnetBordTypes, bureau, onSave, onDelete, onBack, themeMode, toggleTheme }){
+function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb, driversTpmr, carnetBordTypes, radioCanaux, bureau, onSave, onDelete, onBack, themeMode, toggleTheme }){
   const [f,setF]=useState(fiche);
   const [newNom,setNewNom]=useState(""); const [newPrenom,setNewPrenom]=useState(""); const [newFonction,setNewFonction]=useState("");
   const [pickPersonId,setPickPersonId]=useState("");
@@ -2214,12 +2237,19 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb
           <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:8}}>Infos mission</div>
           {bureau?(
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              {[["nomEvenement","Nom événement"],["lieu","Lieu"],["adresse","Adresse"],["nature","Nature"],["dispositif","Dispositif"],["responsableOrga","Responsable orga"],["gsmOrga","GSM"],["canalRadio","Canal radio"]].map(([field,label])=>(
+              {[["nomEvenement","Nom événement"],["lieu","Lieu"],["adresse","Adresse"],["nature","Nature"],["dispositif","Dispositif"],["responsableOrga","Responsable orga"],["gsmOrga","GSM"]].map(([field,label])=>(
                 <div key={field}>
                   <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>{label}</div>
                   <input value={f[field]||""} onChange={e=>save({...f,[field]:e.target.value})} style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12,boxSizing:"border-box"}}/>
                 </div>
               ))}
+              <div>
+                <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Canal radio</div>
+                <select value={f.canalRadio||""} onChange={e=>save({...f,canalRadio:e.target.value})} style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12,boxSizing:"border-box"}}>
+                  <option value="">— Choisir —</option>
+                  {(radioCanaux||[]).map(c=>(<option key={c.num} value={`${c.num} — ${c.name}`}>{c.num} — {c.name}</option>))}
+                </select>
+              </div>
               <div>
                 <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Date</div>
                 <input type="date" value={f.date} onChange={e=>save({...f,date:e.target.value})} style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12,boxSizing:"border-box"}}/>
@@ -2482,6 +2512,10 @@ function PreventifView({ onBack, vehicles, driversAmb, driversTpmr, carnetBordTy
   const [screen,setScreen]=useState("home"); // home | parametres | nouvelle | historique
   const [personnel,setPersonnel]=useFirestoreState("preventifPersonnel", []);
   const [materiel,setMateriel]=useFirestoreState("preventifMateriel", []);
+  const [radioCanaux,setRadioCanaux]=useFirestoreState("preventifRadioCanaux", [
+    {num:1,name:"Ambulances"},{num:2,name:"Préventif 1"},{num:3,name:"Préventif 2"},{num:4,name:"Préventif 3"},
+    {num:5,name:"Préventif 4"},{num:6,name:"Poste soins"},{num:7,name:"Préventif Ambulances"},{num:8,name:"Paps"},{num:9,name:"Logistique"},
+  ]);
   const [fiches,setFiches]=useFirestoreState("preventifFiches", []);
   const [openFiche,setOpenFiche]=useState(null);
 
@@ -2491,10 +2525,10 @@ function PreventifView({ onBack, vehicles, driversAmb, driversTpmr, carnetBordTy
   });
   const deleteFiche=(id)=>setFiches(prev=>prev.filter(x=>x.id!==id));
 
-  if(screen==="parametres") return <PreventifParametresView personnel={personnel} setPersonnel={setPersonnel} materiel={materiel} setMateriel={setMateriel} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(screen==="nouvelle") return <PreventifFicheForm vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} materiel={materiel} onCancel={()=>setScreen("home")} onSave={(f)=>{saveFiche(f);setScreen("home");}}/>;
-  if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} onSave={saveFiche} onDelete={deleteFiche} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onDelete={deleteFiche} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="parametres") return <PreventifParametresView personnel={personnel} setPersonnel={setPersonnel} materiel={materiel} setMateriel={setMateriel} radioCanaux={radioCanaux} setRadioCanaux={setRadioCanaux} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="nouvelle") return <PreventifFicheForm vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} materiel={materiel} radioCanaux={radioCanaux} onCancel={()=>setScreen("home")} onSave={(f)=>{saveFiche(f);setScreen("home");}}/>;
+  if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} onSave={saveFiche} onDelete={deleteFiche} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onDelete={deleteFiche} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   const todayFiches=fiches.filter(f=>f.date===todayISO() && !f.terminee && (bureau||f.visibleTerrain));
 
