@@ -1901,6 +1901,7 @@ function SignalerCompletView({ onBack, vehicles, themeMode, toggleTheme }){
 // PRÉVENTIF — postes de secours événementiels (section indépendante)
 // ═══════════════════════════════════════
 const PREVENTIF_GRADES=["Secouriste","ATNUP","AMU","Infirmier/ère","SISU","Médecin"];
+const DOCUMENTS_PAPIER=[{id:"journalCampagne",label:"Journal de campagne"},{id:"ficheMateriel",label:"Fiche matériel utilisé"},{id:"fichePatient",label:"Fiche patient"},{id:"bonTransport",label:"Bon de transport"}];
 
 function PreventifParametresView({ personnel, setPersonnel, materiel, setMateriel, radioCanaux, setRadioCanaux, onBack, themeMode, toggleTheme }){
   const [tab,setTab]=useState("personnel");
@@ -1945,7 +1946,7 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
                   if(e.key!=="Enter"||!newName.trim()) return;
                   setPersonnel(p=>[...p,{id:"pp"+Date.now(),name:newName.trim(),grade:newGrade,roulePmr:false,rouleAmbu:false}]);
                   setNewName("");
-                }} placeholder="Prénom Nom" style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 12px",color:C.text,fontSize:13}}/>
+                }} placeholder="Nom Prénom" style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 12px",color:C.text,fontSize:13}}/>
                 <button onClick={()=>{
                   if(!newName.trim()) return;
                   setPersonnel(p=>[...p,{id:"pp"+Date.now(),name:newName.trim(),grade:newGrade,roulePmr:false,rouleAmbu:false}]);
@@ -2051,12 +2052,14 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
   const createdAtRef=useRef(existingFiche?existingFiche.createdAt:Date.now());
   const savedOnceRef=useRef(!!existingFiche);
   const [form,setForm]=useState(existingFiche?{
-    nomEvenement:existingFiche.nomEvenement||"", date:existingFiche.date||todayISO(), lieu:existingFiche.lieu||"", adresse:existingFiche.adresse||"", nature:existingFiche.nature||"", subsistance:!!existingFiche.subsistance, dispositif:existingFiche.dispositif||"",
+    nomEvenement:existingFiche.nomEvenement||"", numeroPreventif:existingFiche.numeroPreventif||"", date:existingFiche.date||todayISO(), lieu:existingFiche.lieu||"", adresse:existingFiche.adresse||"", nature:existingFiche.nature||"", subsistance:!!existingFiche.subsistance, dispositif:existingFiche.dispositif||"",
+    heureDebutEvenement:existingFiche.heureDebutEvenement||"", heureFinEvenement:existingFiche.heureFinEvenement||"",
     responsablesOrga:existingFiche.responsablesOrga&&existingFiche.responsablesOrga.length?existingFiche.responsablesOrga:[{nom:"",gsm:""}],
     responsableMission:existingFiche.responsableMission||"", departBaseAuPlusTard:existingFiche.departBaseAuPlusTard||"", canalRadio:existingFiche.canalRadio||"",
     vehiculesEngages:existingFiche.vehiculesEngages||[], materielChecked:existingFiche.materielChecked||[], personnel:existingFiche.personnel||[],
   }:{
-    nomEvenement:"", date:todayISO(), lieu:"", adresse:"", nature:"", subsistance:false, dispositif:"",
+    nomEvenement:"", numeroPreventif:"", date:todayISO(), lieu:"", adresse:"", nature:"", subsistance:false, dispositif:"",
+    heureDebutEvenement:"", heureFinEvenement:"",
     responsablesOrga:[{nom:"",gsm:""}],
     responsableMission:"", departBaseAuPlusTard:"", canalRadio:"",
     vehiculesEngages:[], materielChecked:[], personnel:[],
@@ -2116,13 +2119,13 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
     const p=(personnel||[]).find(x=>x.id===pickPersonId);
     if(!p) return;
     const parts=p.name.trim().split(" ");
-    const prenom=parts.shift()||""; const nom=parts.join(" ")||"";
-    setForm(f=>({...f,personnel:[...f.personnel,{id:"pers"+Date.now(),nom:nom||p.name,prenom,fonction:p.grade,heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}]}));
+    const nom=parts.shift()||""; const prenom=parts.join(" ")||"";
+    setForm(f=>({...f,personnel:[...f.personnel,{id:"pers"+Date.now(),nom:nom||p.name,prenom,fonction:p.grade,surPlace:false,heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}]}));
     setPickPersonId("");
   };
   const addPersonnelManuel=()=>{
     if(!newNom.trim()) return;
-    setForm(f=>({...f,personnel:[...f.personnel,{id:"pers"+Date.now(),nom:newNom.trim(),prenom:newPrenom.trim(),fonction:newFonction.trim(),heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}]}));
+    setForm(f=>({...f,personnel:[...f.personnel,{id:"pers"+Date.now(),nom:newNom.trim(),prenom:newPrenom.trim(),fonction:newFonction.trim(),surPlace:false,heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}]}));
     setNewNom("");setNewPrenom("");setNewFonction("");
   };
   const removePersonnel=(id)=>setForm(f=>({...f,personnel:f.personnel.filter(p=>p.id!==id)}));
@@ -2150,12 +2153,26 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
       <div style={{flex:1,padding:20,paddingBottom:100,maxWidth:640,margin:"0 auto",width:"100%"}}>
 
         <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Ordre et rapport de mission</div>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Numéro du Préventif</div>
+          <input value={form.numeroPreventif} onChange={e=>setForm(x=>({...x,numeroPreventif:e.target.value}))} placeholder="Ex: 12" style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+        </div>
         {[["nomEvenement","Nom de l'événement"],["lieu","Lieu"],["adresse","Adresse"],["nature","Nature (ex: soirée chapiteau)"]].map(([f,l])=>(
           <div key={f} style={{marginBottom:10}}>
             <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>{l}</div>
             <input value={form[f]} onChange={e=>setForm(x=>({...x,[f]:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
           </div>
         ))}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+          <div>
+            <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Événement — début</div>
+            <HeureInput value={form.heureDebutEvenement} onChange={v=>setForm(x=>({...x,heureDebutEvenement:v}))}/>
+          </div>
+          <div>
+            <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Événement — fin</div>
+            <HeureInput value={form.heureFinEvenement} onChange={v=>setForm(x=>({...x,heureFinEvenement:v}))}/>
+          </div>
+        </div>
         <div style={{marginBottom:10}}>
           <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Date</div>
           <input type="date" value={form.date} onChange={e=>setForm(x=>({...x,date:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
@@ -2187,7 +2204,18 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
         <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Logistique équipe</div>
         <div style={{marginBottom:20}}>
           <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Responsable de mission</div>
-          <select value={form.responsableMission} onChange={e=>setForm(x=>({...x,responsableMission:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13}}>
+          <select value={form.responsableMission} onChange={e=>{
+            const name=e.target.value;
+            setForm(x=>{
+              if(!name) return {...x,responsableMission:name};
+              const already=x.personnel.some(p=>`${p.nom} ${p.prenom}`.trim()===name);
+              if(already) return {...x,responsableMission:name};
+              const pers=(personnel||[]).find(pp=>pp.name===name);
+              const parts=name.trim().split(" ");
+              const nom=parts.shift()||""; const prenom=parts.join(" ")||"";
+              return {...x,responsableMission:name,personnel:[...x.personnel,{id:"pers"+Date.now(),nom,prenom,fonction:pers?.grade||"Responsable de mission",surPlace:false,heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}]};
+            });
+          }} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13}}>
             <option value="">— Choisir —</option>
             {(personnel||[]).map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}
           </select>
@@ -2195,13 +2223,16 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
 
         <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Personnel</div>
         {form.personnel.map(p=>(
-          <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",marginBottom:6}}>
+          <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:p.surPlace?"#ec489940":C.panel2,border:`1px solid ${p.surPlace?"#ec4899":C.border}`,borderRadius:8,padding:"8px 12px",marginBottom:6}}>
             <span style={{fontSize:12,color:C.text}}>{p.nom} {p.prenom} <span style={{color:C.muted}}>— {p.fonction}</span></span>
-            <button onClick={()=>removePersonnel(p.id)} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"3px 8px",fontSize:10,cursor:"pointer"}}>🗑</button>
+            <div style={{display:"flex",gap:6}}>
+              <button onClick={()=>setForm(f=>({...f,personnel:f.personnel.map(x=>x.id===p.id?{...x,surPlace:!x.surPlace}:x)}))} title="Va directement sur place (pas par la base)" style={{background:p.surPlace?"#ec489960":"transparent",border:`1px solid ${p.surPlace?"#ec4899":C.border}`,borderRadius:6,color:p.surPlace?"#ec4899":C.muted,padding:"3px 8px",fontSize:10,cursor:"pointer"}}>📍</button>
+              <button onClick={()=>removePersonnel(p.id)} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"3px 8px",fontSize:10,cursor:"pointer"}}>🗑</button>
+            </div>
           </div>
         ))}
         <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
-          <select value={pickPersonId} onChange={e=>setPickPersonId(e.target.value)} style={{flex:1,minWidth:160,background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"7px 9px",color:C.text,fontSize:12}}>
+          <select value={pickPersonId} onChange={e=>setPickPersonId(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&pickPersonId) addPersonnelFromList();}} style={{flex:1,minWidth:160,background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"7px 9px",color:C.text,fontSize:12}}>
             <option value="">— Choisir dans le personnel —</option>
             {PREVENTIF_GRADES.map(grade=>{
               const group=(personnel||[]).filter(p=>p.grade===grade);
@@ -2297,7 +2328,7 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
   );
 }
 
-function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBordTypes, radioCanaux, fiches, bureau, onSave, onDelete, onBack, themeMode, toggleTheme }){
+function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBordTypes, radioCanaux, fiches, bureau, readOnly, onSave, onDelete, onBack, themeMode, toggleTheme }){
   const [f,setF]=useState(fiche);
   const [editing,setEditing]=useState(false);
   const [checklistVehicle,setChecklistVehicle]=useState(null); // objet véhicule en cours de check
@@ -2348,7 +2379,8 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBord
       </div>
       <div style={{flex:1,padding:16,paddingBottom:60,maxWidth:700,margin:"0 auto",width:"100%"}}>
 
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16,position:"relative"}}>
+          {f.numeroPreventif&&<div style={{position:"absolute",top:14,right:14,background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:8,color:C.purple,padding:"4px 10px",fontSize:11,fontWeight:800}}>Préventif n° {f.numeroPreventif}</div>}
           <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:8}}>Infos mission</div>
           {false?(
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
@@ -2394,23 +2426,13 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBord
             <div><b style={{color:C.text}}>Adresse :</b> {f.adresse||"—"}</div>
             <div><b style={{color:C.text}}>Nature :</b> {f.nature||"—"}</div>
             <div><b style={{color:C.text}}>Dispositif :</b> {f.dispositif||"—"}</div>
+            <div><b style={{color:C.text}}>Événement :</b> {f.heureDebutEvenement||"—"} à {f.heureFinEvenement||"—"}</div>
             <div><b style={{color:C.text}}>Subsistance :</b> {f.subsistance?"Oui":"Non"}</div>
-            <div><b style={{color:C.text}}>Organisation :</b> {(f.responsablesOrga||[]).filter(r=>r.nom).map(r=>`${r.nom}${r.gsm?` (${r.gsm})`:""}`).join(", ")||"—"}</div>
+            <div><b style={{color:C.text}}>Responsable de l'organisation :</b> {(f.responsablesOrga||[]).filter(r=>r.nom).map(r=>`${r.nom}${r.gsm?` (${r.gsm})`:""}`).join(", ")||"—"}</div>
             <div><b style={{color:C.text}}>Canal radio :</b> {f.canalRadio||"—"}</div>
+            <div><b style={{color:C.text}}>Départ base au plus tard :</b> {f.departBaseAuPlusTard||"—"}</div>
           </div>
           )}
-        </div>
-
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
-          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Horaires mission</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            {[["departEffectif","Départ base"],["heureSurPlace","Heure sur place"],["heureFinMission","Heure de fin"],["heureRetourBaseMission","Retour base"]].map(([field,label])=>(
-              <div key={field}>
-                <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>{label}</div>
-                <HeureInput value={f[field]||""} onChange={v=>save({...f,[field]:v})}/>
-              </div>
-            ))}
-          </div>
         </div>
 
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
@@ -2435,18 +2457,36 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBord
               <div key={v.vehicleId} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",marginBottom:8}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                   <span style={{fontWeight:700,fontSize:13,color:C.text,width:70}}>{v.vehicleName}</span>
-                  <select value={v.chauffeur} onChange={e=>setVehiculeChauffeur(v.vehicleId,e.target.value)} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12}}>
-                    <option value="">— Chauffeur —</option>
-                    {eligibleDrivers(vehObj.type).map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}
-                  </select>
+                  {bureau?(
+                    <select value={v.chauffeur} onChange={e=>setVehiculeChauffeur(v.vehicleId,e.target.value)} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12}}>
+                      <option value="">— Chauffeur —</option>
+                      {eligibleDrivers(vehObj.type).map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}
+                    </select>
+                  ):(
+                    <span style={{flex:1,fontSize:12,color:C.muted}}>{v.chauffeur||"— Chauffeur non désigné —"}</span>
+                  )}
                 </div>
+                {!readOnly&&(
                 <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>setChecklistVehicle(vehObj)} style={{flex:1,background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:7,color:C.accent,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 Checklist</button>
+                  <button onClick={()=>setChecklistVehicle(vehObj)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 Checklist</button>
                   {vehObj.type!=="PREV"&&<button onClick={()=>setCarnetVehicle(vehObj)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📓 Carnet de bord</button>}
                 </div>
+                )}
               </div>
             );
           })}
+        </div>
+
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Horaires mission</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            {[["departEffectif","Départ base"],["heureSurPlace","Heure sur place"],["heureFinMission","Heure de fin"],["heureRetourBaseMission","Retour base"]].map(([field,label])=>(
+              <div key={field}>
+                <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>{label}</div>
+                <HeureInput value={f[field]||""} onChange={v=>save({...f,[field]:v})}/>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16,overflowX:"auto"}}>
@@ -2456,13 +2496,18 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBord
               <tr>{["Nom","Prénom","Fonction","Départ base","Début prest.","Fin prest.","Retour base","Total",""].map(h=>(<th key={h} style={{fontSize:10,color:C.muted,textAlign:"left",padding:"4px 6px",borderBottom:`1px solid ${C.border}`}}>{h}</th>))}</tr>
             </thead>
             <tbody>
-              {f.personnel.map(p=>(
-                <tr key={p.id}>
+              {[...f.personnel].sort((a,b)=>{
+                const aResp=`${a.prenom} ${a.nom}`.trim()===f.responsableMission?0:1;
+                const bResp=`${b.prenom} ${b.nom}`.trim()===f.responsableMission?0:1;
+                if(aResp!==bResp) return aResp-bResp;
+                return PREVENTIF_GRADES.indexOf(a.fonction)-PREVENTIF_GRADES.indexOf(b.fonction);
+              }).map(p=>(
+                <tr key={p.id} style={p.surPlace?{background:"#ec489940"}:undefined}>
                   <td style={{padding:"4px 6px",fontSize:11,color:C.text}}>{p.nom}</td>
                   <td style={{padding:"4px 6px",fontSize:11,color:C.text}}>{p.prenom}</td>
                   <td style={{padding:"4px 6px",fontSize:11,color:C.text}}>{p.fonction}</td>
                   {PREVENTIF_HEURE_FIELDS.map(hf=>(
-                    <td key={hf} style={{padding:"4px 6px"}}><div style={{width:70}}><HeureInput value={p[hf]||""} onChange={v=>updatePersonnel(p.id,hf,v)}/></div></td>
+                    <td key={hf} style={{padding:"4px 6px"}}>{readOnly?<span style={{fontSize:11,color:C.text}}>{p[hf]||"—"}</span>:<div style={{width:70}}><HeureInput value={p[hf]||""} onChange={v=>updatePersonnel(p.id,hf,v)}/></div>}</td>
                   ))}
                   <td style={{padding:"4px 6px",fontSize:11,fontWeight:700,color:C.text}}>{calcTotalHeures(p)}</td>
                   <td></td>
@@ -2470,6 +2515,30 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBord
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
+          <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Documents papier</div>
+          {DOCUMENTS_PAPIER.map(doc=>{
+            const entry=(f.documentsPapier||{})[doc.id]||{status:null,qty:0};
+            return(
+              <div key={doc.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
+                <span style={{fontSize:13,color:C.text}}>{doc.label}</span>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  {entry.status==="ok"&&!readOnly&&(
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <button onClick={()=>save({...f,documentsPapier:{...(f.documentsPapier||{}),[doc.id]:{status:"ok",qty:Math.max(1,entry.qty-1)}}})} style={{width:24,height:24,borderRadius:6,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:13,fontWeight:700,cursor:"pointer"}}>−</button>
+                      <span style={{fontSize:12,fontWeight:800,color:C.success,minWidth:16,textAlign:"center"}}>{entry.qty}</span>
+                      <button onClick={()=>save({...f,documentsPapier:{...(f.documentsPapier||{}),[doc.id]:{status:"ok",qty:entry.qty+1}}})} style={{width:24,height:24,borderRadius:6,border:`1px solid ${C.border}`,background:C.bg,color:C.text,fontSize:13,fontWeight:700,cursor:"pointer"}}>+</button>
+                    </div>
+                  )}
+                  {entry.status==="ok"&&readOnly&&<span style={{fontSize:12,fontWeight:800,color:C.success}}>× {entry.qty}</span>}
+                  <button disabled={readOnly} onClick={()=>save({...f,documentsPapier:{...(f.documentsPapier||{}),[doc.id]:{status:"ok",qty:Math.max(1,entry.qty||1)}}})} style={{background:entry.status==="ok"?C.success:"transparent",border:`1px solid ${entry.status==="ok"?C.success:C.border}`,borderRadius:7,color:entry.status==="ok"?"white":C.muted,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:readOnly?"default":"pointer"}}>OK</button>
+                  <button disabled={readOnly} onClick={()=>save({...f,documentsPapier:{...(f.documentsPapier||{}),[doc.id]:{status:"nok",qty:0}}})} style={{background:entry.status==="nok"?C.danger:"transparent",border:`1px solid ${entry.status==="nok"?C.danger:C.border}`,borderRadius:7,color:entry.status==="nok"?"white":C.muted,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:readOnly?"default":"pointer"}}>NOK</button>
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
@@ -2481,8 +2550,8 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBord
               <div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
                 <span style={{fontSize:13,color:C.text}}>{m.name} <span style={{color:C.muted,fontSize:11}}>× {m.qty}{m.numeros&&m.numeros.length>0&&` (n° ${[...m.numeros].sort((a,b)=>a-b).join(", ")})`}</span></span>
                 <div style={{display:"flex",gap:6}}>
-                  <button onClick={()=>toggleMaterielOk(m.id)} style={{background:status==="ok"?C.success:"transparent",border:`1px solid ${status==="ok"?C.success:C.border}`,borderRadius:7,color:status==="ok"?"white":C.muted,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
-                  <button onClick={()=>save({...f,materielConfirmed:{...(f.materielConfirmed||{}),[m.id]:(f.materielConfirmed||{})[m.id]==="nok"?null:"nok"}})} style={{background:status==="nok"?C.danger:"transparent",border:`1px solid ${status==="nok"?C.danger:C.border}`,borderRadius:7,color:status==="nok"?"white":C.muted,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>NOK</button>
+                  <button disabled={readOnly} onClick={()=>toggleMaterielOk(m.id)} style={{background:status==="ok"?C.success:"transparent",border:`1px solid ${status==="ok"?C.success:C.border}`,borderRadius:7,color:status==="ok"?"white":C.muted,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:readOnly?"default":"pointer"}}>OK</button>
+                  <button disabled={readOnly} onClick={()=>save({...f,materielConfirmed:{...(f.materielConfirmed||{}),[m.id]:(f.materielConfirmed||{})[m.id]==="nok"?null:"nok"}})} style={{background:status==="nok"?C.danger:"transparent",border:`1px solid ${status==="nok"?C.danger:C.border}`,borderRadius:7,color:status==="nok"?"white":C.muted,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:readOnly?"default":"pointer"}}>NOK</button>
                 </div>
               </div>
             );
@@ -2491,18 +2560,20 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBord
 
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:16}}>
           <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:8}}>Remarque</div>
-          <textarea value={f.remarque||""} onChange={e=>save({...f,remarque:e.target.value})} style={{width:"100%",minHeight:70,background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box",resize:"vertical",fontFamily:"inherit"}}/>
+          <textarea readOnly={readOnly} value={f.remarque||""} onChange={e=>save({...f,remarque:e.target.value})} style={{width:"100%",minHeight:70,background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box",resize:"vertical",fontFamily:"inherit"}}/>
         </div>
 
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
           <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:8}}>Signature du responsable de mission</div>
-          <input value={f.signature||""} onChange={e=>save({...f,signature:e.target.value})} placeholder="Nom du responsable pour valider" style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box",marginBottom:12}}/>
+          <input readOnly={readOnly} value={f.signature||""} onChange={e=>save({...f,signature:e.target.value})} placeholder="Nom du responsable pour valider" style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box",marginBottom:12}}/>
+          {!readOnly&&(
           <button disabled={!canEnvoyer} onClick={handleEnvoyer} style={{width:"100%",background:!canEnvoyer?C.panel2:C.success,border:"none",borderRadius:10,color:!canEnvoyer?C.muted:"white",padding:14,fontWeight:800,fontSize:15,cursor:canEnvoyer?"pointer":"not-allowed"}}>
             {f.terminee?"✅ Fiche terminée":"📤 Envoyer"}
           </button>
+          )}
         </div>
 
-        {bureau&&onDelete&&(
+        {bureau&&!readOnly&&onDelete&&(
           <button onClick={()=>setShowDeleteConfirm(true)} style={{width:"100%",marginTop:16,background:"transparent",border:`1.5px solid ${C.danger}`,borderRadius:10,color:C.danger,padding:12,fontWeight:700,fontSize:13,cursor:"pointer"}}>🗑 Supprimer cette fiche</button>
         )}
       </div>
@@ -2565,11 +2636,11 @@ function PreventifInventaireView({ materiel, fiches, onBack, themeMode, toggleTh
   );
 }
 
-function PreventifHistorique({ fiches, materiel, personnel, vehicles, radioCanaux, carnetBordTypes, onSave, onDelete, onBack, themeMode, toggleTheme }){
+function PreventifHistorique({ fiches, materiel, personnel, vehicles, radioCanaux, carnetBordTypes, onBack, themeMode, toggleTheme }){
   const [selected,setSelected]=useState(null);
   const [showInventaire,setShowInventaire]=useState(false);
   if(showInventaire) return <PreventifInventaireView materiel={materiel} fiches={fiches} onBack={()=>setShowInventaire(false)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(selected) return <PreventifFicheDetail fiche={selected} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} fiches={fiches} bureau={true} onSave={(next)=>{onSave(next);setSelected(next);}} onDelete={(id)=>{onDelete(id);setSelected(null);}} onBack={()=>setSelected(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(selected) return <PreventifFicheDetail fiche={selected} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} fiches={fiches} bureau={false} readOnly={true} onSave={()=>{}} onBack={()=>setSelected(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   const sorted=[...fiches].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -2617,7 +2688,7 @@ function PreventifView({ onBack, vehicles, carnetBordTypes, themeMode, toggleThe
 
   if(screen==="parametres") return <PreventifParametresView personnel={personnel} setPersonnel={setPersonnel} materiel={materiel} setMateriel={setMateriel} radioCanaux={radioCanaux} setRadioCanaux={setRadioCanaux} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(screen==="nouvelle") return <PreventifFicheForm vehicles={vehicles} personnel={personnel} materiel={materiel} radioCanaux={radioCanaux} fiches={fiches} onCancel={()=>setScreen("home")} onSave={saveFiche}/>;
-  if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} onSave={saveFiche} onDelete={deleteFiche} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} fiches={fiches} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onDelete={deleteFiche} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   const todayFiches=fiches.filter(f=>f.date===todayISO() && !f.terminee && (bureau||f.visibleTerrain));
@@ -2627,7 +2698,7 @@ function PreventifView({ onBack, vehicles, carnetBordTypes, themeMode, toggleThe
       <style>{GS}</style>
       <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <button onClick={()=>{ if(bureau){ setBureau(false); } else { onBack(); } }} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
           <div style={{fontWeight:800,fontSize:16,color:C.purple}}>🚑 Préventif</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
