@@ -1972,9 +1972,9 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
                 <input type="number" min="1" value={newMaterielQty} onChange={e=>setNewMaterielQty(e.target.value)} title="Quantité totale possédée" style={{width:60,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 8px",color:C.text,fontSize:13,textAlign:"center"}}/>
                 <button onClick={()=>{if(newMateriel.trim()){setMateriel(p=>[...p,{id:"pm"+Date.now(),name:newMateriel.trim(),quantiteTotale:parseInt(newMaterielQty)||1}]);setNewMateriel("");setNewMaterielQty("1");}}} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
               </div>
-              {materiel.map(m=>(
+              {[...materiel].sort((a,b)=>a.name.localeCompare(b.name,"fr")).map(m=>(
                 <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",marginBottom:6,flexWrap:"wrap",gap:8}}>
-                  <span style={{fontSize:13,color:C.text}}>{m.name}</span>
+                  <input value={m.name} onChange={e=>setMateriel(prev=>prev.map(x=>x.id===m.id?{...x,name:e.target.value}:x))} style={{flex:1,minWidth:100,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 9px",color:C.text,fontSize:13}}/>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontSize:10,color:C.muted}}>Total :</span>
                     <input type="number" min="0" value={m.quantiteTotale||0} onChange={e=>setMateriel(prev=>prev.map(x=>x.id===m.id?{...x,quantiteTotale:parseInt(e.target.value)||0}:x))} style={{width:50,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 6px",color:C.text,fontSize:12,textAlign:"center"}}/>
