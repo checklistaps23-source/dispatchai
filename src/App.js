@@ -1973,11 +1973,12 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
                 <button onClick={()=>{if(newMateriel.trim()){setMateriel(p=>[...p,{id:"pm"+Date.now(),name:newMateriel.trim(),quantiteTotale:parseInt(newMaterielQty)||1}]);setNewMateriel("");setNewMaterielQty("1");}}} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
               </div>
               {materiel.map(m=>(
-                <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",marginBottom:6}}>
+                <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",marginBottom:6,flexWrap:"wrap",gap:8}}>
                   <span style={{fontSize:13,color:C.text}}>{m.name}</span>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontSize:10,color:C.muted}}>Total :</span>
                     <input type="number" min="0" value={m.quantiteTotale||0} onChange={e=>setMateriel(prev=>prev.map(x=>x.id===m.id?{...x,quantiteTotale:parseInt(e.target.value)||0}:x))} style={{width:50,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 6px",color:C.text,fontSize:12,textAlign:"center"}}/>
+                    <button onClick={()=>setMateriel(prev=>prev.map(x=>x.id===m.id?{...x,numerote:!x.numerote}:x))} title="Chaque unité peut être choisie individuellement par numéro (ex: sacs à dos numérotés)" style={{background:m.numerote?C.purpleSoft:"transparent",border:`1px solid ${m.numerote?C.purple:C.border}`,borderRadius:6,color:m.numerote?C.purple:C.muted,padding:"4px 9px",fontSize:10,fontWeight:700,cursor:"pointer"}}>🔢 Numéroté</button>
                     <button onClick={()=>setMateriel(prev=>prev.filter(x=>x.id!==m.id))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
                   </div>
                 </div>
@@ -2020,7 +2021,7 @@ function calcTotalHeures(p){
   return `${h}h${String(m).padStart(2,"0")}`;
 }
 
-function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, radioCanaux, onSave, onCancel }){
+function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, radioCanaux, fiches, onSave, onCancel }){
   const [form,setForm]=useState({
     nomEvenement:"", date:todayISO(), lieu:"", adresse:"", nature:"", subsistance:false, dispositif:"",
     responsableOrga:"", gsmOrga:"",
@@ -2040,9 +2041,23 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, radio
   const toggleMateriel=(m)=>setForm(f=>{
     const exists=f.materielChecked.find(x=>x.id===m.id);
     if(exists) return {...f,materielChecked:f.materielChecked.filter(x=>x.id!==m.id)};
-    return {...f,materielChecked:[...f.materielChecked,{id:m.id,name:m.name,qty:1}]};
+    return {...f,materielChecked:[...f.materielChecked,{id:m.id,name:m.name,qty:m.numerote?0:1,numeros:[]}]};
   });
   const setMaterielQty=(id,qty)=>setForm(f=>({...f,materielChecked:f.materielChecked.map(x=>x.id===id?{...x,qty:Math.max(1,qty)}:x)}));
+  // Numéros déjà engagés sur d'autres fiches non terminées (donc indisponibles).
+  const takenNumeros=(itemId)=>{
+    const taken=new Set();
+    (fiches||[]).filter(fx=>!fx.terminee).forEach(fx=>{
+      (fx.materielChecked||[]).forEach(mc=>{ if(mc.id===itemId) (mc.numeros||[]).forEach(n=>taken.add(n)); });
+    });
+    return taken;
+  };
+  const toggleNumero=(itemId,num)=>setForm(f=>({...f,materielChecked:f.materielChecked.map(x=>{
+    if(x.id!==itemId) return x;
+    const nums=x.numeros||[];
+    const nextNums=nums.includes(num)?nums.filter(n=>n!==num):[...nums,num];
+    return {...x,numeros:nextNums,qty:nextNums.length};
+  })}));
 
   const canSave=form.nomEvenement.trim()&&form.date&&form.responsableMission.trim();
 
@@ -2146,17 +2161,32 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, radio
         <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginTop:20,marginBottom:10}}>Matériel à embarquer</div>
         {(materiel||[]).map(m=>{
           const sel=form.materielChecked.find(x=>x.id===m.id);
+          const taken=m.numerote?takenNumeros(m.id):null;
           return(
-            <div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0"}}>
-              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
-                <input type="checkbox" checked={!!sel} onChange={()=>toggleMateriel(m)} style={{width:16,height:16,cursor:"pointer"}}/>
-                <span style={{fontSize:13,color:C.text}}>{m.name}</span>
-              </label>
-              {sel&&(
-                <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <button onClick={()=>setMaterielQty(m.id,sel.qty-1)} style={{width:26,height:26,borderRadius:7,border:`1px solid ${C.border}`,background:C.panel,color:C.text,fontSize:14,fontWeight:700,cursor:"pointer"}}>−</button>
-                  <span style={{fontSize:13,fontWeight:800,color:C.purple,minWidth:18,textAlign:"center"}}>{sel.qty}</span>
-                  <button onClick={()=>setMaterielQty(m.id,sel.qty+1)} style={{width:26,height:26,borderRadius:7,border:`1px solid ${C.border}`,background:C.panel,color:C.text,fontSize:14,fontWeight:700,cursor:"pointer"}}>+</button>
+            <div key={m.id} style={{padding:"7px 0"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
+                  <input type="checkbox" checked={!!sel} onChange={()=>toggleMateriel(m)} style={{width:16,height:16,cursor:"pointer"}}/>
+                  <span style={{fontSize:13,color:C.text}}>{m.name}</span>
+                </label>
+                {sel&&!m.numerote&&(
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <button onClick={()=>setMaterielQty(m.id,sel.qty-1)} style={{width:26,height:26,borderRadius:7,border:`1px solid ${C.border}`,background:C.panel,color:C.text,fontSize:14,fontWeight:700,cursor:"pointer"}}>−</button>
+                    <span style={{fontSize:13,fontWeight:800,color:C.purple,minWidth:18,textAlign:"center"}}>{sel.qty}</span>
+                    <button onClick={()=>setMaterielQty(m.id,sel.qty+1)} style={{width:26,height:26,borderRadius:7,border:`1px solid ${C.border}`,background:C.panel,color:C.text,fontSize:14,fontWeight:700,cursor:"pointer"}}>+</button>
+                  </div>
+                )}
+                {sel&&m.numerote&&<span style={{fontSize:12,fontWeight:700,color:C.purple}}>{sel.qty} choisi{sel.qty>1?"s":""}</span>}
+              </div>
+              {sel&&m.numerote&&(
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(44px, 1fr))",gap:6,marginTop:8,paddingLeft:24}}>
+                  {Array.from({length:m.quantiteTotale||0},(_,i)=>i+1).map(num=>{
+                    const isTaken=taken.has(num);
+                    const isSelected=(sel.numeros||[]).includes(num);
+                    return(
+                      <button key={num} disabled={isTaken&&!isSelected} onClick={()=>toggleNumero(m.id,num)} style={{padding:"7px 4px",borderRadius:7,border:`1px solid ${isSelected?C.purple:isTaken?C.border:C.border}`,background:isSelected?C.purple:isTaken?C.panel2:"transparent",color:isSelected?"white":isTaken?C.muted:C.text,fontSize:12,fontWeight:700,cursor:isTaken&&!isSelected?"not-allowed":"pointer",opacity:isTaken&&!isSelected?0.5:1}}>{num}</button>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -2389,7 +2419,7 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb
             const status=(f.materielConfirmed||{})[m.id];
             return(
               <div key={m.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"7px 0",borderBottom:`1px solid ${C.border}`}}>
-                <span style={{fontSize:13,color:C.text}}>{m.name} <span style={{color:C.muted,fontSize:11}}>× {m.qty}</span></span>
+                <span style={{fontSize:13,color:C.text}}>{m.name} <span style={{color:C.muted,fontSize:11}}>× {m.qty}{m.numeros&&m.numeros.length>0&&` (n° ${[...m.numeros].sort((a,b)=>a-b).join(", ")})`}</span></span>
                 <div style={{display:"flex",gap:6}}>
                   <button onClick={()=>toggleMaterielOk(m.id)} style={{background:status==="ok"?C.success:"transparent",border:`1px solid ${status==="ok"?C.success:C.border}`,borderRadius:7,color:status==="ok"?"white":C.muted,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>OK</button>
                   <button onClick={()=>save({...f,materielConfirmed:{...(f.materielConfirmed||{}),[m.id]:(f.materielConfirmed||{})[m.id]==="nok"?null:"nok"}})} style={{background:status==="nok"?C.danger:"transparent",border:`1px solid ${status==="nok"?C.danger:C.border}`,borderRadius:7,color:status==="nok"?"white":C.muted,padding:"5px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>NOK</button>
@@ -2526,7 +2556,7 @@ function PreventifView({ onBack, vehicles, driversAmb, driversTpmr, carnetBordTy
   const deleteFiche=(id)=>setFiches(prev=>prev.filter(x=>x.id!==id));
 
   if(screen==="parametres") return <PreventifParametresView personnel={personnel} setPersonnel={setPersonnel} materiel={materiel} setMateriel={setMateriel} radioCanaux={radioCanaux} setRadioCanaux={setRadioCanaux} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(screen==="nouvelle") return <PreventifFicheForm vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} materiel={materiel} radioCanaux={radioCanaux} onCancel={()=>setScreen("home")} onSave={(f)=>{saveFiche(f);setScreen("home");}}/>;
+  if(screen==="nouvelle") return <PreventifFicheForm vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} materiel={materiel} radioCanaux={radioCanaux} fiches={fiches} onCancel={()=>setScreen("home")} onSave={(f)=>{saveFiche(f);setScreen("home");}}/>;
   if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} onSave={saveFiche} onDelete={deleteFiche} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onDelete={deleteFiche} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
