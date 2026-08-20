@@ -392,7 +392,7 @@ function PinModal({onSuccess,onCancel}){
   );
 }
 
-function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,peremptionEmails,setPeremptionEmails,listeRouge,setListeRouge,carnetBordTypes,setCarnetBordTypes,onBack,themeMode,toggleTheme}){
+function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,peremptionEmails,setPeremptionEmails,preventifEmails,setPreventifEmails,listeRouge,setListeRouge,carnetBordTypes,setCarnetBordTypes,onBack,themeMode,toggleTheme}){
   const [tab,setTab]=useState("chauffeurs");
   const [tpmrVslTemplate,setTpmrVslTemplate]=useFirestoreState("tpmrVslChecklistTemplate",{ sections:[] });
   const [documentCategories,setDocumentCategories]=useFirestoreState("documentCategories",["Carte grise","Assurance","Contrôle technique"]);
@@ -421,6 +421,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const [newEmail,setNewEmail]=useState("");
   const [newO2Email,setNewO2Email]=useState("");
   const [newPeremptionEmail,setNewPeremptionEmail]=useState("");
+  const [newPreventifEmail,setNewPreventifEmail]=useState("");
 
   const openNewChecklist=()=>{
     setEditingChecklist({key:"",origKey:null,isNew:true,norme:"",edition:"",sections:[]});
@@ -1067,6 +1068,21 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                   <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:7}}>
                     <span style={{fontSize:13}}>🗓️ {em}</span>
                     <button onClick={()=>setPeremptionEmails(p=>p.filter((_,j)=>j!==i))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"5px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                  </div>
+                ))}
+              </div>
+              <div style={{marginTop:28,paddingTop:20,borderTop:`1px solid ${C.border}`}}>
+                <SectionTitle icon="📅" title="Emails — Préventif"/>
+                <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Ces adresses reçoivent la fiche complète d'un événement dès qu'elle est envoyée depuis l'écran terrain. Liste séparée des autres.</div>
+                <div style={{display:"flex",gap:8,marginBottom:16}}>
+                  <input value={newPreventifEmail} onChange={e=>setNewPreventifEmail(e.target.value)} placeholder="exemple@aps.be" style={{flex:1,background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none"}}/>
+                  <button onClick={()=>{if(newPreventifEmail.trim()&&newPreventifEmail.includes("@")){setPreventifEmails(p=>[...p,newPreventifEmail.trim()]);setNewPreventifEmail("");}}} style={{background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:9,color:C.accent,padding:"10px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+                </div>
+                {preventifEmails.length===0&&<div style={{fontSize:12,color:C.muted,textAlign:"center",padding:"20px 0"}}>Aucun destinataire configuré</div>}
+                {preventifEmails.map((em,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:7}}>
+                    <span style={{fontSize:13}}>📅 {em}</span>
+                    <button onClick={()=>setPreventifEmails(p=>p.filter((_,j)=>j!==i))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"5px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
                   </div>
                 ))}
               </div>
@@ -2040,7 +2056,7 @@ const PREVENTIF_HEURE_FIELDS=["heureDepartBase","heureDebutPrestation","heureFin
 
 function calcTotalHeures(p){
   const parse=(h)=>{ if(!h) return null; const m=h.match(/(\d{1,2})h(\d{2})/); if(!m) return null; return parseInt(m[1])*60+parseInt(m[2]); };
-  const d=parse(p.heureDepartBase), f=parse(p.heureRetourBase);
+  const d=parse(p.surPlace?p.heureDebutPrestation:p.heureDepartBase), f=parse(p.heureRetourBase);
   if(d===null||f===null) return "";
   let diff=f-d; if(diff<0) diff+=24*60;
   const h=Math.floor(diff/60), m=diff%60;
@@ -2286,7 +2302,7 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
         </div>
 
         <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginTop:20,marginBottom:10}}>Matériel à embarquer</div>
-        {(materiel||[]).map(m=>{
+        {[...(materiel||[])].sort((a,b)=>a.name.localeCompare(b.name,"fr")).map(m=>{
           const sel=form.materielChecked.find(x=>x.id===m.id);
           const taken=m.numerote?takenNumeros(m.id):null;
           return(
@@ -2328,13 +2344,26 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
   );
 }
 
-function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBordTypes, radioCanaux, fiches, bureau, readOnly, onSave, onDelete, onBack, themeMode, toggleTheme }){
+function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBordTypes, radioCanaux, fiches, preventifEmails, bureau, readOnly, onSave, onDelete, onBack, themeMode, toggleTheme }){
   const [f,setF]=useState(fiche);
   const [editing,setEditing]=useState(false);
   const [checklistVehicle,setChecklistVehicle]=useState(null); // objet véhicule en cours de check
   const [carnetVehicle,setCarnetVehicle]=useState(null); // objet véhicule en cours de carnet de bord
   const [showDeleteConfirm,setShowDeleteConfirm]=useState(false);
+  const [carnetBordOk,setCarnetBordOk]=useState({}); // {vehicleId: bool}
   const eligibleDrivers=(vehicleType)=>(personnel||[]).filter(p=>p.rouleAmbu||(p.roulePmr&&vehicleType!=="AMB"));
+
+  const checkCarnetBord=async()=>{
+    const results={};
+    for(const v of f.vehiculesEngages){
+      try{
+        const snap=await getDocs(query(collection(dbChecklists,"dispatchai_carnet_bord"), where("vehicle","==",v.vehicleName), where("date","==",f.date), where("status","==","closed")));
+        results[v.vehicleId]=!snap.empty;
+      }catch(e){ results[v.vehicleId]=false; }
+    }
+    setCarnetBordOk(results);
+  };
+  useEffect(()=>{ checkCarnetBord(); }, [f.vehiculesEngages.length, f.date]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if(editing){
     return <PreventifFicheForm vehicles={vehicles} personnel={personnel} materiel={materiel} radioCanaux={radioCanaux} fiches={fiches} existingFiche={f} onSave={(next)=>{setF(next);onSave(next);}} onCancel={()=>setEditing(false)}/>;
@@ -2351,9 +2380,24 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBord
   };
   const setVehiculeChauffeur=(vehicleId,chauffeur)=>save({...f,vehiculesEngages:f.vehiculesEngages.map(v=>v.vehicleId===vehicleId?{...v,chauffeur}:v)});
 
-  const canEnvoyer=(f.signature||"").trim().length>0 && !f.terminee;
-  const handleEnvoyer=()=>{
+  const horairesMissionComplete=!!(f.departEffectif&&f.heureSurPlace&&f.heureFinMission&&f.heureRetourBaseMission);
+  const feuillePrestationComplete=f.personnel.length>0&&f.personnel.every(p=>(p.surPlace||p.heureDepartBase)&&p.heureDebutPrestation&&p.heureFinPrestation&&p.heureRetourBase);
+  const documentsPapierComplete=DOCUMENTS_PAPIER.every(doc=>{ const entry=(f.documentsPapier||{})[doc.id]; return entry&&entry.status; });
+  const carnetBordComplete=f.vehiculesEngages.length===0||f.vehiculesEngages.every(v=>carnetBordOk[v.vehicleId]);
+
+  const canEnvoyer=(f.signature||"").trim().length>0 && !f.terminee && horairesMissionComplete && feuillePrestationComplete && documentsPapierComplete && carnetBordComplete;
+  const handleEnvoyer=async()=>{
     if(!canEnvoyer) return;
+    if(preventifEmails&&preventifEmails.length>0){
+      const feuilleLines=f.personnel.map(p=>`- ${p.nom} ${p.prenom} (${p.fonction}) : ${p.surPlace?"/":p.heureDepartBase} → ${p.heureRetourBase} (total ${calcTotalHeures(p)||"—"})`).join("\n");
+      const docsLines=DOCUMENTS_PAPIER.filter(doc=>(f.documentsPapier||{})[doc.id]?.status==="ok").map(doc=>`- ${doc.label} : ${(f.documentsPapier||{})[doc.id].qty}`).join("\n");
+      const content=`Date : ${new Date(f.date+"T00:00:00").toLocaleDateString("fr-FR")}\n\nFeuille de prestation :\n${feuilleLines}\n\nDocuments papier :\n${docsLines||"Aucun"}${f.remarque?`\n\nRemarque : ${f.remarque}`:""}\n\nSignature : ${f.signature}`;
+      for(const to of preventifEmails){
+        try{
+          await emailjs.send("service_mrs8v2l","template_2sxsq4j",{ to_email:to, title:`Préventif — ${f.nomEvenement}`, content },"Fhdx1kTE7vFmh4z07");
+        }catch(e){ console.error("Erreur envoi email préventif:", e); }
+      }
+    }
     save({...f, terminee:true, termineeAt:Date.now()});
   };
 
@@ -2497,22 +2541,29 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBord
             </thead>
             <tbody>
               {[...f.personnel].sort((a,b)=>{
-                const aResp=`${a.prenom} ${a.nom}`.trim()===f.responsableMission?0:1;
-                const bResp=`${b.prenom} ${b.nom}`.trim()===f.responsableMission?0:1;
+                const aResp=`${a.nom} ${a.prenom}`.trim()===f.responsableMission?0:1;
+                const bResp=`${b.nom} ${b.prenom}`.trim()===f.responsableMission?0:1;
                 if(aResp!==bResp) return aResp-bResp;
                 return PREVENTIF_GRADES.indexOf(a.fonction)-PREVENTIF_GRADES.indexOf(b.fonction);
-              }).map(p=>(
-                <tr key={p.id} style={p.surPlace?{background:"#ec489940"}:undefined}>
+              }).map(p=>{
+                const isResponsable=`${p.nom} ${p.prenom}`.trim()===f.responsableMission;
+                return(
+                <tr key={p.id} style={isResponsable?{background:C.panel2}:p.surPlace?{background:"#ec489940"}:undefined}>
                   <td style={{padding:"4px 6px",fontSize:11,color:C.text}}>{p.nom}</td>
                   <td style={{padding:"4px 6px",fontSize:11,color:C.text}}>{p.prenom}</td>
                   <td style={{padding:"4px 6px",fontSize:11,color:C.text}}>{p.fonction}</td>
                   {PREVENTIF_HEURE_FIELDS.map(hf=>(
-                    <td key={hf} style={{padding:"4px 6px"}}>{readOnly?<span style={{fontSize:11,color:C.text}}>{p[hf]||"—"}</span>:<div style={{width:70}}><HeureInput value={p[hf]||""} onChange={v=>updatePersonnel(p.id,hf,v)}/></div>}</td>
+                    <td key={hf} style={{padding:"4px 6px"}}>{
+                      (hf==="heureDepartBase"&&p.surPlace)?<span style={{fontSize:11,color:C.muted}}>/</span>
+                      :readOnly?<span style={{fontSize:11,color:C.text}}>{p[hf]||"—"}</span>
+                      :<div style={{width:70}}><HeureInput value={p[hf]||""} onChange={v=>updatePersonnel(p.id,hf,v)}/></div>
+                    }</td>
                   ))}
                   <td style={{padding:"4px 6px",fontSize:11,fontWeight:700,color:C.text}}>{calcTotalHeures(p)}</td>
                   <td></td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -2567,9 +2618,22 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBord
           <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:8}}>Signature du responsable de mission</div>
           <input readOnly={readOnly} value={f.signature||""} onChange={e=>save({...f,signature:e.target.value})} placeholder="Nom du responsable pour valider" style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box",marginBottom:12}}/>
           {!readOnly&&(
+          <>
+          {!canEnvoyer&&!f.terminee&&(
+            <div style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:8,padding:"9px 12px",marginBottom:10,fontSize:11,color:C.danger}}>
+              Avant d'envoyer, il faut : {[
+                !horairesMissionComplete&&"Horaires mission complets",
+                !feuillePrestationComplete&&"Feuille de prestation complète",
+                !documentsPapierComplete&&"Documents papier (OK ou NOK)",
+                !carnetBordComplete&&"Carnet de bord de tous les véhicules",
+                !(f.signature||"").trim()&&"Signature",
+              ].filter(Boolean).join(", ")}
+            </div>
+          )}
           <button disabled={!canEnvoyer} onClick={handleEnvoyer} style={{width:"100%",background:!canEnvoyer?C.panel2:C.success,border:"none",borderRadius:10,color:!canEnvoyer?C.muted:"white",padding:14,fontWeight:800,fontSize:15,cursor:canEnvoyer?"pointer":"not-allowed"}}>
             {f.terminee?"✅ Fiche terminée":"📤 Envoyer"}
           </button>
+          </>
           )}
         </div>
 
@@ -2592,7 +2656,7 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBord
       )}
 
       {carnetVehicle&&(
-        <CarnetBordModal vehicle={carnetVehicle} driver={f.vehiculesEngages.find(v=>v.vehicleId===carnetVehicle.id)?.chauffeur||""} myCourses={[]} carnetBordTypes={carnetBordTypes} onClose={()=>setCarnetVehicle(null)}/>
+        <CarnetBordModal vehicle={carnetVehicle} driver={f.vehiculesEngages.find(v=>v.vehicleId===carnetVehicle.id)?.chauffeur||""} myCourses={[]} carnetBordTypes={carnetBordTypes} onClose={()=>{setCarnetVehicle(null);checkCarnetBord();}}/>
       )}
     </div>
   );
@@ -2616,7 +2680,7 @@ function PreventifInventaireView({ materiel, fiches, onBack, themeMode, toggleTh
       <div style={{flex:1,padding:16,maxWidth:640,margin:"0 auto",width:"100%"}}>
         <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Le matériel des fiches non terminées est déduit ; il redevient disponible dès qu'une fiche est marquée "Envoyée".</div>
         {(!materiel||materiel.length===0)&&<div style={{textAlign:"center",color:C.muted,padding:40}}>Aucun article défini</div>}
-        {(materiel||[]).map(m=>{
+        {[...(materiel||[])].sort((a,b)=>a.name.localeCompare(b.name,"fr")).map(m=>{
           const total=m.quantiteTotale||0;
           const used=usedById[m.id]||0;
           const dispo=total-used;
@@ -2668,7 +2732,7 @@ function PreventifHistorique({ fiches, materiel, personnel, vehicles, radioCanau
   );
 }
 
-function PreventifView({ onBack, vehicles, carnetBordTypes, themeMode, toggleTheme }){
+function PreventifView({ onBack, vehicles, carnetBordTypes, preventifEmails, themeMode, toggleTheme }){
   const [bureau,setBureau]=useState(false);
   const [screen,setScreen]=useState("home"); // home | parametres | nouvelle | historique
   const [personnel,setPersonnel]=useFirestoreState("preventifPersonnel", []);
@@ -2689,7 +2753,7 @@ function PreventifView({ onBack, vehicles, carnetBordTypes, themeMode, toggleThe
   if(screen==="parametres") return <PreventifParametresView personnel={personnel} setPersonnel={setPersonnel} materiel={materiel} setMateriel={setMateriel} radioCanaux={radioCanaux} setRadioCanaux={setRadioCanaux} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(screen==="nouvelle") return <PreventifFicheForm vehicles={vehicles} personnel={personnel} materiel={materiel} radioCanaux={radioCanaux} fiches={fiches} onCancel={()=>setScreen("home")} onSave={saveFiche}/>;
   if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} fiches={fiches} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onDelete={deleteFiche} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} fiches={fiches} preventifEmails={preventifEmails} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onDelete={deleteFiche} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   const todayFiches=fiches.filter(f=>f.date===todayISO() && !f.terminee && (bureau||f.visibleTerrain));
 
@@ -7451,6 +7515,7 @@ export default function App(){
   const [o2Emails, setO2Emails] = useFirestoreState("o2Emails", []);
   const [documentCategories] = useFirestoreState("documentCategories", ["Carte grise","Assurance","Contrôle technique"]);
   const [peremptionEmails, setPeremptionEmails] = useFirestoreState("peremptionEmails", []);
+  const [preventifEmails, setPreventifEmails] = useFirestoreState("preventifEmails", []);
   const [appView,     setAppView]     = useState(()=>lsGet("aps_appView","menu"));
   const [showPin,     setShowPin]     = useState(false);
   const [showDispMenu,setShowDispMenu] = useState(false);
@@ -7601,9 +7666,9 @@ export default function App(){
   if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="documents") return <DocumentsView vehicles={vehicles} documentCategories={documentCategories} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="bons") return <BonsMenuView bases={bases} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} vehicles={vehicles} carnetBordTypes={carnetBordTypes} preventifEmails={preventifEmails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="signaler") return <SignalerCompletView onBack={()=>setAppView("menu")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} peremptionEmails={peremptionEmails} setPeremptionEmails={setPeremptionEmails} listeRouge={listeRouge} setListeRouge={setListeRouge} carnetBordTypes={carnetBordTypes} setCarnetBordTypes={setCarnetBordTypes} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} peremptionEmails={peremptionEmails} setPeremptionEmails={setPeremptionEmails} preventifEmails={preventifEmails} setPreventifEmails={setPreventifEmails} listeRouge={listeRouge} setListeRouge={setListeRouge} carnetBordTypes={carnetBordTypes} setCarnetBordTypes={setCarnetBordTypes} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
