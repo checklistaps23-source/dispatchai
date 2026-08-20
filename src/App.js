@@ -2344,7 +2344,7 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
   );
 }
 
-function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBordTypes, radioCanaux, fiches, preventifEmails, bureau, readOnly, onSave, onDelete, onBack, themeMode, toggleTheme }){
+function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBordTypes, transportTypes, radioCanaux, fiches, preventifEmails, bureau, readOnly, onSave, onDelete, onBack, themeMode, toggleTheme }){
   const [f,setF]=useState(fiche);
   const [editing,setEditing]=useState(false);
   const [checklistVehicle,setChecklistVehicle]=useState(null); // objet véhicule en cours de check
@@ -2656,7 +2656,7 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBord
       )}
 
       {carnetVehicle&&(
-        <CarnetBordModal vehicle={carnetVehicle} driver={f.vehiculesEngages.find(v=>v.vehicleId===carnetVehicle.id)?.chauffeur||""} myCourses={[]} carnetBordTypes={carnetBordTypes} onClose={()=>{setCarnetVehicle(null);checkCarnetBord();}}/>
+        <CarnetBordModal vehicle={carnetVehicle} driver={f.vehiculesEngages.find(v=>v.vehicleId===carnetVehicle.id)?.chauffeur||""} myCourses={[]} carnetBordTypes={carnetBordTypes} transportTypes={transportTypes} onClose={()=>{setCarnetVehicle(null);checkCarnetBord();}}/>
       )}
     </div>
   );
@@ -2732,7 +2732,7 @@ function PreventifHistorique({ fiches, materiel, personnel, vehicles, radioCanau
   );
 }
 
-function PreventifView({ onBack, vehicles, carnetBordTypes, preventifEmails, themeMode, toggleTheme }){
+function PreventifView({ onBack, vehicles, carnetBordTypes, transportTypes, preventifEmails, themeMode, toggleTheme }){
   const [bureau,setBureau]=useState(false);
   const [screen,setScreen]=useState("home"); // home | parametres | nouvelle | historique
   const [personnel,setPersonnel]=useFirestoreState("preventifPersonnel", []);
@@ -2753,7 +2753,7 @@ function PreventifView({ onBack, vehicles, carnetBordTypes, preventifEmails, the
   if(screen==="parametres") return <PreventifParametresView personnel={personnel} setPersonnel={setPersonnel} materiel={materiel} setMateriel={setMateriel} radioCanaux={radioCanaux} setRadioCanaux={setRadioCanaux} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(screen==="nouvelle") return <PreventifFicheForm vehicles={vehicles} personnel={personnel} materiel={materiel} radioCanaux={radioCanaux} fiches={fiches} onCancel={()=>setScreen("home")} onSave={saveFiche}/>;
   if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} fiches={fiches} preventifEmails={preventifEmails} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onDelete={deleteFiche} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} transportTypes={transportTypes} radioCanaux={radioCanaux} fiches={fiches} preventifEmails={preventifEmails} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onDelete={deleteFiche} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   const todayFiches=fiches.filter(f=>f.date===todayISO() && !f.terminee && (bureau||f.visibleTerrain));
 
@@ -3233,7 +3233,7 @@ function NumKeyboardField({ value, onConfirm, allowDecimal, placeholder, danger 
   );
 }
 
-function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, onClose, forcedMission, onForcedSaved }){
+function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, transportTypes, onClose, forcedMission, onForcedSaved }){
   const [entries,setEntries]=useState([]);
   const [mode,setMode]=useState(forcedMission?"fin_service":"list"); // list | depart | arrivee | fin_service | plein
   const [arrivingEntry,setArrivingEntry]=useState(null);
@@ -3246,7 +3246,9 @@ function CarnetBordModal({ vehicle, driver, myCourses, carnetBordTypes, onClose,
   const [pleinLitres,setPleinLitres]=useState("");
   const [saving,setSaving]=useState(false);
 
-  const types=(carnetBordTypes&&carnetBordTypes.length)?carnetBordTypes:INIT_CARNET_TYPES;
+  const baseTypes=(carnetBordTypes&&carnetBordTypes.length)?carnetBordTypes:INIT_CARNET_TYPES;
+  const extraFromTransport=(transportTypes||[]).filter(t=>!baseTypes.some(c=>c.label===t.label));
+  const types=[...baseTypes,...extraFromTransport];
 
   useEffect(()=>{
     const unsub=onSnapshot(collection(dbChecklists,"dispatchai_carnet_bord"), snap=>{
@@ -3684,7 +3686,7 @@ function DailyChecklistView({ vehicle, driverName, onComplete, themeMode, toggle
   );
 }
 
-function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehicles,setVehicles,contacts,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,carnetBordTypes,onBack,onEndService,themeMode,toggleTheme}){
+function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehicles,setVehicles,contacts,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,carnetBordTypes,transportTypes,onBack,onEndService,themeMode,toggleTheme}){
   const [showBons,setShowBons]=useState(false);
   const [showContacts,setShowContacts]=useState(false);
   const [showPlans,setShowPlans]=useState(false);
@@ -4110,7 +4112,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
       )}
 
       {endCarnetMission&&(
-        <CarnetBordModal vehicle={vehicle} driver={driver} myCourses={myCourses} carnetBordTypes={carnetBordTypes} forcedMission={endCarnetMission}
+        <CarnetBordModal vehicle={vehicle} driver={driver} myCourses={myCourses} carnetBordTypes={carnetBordTypes} transportTypes={transportTypes} forcedMission={endCarnetMission}
           onForcedSaved={()=>{
             if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:endCarnetMission==="retour_domicile"?{driver,since:Date.now()}:null}:v));
             setEndCarnetMission(null);
@@ -4120,7 +4122,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
       )}
 
       {showCarnetBord&&(
-        <CarnetBordModal vehicle={vehicle} driver={driver} myCourses={myCourses} carnetBordTypes={carnetBordTypes} onClose={()=>setShowCarnetBord(false)}/>
+        <CarnetBordModal vehicle={vehicle} driver={driver} myCourses={myCourses} carnetBordTypes={carnetBordTypes} transportTypes={transportTypes} onClose={()=>setShowCarnetBord(false)}/>
       )}
 
       {showChangeConvoyeur&&(
@@ -7661,12 +7663,12 @@ export default function App(){
   if(appView==="formulaire") return <FormulaireView onBack={backToSubMenu} onSubmit={submitCourse} conventions={conventions} equipements={equipements} transportTypes={transportTypes} contacts={contacts} listeRouge={listeRouge} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} tarifs={tarifs} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="planning") return <PlanningView courses={courses} setCourses={setCourses} vehicles={vehicles} patients={patientsHabituels} setPatients={setPatientsHabituels} categories={patientCategories} setCategories={setPatientCategories} conventions={conventions} transportTypes={transportTypes} equipements={equipements} pending={pending} onAssignPending={validateCourse} onGoFormulaire={()=>setAppView("formulaire")} onBack={backToSubMenu} onSchedule={submitFromPatientHabituel} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} carnetBordTypes={carnetBordTypes} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} carnetBordTypes={carnetBordTypes} transportTypes={transportTypes} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} peremptionEmails={peremptionEmails} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="documents") return <DocumentsView vehicles={vehicles} documentCategories={documentCategories} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="bons") return <BonsMenuView bases={bases} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} vehicles={vehicles} carnetBordTypes={carnetBordTypes} preventifEmails={preventifEmails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} vehicles={vehicles} carnetBordTypes={carnetBordTypes} transportTypes={transportTypes} preventifEmails={preventifEmails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="signaler") return <SignalerCompletView onBack={()=>setAppView("menu")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} peremptionEmails={peremptionEmails} setPeremptionEmails={setPeremptionEmails} preventifEmails={preventifEmails} setPreventifEmails={setPreventifEmails} listeRouge={listeRouge} setListeRouge={setListeRouge} carnetBordTypes={carnetBordTypes} setCarnetBordTypes={setCarnetBordTypes} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
