@@ -1906,6 +1906,9 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
   const [tab,setTab]=useState("personnel");
   const [newName,setNewName]=useState("");
   const [newGrade,setNewGrade]=useState(PREVENTIF_GRADES[0]);
+  const [editingPersonId,setEditingPersonId]=useState(null);
+  const [editName,setEditName]=useState("");
+  const [editGrade,setEditGrade]=useState(PREVENTIF_GRADES[0]);
   const [newMateriel,setNewMateriel]=useState("");
   const [newMaterielQty,setNewMaterielQty]=useState("1");
   const [newCanalNum,setNewCanalNum]=useState("");
@@ -1933,15 +1936,19 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
           {tab==="personnel"&&(
             <div>
               <div style={{fontSize:13,fontWeight:800,color:C.text,marginBottom:6}}>👥 Personnel</div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Organisé par grade sanitaire.</div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Organisé par grade sanitaire. 🚑 Roule AMBU (tous véhicules) · 🚗 Roule PMR (TPMR/VSL/Préventif uniquement).</div>
               <div style={{display:"flex",gap:8,marginBottom:20}}>
                 <select value={newGrade} onChange={e=>setNewGrade(e.target.value)} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 10px",color:C.text,fontSize:12}}>
                   {PREVENTIF_GRADES.map(g=>(<option key={g} value={g}>{g}</option>))}
                 </select>
-                <input value={newName} onChange={e=>setNewName(e.target.value)} placeholder="Prénom Nom" style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 12px",color:C.text,fontSize:13}}/>
+                <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{
+                  if(e.key!=="Enter"||!newName.trim()) return;
+                  setPersonnel(p=>[...p,{id:"pp"+Date.now(),name:newName.trim(),grade:newGrade,roulePmr:false,rouleAmbu:false}]);
+                  setNewName("");
+                }} placeholder="Prénom Nom" style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 12px",color:C.text,fontSize:13}}/>
                 <button onClick={()=>{
                   if(!newName.trim()) return;
-                  setPersonnel(p=>[...p,{id:"pp"+Date.now(),name:newName.trim(),grade:newGrade}]);
+                  setPersonnel(p=>[...p,{id:"pp"+Date.now(),name:newName.trim(),grade:newGrade,roulePmr:false,rouleAmbu:false}]);
                   setNewName("");
                 }} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
               </div>
@@ -1952,9 +1959,27 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
                   <div key={grade} style={{marginBottom:18}}>
                     <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>{grade}</div>
                     {group.map(p=>(
-                      <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",marginBottom:6}}>
-                        <span style={{fontSize:13,color:C.text}}>{p.name}</span>
-                        <button onClick={()=>setPersonnel(prev=>prev.filter(x=>x.id!==p.id))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                      <div key={p.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",marginBottom:6}}>
+                        {editingPersonId===p.id?(
+                          <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                            <input value={editName} onChange={e=>setEditName(e.target.value)} style={{flex:1,minWidth:100,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 9px",color:C.text,fontSize:13}}/>
+                            <select value={editGrade} onChange={e=>setEditGrade(e.target.value)} style={{background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}>
+                              {PREVENTIF_GRADES.map(g=>(<option key={g} value={g}>{g}</option>))}
+                            </select>
+                            <button onClick={()=>{setPersonnel(prev=>prev.map(x=>x.id===p.id?{...x,name:editName.trim()||x.name,grade:editGrade}:x));setEditingPersonId(null);}} style={{background:C.success,border:"none",borderRadius:6,color:"white",padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>✓</button>
+                            <button onClick={()=>setEditingPersonId(null)} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,color:C.muted,padding:"6px 10px",fontSize:11,cursor:"pointer"}}>✕</button>
+                          </div>
+                        ):(
+                          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                            <span style={{fontSize:13,color:C.text}}>{p.name}</span>
+                            <div style={{display:"flex",gap:6,alignItems:"center"}}>
+                              <button onClick={()=>setPersonnel(prev=>prev.map(x=>x.id===p.id?{...x,rouleAmbu:!x.rouleAmbu}:x))} title="Roule AMBU (tous véhicules)" style={{background:p.rouleAmbu?C.dangerSoft:"transparent",border:`1px solid ${p.rouleAmbu?C.danger:C.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,cursor:"pointer"}}>🚑</button>
+                              <button onClick={()=>setPersonnel(prev=>prev.map(x=>x.id===p.id?{...x,roulePmr:!x.roulePmr}:x))} title="Roule PMR (TPMR/VSL/Préventif)" style={{background:p.roulePmr?C.accentSoft:"transparent",border:`1px solid ${p.roulePmr?C.accent:C.border}`,borderRadius:6,padding:"4px 8px",fontSize:12,cursor:"pointer"}}>🚗</button>
+                              <button onClick={()=>{setEditingPersonId(p.id);setEditName(p.name);setEditGrade(p.grade);}} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:6,color:C.muted,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>✏️</button>
+                              <button onClick={()=>setPersonnel(prev=>prev.filter(x=>x.id!==p.id))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"4px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1974,7 +1999,7 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
               </div>
               {[...materiel].sort((a,b)=>a.name.localeCompare(b.name,"fr")).map(m=>(
                 <div key={m.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",marginBottom:6,flexWrap:"wrap",gap:8}}>
-                  <input value={m.name} onChange={e=>setMateriel(prev=>prev.map(x=>x.id===m.id?{...x,name:e.target.value}:x))} style={{flex:1,minWidth:100,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 9px",color:C.text,fontSize:13}}/>
+                  <span style={{flex:1,fontSize:13,color:C.text}}>{m.name}</span>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     <span style={{fontSize:10,color:C.muted}}>Total :</span>
                     <input type="number" min="0" value={m.quantiteTotale||0} onChange={e=>setMateriel(prev=>prev.map(x=>x.id===m.id?{...x,quantiteTotale:parseInt(e.target.value)||0}:x))} style={{width:50,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"4px 6px",color:C.text,fontSize:12,textAlign:"center"}}/>
@@ -2021,20 +2046,40 @@ function calcTotalHeures(p){
   return `${h}h${String(m).padStart(2,"0")}`;
 }
 
-function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, radioCanaux, fiches, onSave, onCancel }){
+function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches, onSave, onCancel }){
+  const ficheIdRef=useRef("prev"+Date.now());
+  const createdAtRef=useRef(Date.now());
+  const savedOnceRef=useRef(false);
   const [form,setForm]=useState({
     nomEvenement:"", date:todayISO(), lieu:"", adresse:"", nature:"", subsistance:false, dispositif:"",
-    responsableOrga:"", gsmOrga:"",
+    responsablesOrga:[{nom:"",gsm:""}],
     responsableMission:"", departBaseAuPlusTard:"", canalRadio:"",
-    vehiculesEngages:[], materielChecked:[],
+    vehiculesEngages:[], materielChecked:[], personnel:[],
   });
-  const allDrivers=[...(driversAmb||[]),...(driversTpmr||[])];
+  const [pickPersonId,setPickPersonId]=useState("");
+  const [newNom,setNewNom]=useState(""); const [newPrenom,setNewPrenom]=useState(""); const [newFonction,setNewFonction]=useState("");
+
+  useEffect(()=>{
+    if(!form.nomEvenement.trim()) return; // pas de sauvegarde tant que rien n'est tapé
+    onSave({
+      ...form,
+      id:ficheIdRef.current,
+      departEffectif:"", heureSurPlace:"", heureFinMission:"", heureRetourBaseMission:"",
+      remarque:"", signature:"",
+      visibleTerrain:false, statutBureau:"orange",
+      createdAt:createdAtRef.current,
+    });
+    savedOnceRef.current=true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[form]);
+
+  const eligibleDrivers=(vehicleType)=>(personnel||[]).filter(p=>p.rouleAmbu||(p.roulePmr&&vehicleType!=="AMB"));
 
   const toggleVehicule=(v)=>{
     setForm(f=>{
       const exists=f.vehiculesEngages.find(x=>x.vehicleId===v.id);
       if(exists) return {...f,vehiculesEngages:f.vehiculesEngages.filter(x=>x.vehicleId!==v.id)};
-      return {...f,vehiculesEngages:[...f.vehiculesEngages,{vehicleId:v.id,vehicleName:v.name,chauffeur:""}]};
+      return {...f,vehiculesEngages:[...f.vehiculesEngages,{vehicleId:v.id,vehicleName:v.name,vehicleType:v.type,chauffeur:""}]};
     });
   };
   const setChauffeur=(vehicleId,chauffeur)=>setForm(f=>({...f,vehiculesEngages:f.vehiculesEngages.map(x=>x.vehicleId===vehicleId?{...x,chauffeur}:x)}));
@@ -2059,19 +2104,31 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, radio
     return {...x,numeros:nextNums,qty:nextNums.length};
   })}));
 
-  const canSave=form.nomEvenement.trim()&&form.date&&form.responsableMission.trim();
+  const addPersonnelFromList=()=>{
+    if(!pickPersonId) return;
+    const p=(personnel||[]).find(x=>x.id===pickPersonId);
+    if(!p) return;
+    const parts=p.name.trim().split(" ");
+    const prenom=parts.shift()||""; const nom=parts.join(" ")||"";
+    setForm(f=>({...f,personnel:[...f.personnel,{id:"pers"+Date.now(),nom:nom||p.name,prenom,fonction:p.grade,heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}]}));
+    setPickPersonId("");
+  };
+  const addPersonnelManuel=()=>{
+    if(!newNom.trim()) return;
+    setForm(f=>({...f,personnel:[...f.personnel,{id:"pers"+Date.now(),nom:newNom.trim(),prenom:newPrenom.trim(),fonction:newFonction.trim(),heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}]}));
+    setNewNom("");setNewPrenom("");setNewFonction("");
+  };
+  const removePersonnel=(id)=>setForm(f=>({...f,personnel:f.personnel.filter(p=>p.id!==id)}));
+
+  const addResponsableOrga=()=>setForm(f=>({...f,responsablesOrga:[...f.responsablesOrga,{nom:"",gsm:""}]}));
+  const updateResponsableOrga=(i,field,val)=>setForm(f=>({...f,responsablesOrga:f.responsablesOrga.map((r,j)=>j===i?{...r,[field]:val}:r)}));
+  const removeResponsableOrga=(i)=>setForm(f=>({...f,responsablesOrga:f.responsablesOrga.filter((_,j)=>j!==i)}));
+
+  const canSave=form.nomEvenement.trim()&&form.date;
 
   const handleSave=()=>{
     if(!canSave) return;
-    onSave({
-      ...form,
-      id:"prev"+Date.now(),
-      departEffectif:"", heureSurPlace:"", heureFinMission:"", heureRetourBaseMission:"",
-      personnel:[{id:"pers"+Date.now(),nom:form.responsableMission.trim(),prenom:"",fonction:"Responsable de mission",heureDepartBase:"",heureDebutPrestation:"",heureFinPrestation:"",heureRetourBase:""}],
-      remarque:"", signature:"",
-      visibleTerrain:false, statutBureau:"orange",
-      createdAt:Date.now(),
-    });
+    onCancel();
   };
 
   return(
@@ -2108,26 +2165,75 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, radio
           <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Dispositif</div>
           <textarea value={form.dispositif} onChange={e=>setForm(x=>({...x,dispositif:e.target.value}))} placeholder="Ex: 1 PS sous toit, 1 ambu AMU, 2 PAPS" style={{width:"100%",minHeight:60,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box",resize:"vertical",fontFamily:"inherit"}}/>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
-          <div>
-            <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Responsable organisation</div>
-            <input value={form.responsableOrga} onChange={e=>setForm(x=>({...x,responsableOrga:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
-          </div>
-          <div>
-            <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>GSM</div>
-            <input value={form.gsmOrga} onChange={e=>setForm(x=>({...x,gsmOrga:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
-          </div>
+        <div style={{marginBottom:20}}>
+          <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Responsable(s) organisation</div>
+          {form.responsablesOrga.map((r,i)=>(
+            <div key={i} style={{display:"flex",gap:8,marginBottom:6}}>
+              <input value={r.nom} onChange={e=>updateResponsableOrga(i,"nom",e.target.value)} placeholder="Nom" style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+              <input value={r.gsm} onChange={e=>updateResponsableOrga(i,"gsm",e.target.value)} placeholder="GSM" style={{width:130,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,boxSizing:"border-box"}}/>
+              {form.responsablesOrga.length>1&&<button onClick={()=>removeResponsableOrga(i)} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:8,color:C.danger,padding:"0 12px",cursor:"pointer"}}>🗑</button>}
+            </div>
+          ))}
+          <button onClick={addResponsableOrga} style={{background:"transparent",border:`1px dashed ${C.border}`,borderRadius:8,color:C.muted,padding:"7px 12px",fontSize:12,cursor:"pointer"}}>+ Ajouter un responsable</button>
         </div>
 
         <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Logistique équipe</div>
-        <div style={{marginBottom:10}}>
+        <div style={{marginBottom:20}}>
           <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Responsable de mission</div>
           <select value={form.responsableMission} onChange={e=>setForm(x=>({...x,responsableMission:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13}}>
             <option value="">— Choisir —</option>
-            {allDrivers.map(d=>(<option key={d} value={d}>{d}</option>))}
+            {(personnel||[]).map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}
           </select>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
+
+        <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Personnel</div>
+        {form.personnel.map(p=>(
+          <div key={p.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 12px",marginBottom:6}}>
+            <span style={{fontSize:12,color:C.text}}>{p.nom} {p.prenom} <span style={{color:C.muted}}>— {p.fonction}</span></span>
+            <button onClick={()=>removePersonnel(p.id)} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"3px 8px",fontSize:10,cursor:"pointer"}}>🗑</button>
+          </div>
+        ))}
+        <div style={{display:"flex",gap:6,marginBottom:8,flexWrap:"wrap"}}>
+          <select value={pickPersonId} onChange={e=>setPickPersonId(e.target.value)} style={{flex:1,minWidth:160,background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"7px 9px",color:C.text,fontSize:12}}>
+            <option value="">— Choisir dans le personnel —</option>
+            {PREVENTIF_GRADES.map(grade=>{
+              const group=(personnel||[]).filter(p=>p.grade===grade);
+              if(group.length===0) return null;
+              return <optgroup key={grade} label={grade}>{group.map(p=>(<option key={p.id} value={p.id}>{p.name}</option>))}</optgroup>;
+            })}
+          </select>
+          <button onClick={addPersonnelFromList} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:6,color:C.purple,padding:"7px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+        </div>
+        <div style={{display:"flex",gap:6,marginBottom:20,flexWrap:"wrap"}}>
+          <input value={newNom} onChange={e=>setNewNom(e.target.value)} placeholder="Nom (hors liste)" style={{width:100,background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}/>
+          <input value={newPrenom} onChange={e=>setNewPrenom(e.target.value)} placeholder="Prénom" style={{width:90,background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}/>
+          <input value={newFonction} onChange={e=>setNewFonction(e.target.value)} placeholder="Fonction" style={{width:100,background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"6px 8px",color:C.text,fontSize:12}}/>
+          <button onClick={addPersonnelManuel} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:6,color:C.text,padding:"6px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+        </div>
+
+        <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Véhicules engagés</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:10}}>
+          {(vehicles||[]).map(v=>{
+            const active=form.vehiculesEngages.some(x=>x.vehicleId===v.id);
+            return(<button key={v.id} onClick={()=>toggleVehicule(v)} style={{padding:"8px 4px",borderRadius:8,border:`1px solid ${active?C.purple:C.border}`,background:active?C.purpleSoft:"transparent",color:active?C.purple:C.muted,fontSize:12,fontWeight:700,cursor:"pointer"}}>{v.name}</button>);
+          })}
+        </div>
+        {form.vehiculesEngages.map(v=>{
+          const selectedNames=new Set(form.personnel.map(p=>`${p.prenom} ${p.nom}`.trim()));
+          const options=eligibleDrivers(v.vehicleType);
+          const prioritized=[...options].sort((a,b)=>(selectedNames.has(b.name)?1:0)-(selectedNames.has(a.name)?1:0));
+          return(
+            <div key={v.vehicleId} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+              <span style={{fontSize:12,color:C.muted,width:70}}>{v.vehicleName}</span>
+              <select value={v.chauffeur} onChange={e=>setChauffeur(v.vehicleId,e.target.value)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:12}}>
+                <option value="">— Chauffeur —</option>
+                {prioritized.map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}
+              </select>
+            </div>
+          );
+        })}
+
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:20,marginBottom:20}}>
           <div>
             <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Départ base au plus tard</div>
             <HeureInput value={form.departBaseAuPlusTard} onChange={v=>setForm(x=>({...x,departBaseAuPlusTard:v}))}/>
@@ -2140,23 +2246,6 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, radio
             </select>
           </div>
         </div>
-
-        <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Véhicules engagés</div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:10}}>
-          {(vehicles||[]).map(v=>{
-            const active=form.vehiculesEngages.some(x=>x.vehicleId===v.id);
-            return(<button key={v.id} onClick={()=>toggleVehicule(v)} style={{padding:"8px 4px",borderRadius:8,border:`1px solid ${active?C.purple:C.border}`,background:active?C.purpleSoft:"transparent",color:active?C.purple:C.muted,fontSize:12,fontWeight:700,cursor:"pointer"}}>{v.name}</button>);
-          })}
-        </div>
-        {form.vehiculesEngages.map(v=>(
-          <div key={v.vehicleId} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-            <span style={{fontSize:12,color:C.muted,width:70}}>{v.vehicleName}</span>
-            <select value={v.chauffeur} onChange={e=>setChauffeur(v.vehicleId,e.target.value)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:12}}>
-              <option value="">— Chauffeur —</option>
-              {allDrivers.map(d=>(<option key={d} value={d}>{d}</option>))}
-            </select>
-          </div>
-        ))}
 
         <div style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",marginTop:20,marginBottom:10}}>Matériel à embarquer</div>
         {(materiel||[]).map(m=>{
@@ -2195,20 +2284,20 @@ function PreventifFicheForm({ vehicles, driversAmb, driversTpmr, materiel, radio
         {(!materiel||materiel.length===0)&&<div style={{fontSize:12,color:C.muted}}>Aucun article défini (Paramètres → Matériel)</div>}
       </div>
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.panel,borderTop:`1px solid ${C.border}`,padding:"13px 16px"}}>
-        <button disabled={!canSave} onClick={handleSave} style={{width:"100%",background:canSave?C.purple:C.panel2,border:"none",borderRadius:10,color:canSave?"white":C.muted,padding:14,fontWeight:800,fontSize:15,cursor:canSave?"pointer":"not-allowed"}}>✅ Créer la fiche</button>
+        <button disabled={!canSave} onClick={handleSave} style={{width:"100%",background:canSave?C.purple:C.panel2,border:"none",borderRadius:10,color:canSave?"white":C.muted,padding:14,fontWeight:800,fontSize:15,cursor:canSave?"pointer":"not-allowed"}}>✅ Terminer (déjà enregistré)</button>
       </div>
     </div>
   );
 }
 
-function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb, driversTpmr, carnetBordTypes, radioCanaux, bureau, onSave, onDelete, onBack, themeMode, toggleTheme }){
+function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, carnetBordTypes, radioCanaux, bureau, onSave, onDelete, onBack, themeMode, toggleTheme }){
   const [f,setF]=useState(fiche);
   const [newNom,setNewNom]=useState(""); const [newPrenom,setNewPrenom]=useState(""); const [newFonction,setNewFonction]=useState("");
   const [pickPersonId,setPickPersonId]=useState("");
   const [checklistVehicle,setChecklistVehicle]=useState(null); // objet véhicule en cours de check
   const [carnetVehicle,setCarnetVehicle]=useState(null); // objet véhicule en cours de carnet de bord
   const [showDeleteConfirm,setShowDeleteConfirm]=useState(false);
-  const allDrivers=[...(driversAmb||[]),...(driversTpmr||[])];
+  const eligibleDrivers=(vehicleType)=>(personnel||[]).filter(p=>p.rouleAmbu||(p.roulePmr&&vehicleType!=="AMB"));
 
   const save=(next)=>{ setF(next); onSave(next); };
   const updatePersonnel=(id,field,val)=>{
@@ -2267,12 +2356,23 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb
           <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:8}}>Infos mission</div>
           {bureau?(
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-              {[["nomEvenement","Nom événement"],["lieu","Lieu"],["adresse","Adresse"],["nature","Nature"],["dispositif","Dispositif"],["responsableOrga","Responsable orga"],["gsmOrga","GSM"]].map(([field,label])=>(
+              {[["nomEvenement","Nom événement"],["lieu","Lieu"],["adresse","Adresse"],["nature","Nature"],["dispositif","Dispositif"]].map(([field,label])=>(
                 <div key={field}>
                   <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>{label}</div>
                   <input value={f[field]||""} onChange={e=>save({...f,[field]:e.target.value})} style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12,boxSizing:"border-box"}}/>
                 </div>
               ))}
+              <div style={{gridColumn:"1 / -1"}}>
+                <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Responsable(s) organisation</div>
+                {(f.responsablesOrga||[]).map((r,i)=>(
+                  <div key={i} style={{display:"flex",gap:6,marginBottom:6}}>
+                    <input value={r.nom} onChange={e=>save({...f,responsablesOrga:f.responsablesOrga.map((x,j)=>j===i?{...x,nom:e.target.value}:x)})} placeholder="Nom" style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12,boxSizing:"border-box"}}/>
+                    <input value={r.gsm} onChange={e=>save({...f,responsablesOrga:f.responsablesOrga.map((x,j)=>j===i?{...x,gsm:e.target.value}:x)})} placeholder="GSM" style={{width:110,background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12,boxSizing:"border-box"}}/>
+                    {f.responsablesOrga.length>1&&<button onClick={()=>save({...f,responsablesOrga:f.responsablesOrga.filter((_,j)=>j!==i)})} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"0 10px",cursor:"pointer"}}>🗑</button>}
+                  </div>
+                ))}
+                <button onClick={()=>save({...f,responsablesOrga:[...(f.responsablesOrga||[]),{nom:"",gsm:""}]})} style={{background:"transparent",border:`1px dashed ${C.border}`,borderRadius:7,color:C.muted,padding:"6px 11px",fontSize:11,cursor:"pointer"}}>+ Ajouter un responsable</button>
+              </div>
               <div>
                 <div style={{fontSize:10,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Canal radio</div>
                 <select value={f.canalRadio||""} onChange={e=>save({...f,canalRadio:e.target.value})} style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12,boxSizing:"border-box"}}>
@@ -2299,7 +2399,7 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb
             <div><b style={{color:C.text}}>Nature :</b> {f.nature||"—"}</div>
             <div><b style={{color:C.text}}>Dispositif :</b> {f.dispositif||"—"}</div>
             <div><b style={{color:C.text}}>Subsistance :</b> {f.subsistance?"Oui":"Non"}</div>
-            <div><b style={{color:C.text}}>Organisation :</b> {f.responsableOrga||"—"} {f.gsmOrga&&`(${f.gsmOrga})`}</div>
+            <div><b style={{color:C.text}}>Organisation :</b> {(f.responsablesOrga||[]).filter(r=>r.nom).map(r=>`${r.nom}${r.gsm?` (${r.gsm})`:""}`).join(", ")||"—"}</div>
             <div><b style={{color:C.text}}>Canal radio :</b> {f.canalRadio||"—"}</div>
           </div>
           )}
@@ -2341,7 +2441,7 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, driversAmb
                   <span style={{fontWeight:700,fontSize:13,color:C.text,width:70}}>{v.vehicleName}</span>
                   <select value={v.chauffeur} onChange={e=>setVehiculeChauffeur(v.vehicleId,e.target.value)} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12}}>
                     <option value="">— Chauffeur —</option>
-                    {allDrivers.map(d=>(<option key={d} value={d}>{d}</option>))}
+                    {eligibleDrivers(vehObj.type).map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}
                   </select>
                 </div>
                 <div style={{display:"flex",gap:8}}>
@@ -2505,11 +2605,11 @@ function PreventifInventaireView({ materiel, fiches, onBack, themeMode, toggleTh
   );
 }
 
-function PreventifHistorique({ fiches, materiel, personnel, vehicles, driversAmb, driversTpmr, carnetBordTypes, onSave, onDelete, onBack, themeMode, toggleTheme }){
+function PreventifHistorique({ fiches, materiel, personnel, vehicles, radioCanaux, carnetBordTypes, onSave, onDelete, onBack, themeMode, toggleTheme }){
   const [selected,setSelected]=useState(null);
   const [showInventaire,setShowInventaire]=useState(false);
   if(showInventaire) return <PreventifInventaireView materiel={materiel} fiches={fiches} onBack={()=>setShowInventaire(false)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(selected) return <PreventifFicheDetail fiche={selected} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} bureau={true} onSave={(next)=>{onSave(next);setSelected(next);}} onDelete={(id)=>{onDelete(id);setSelected(null);}} onBack={()=>setSelected(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(selected) return <PreventifFicheDetail fiche={selected} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} bureau={true} onSave={(next)=>{onSave(next);setSelected(next);}} onDelete={(id)=>{onDelete(id);setSelected(null);}} onBack={()=>setSelected(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   const sorted=[...fiches].sort((a,b)=>(b.createdAt||0)-(a.createdAt||0));
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -2537,7 +2637,7 @@ function PreventifHistorique({ fiches, materiel, personnel, vehicles, driversAmb
   );
 }
 
-function PreventifView({ onBack, vehicles, driversAmb, driversTpmr, carnetBordTypes, themeMode, toggleTheme }){
+function PreventifView({ onBack, vehicles, carnetBordTypes, themeMode, toggleTheme }){
   const [bureau,setBureau]=useState(false);
   const [screen,setScreen]=useState("home"); // home | parametres | nouvelle | historique
   const [personnel,setPersonnel]=useFirestoreState("preventifPersonnel", []);
@@ -2556,9 +2656,9 @@ function PreventifView({ onBack, vehicles, driversAmb, driversTpmr, carnetBordTy
   const deleteFiche=(id)=>setFiches(prev=>prev.filter(x=>x.id!==id));
 
   if(screen==="parametres") return <PreventifParametresView personnel={personnel} setPersonnel={setPersonnel} materiel={materiel} setMateriel={setMateriel} radioCanaux={radioCanaux} setRadioCanaux={setRadioCanaux} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(screen==="nouvelle") return <PreventifFicheForm vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} materiel={materiel} radioCanaux={radioCanaux} fiches={fiches} onCancel={()=>setScreen("home")} onSave={(f)=>{saveFiche(f);setScreen("home");}}/>;
-  if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} onSave={saveFiche} onDelete={deleteFiche} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onDelete={deleteFiche} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="nouvelle") return <PreventifFicheForm vehicles={vehicles} personnel={personnel} materiel={materiel} radioCanaux={radioCanaux} fiches={fiches} onCancel={()=>setScreen("home")} onSave={saveFiche}/>;
+  if(screen==="historique") return <PreventifHistorique fiches={fiches} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} onSave={saveFiche} onDelete={deleteFiche} onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(openFiche) return <PreventifFicheDetail fiche={openFiche} materiel={materiel} personnel={personnel} vehicles={vehicles} carnetBordTypes={carnetBordTypes} radioCanaux={radioCanaux} bureau={bureau} onSave={(next)=>{saveFiche(next);setOpenFiche(next);}} onDelete={deleteFiche} onBack={()=>setOpenFiche(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   const todayFiches=fiches.filter(f=>f.date===todayISO() && !f.terminee && (bureau||f.visibleTerrain));
 
@@ -7470,7 +7570,7 @@ export default function App(){
   if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="documents") return <DocumentsView vehicles={vehicles} documentCategories={documentCategories} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="bons") return <BonsMenuView bases={bases} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} vehicles={vehicles} driversAmb={driversAmb} driversTpmr={driversTpmr} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="signaler") return <SignalerCompletView onBack={()=>setAppView("menu")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} peremptionEmails={peremptionEmails} setPeremptionEmails={setPeremptionEmails} listeRouge={listeRouge} setListeRouge={setListeRouge} carnetBordTypes={carnetBordTypes} setCarnetBordTypes={setCarnetBordTypes} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
