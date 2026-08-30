@@ -2553,19 +2553,6 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, transportT
 
         <div id="prev-vehicules-engages" style={{background:C.panel,border:`1px solid ${highlightSection==="carnet"?C.danger:C.border}`,borderRadius:12,padding:14,marginBottom:16,transition:"border-color 0.3s"}}>
           <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",marginBottom:10}}>Véhicules engagés</div>
-          {bureau&&(
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:12}}>
-              {(vehicles||[]).map(v=>{
-                const active=f.vehiculesEngages.some(x=>x.vehicleId===v.id);
-                return(
-                  <button key={v.id} onClick={()=>{
-                    const exists=f.vehiculesEngages.find(x=>x.vehicleId===v.id);
-                    save({...f, vehiculesEngages: exists ? f.vehiculesEngages.filter(x=>x.vehicleId!==v.id) : [...f.vehiculesEngages,{vehicleId:v.id,vehicleName:v.name,chauffeur:""}]});
-                  }} style={{padding:"7px 4px",borderRadius:7,border:`1px solid ${active?C.purple:C.border}`,background:active?C.purpleSoft:"transparent",color:active?C.purple:C.muted,fontSize:11,fontWeight:700,cursor:"pointer"}}>{v.name}</button>
-                );
-              })}
-            </div>
-          )}
           {f.vehiculesEngages.length===0&&<div style={{fontSize:12,color:C.muted}}>Aucun véhicule engagé</div>}
           {f.vehiculesEngages.map(v=>{
             const vehObj=(vehicles||[]).find(x=>x.id===v.vehicleId)||{id:v.vehicleId,name:v.vehicleName,type:"AMB"};
@@ -2573,14 +2560,7 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, transportT
               <div key={v.vehicleId} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 12px",marginBottom:8}}>
                 <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
                   <span style={{fontWeight:700,fontSize:13,color:C.text,width:70}}>{v.vehicleName}</span>
-                  {bureau?(
-                    <select value={v.chauffeur} onChange={e=>setVehiculeChauffeur(v.vehicleId,e.target.value)} style={{flex:1,background:C.bg,border:`1px solid ${C.border}`,borderRadius:7,padding:"7px 9px",color:C.text,fontSize:12}}>
-                      <option value="">— Chauffeur —</option>
-                      {eligibleDrivers(vehObj.type).map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}
-                    </select>
-                  ):(
-                    <span style={{flex:1,fontSize:12,color:C.muted}}>{v.chauffeur||"— Chauffeur non désigné —"}</span>
-                  )}
+                  <span style={{flex:1,fontSize:12,color:C.muted}}>{v.chauffeur||"— Chauffeur non désigné —"}</span>
                 </div>
                 {!readOnly&&(
                 <div style={{display:"flex",gap:8}}>
