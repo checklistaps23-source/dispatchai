@@ -417,8 +417,6 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const [newRougeName,setNewRougeName]=useState("");
   const [newRougeReason,setNewRougeReason]=useState("");
   const [newRougeBirthdate,setNewRougeBirthdate]=useState("");
-  const [newCarnetLabel,setNewCarnetLabel]=useState("");
-  const [newCarnetIcon,setNewCarnetIcon]=useState("📍");
   const [confirmDeleteChecklist,setConfirmDeleteChecklist]=useState(null); // vehicle name pending delete
   const [newEmail,setNewEmail]=useState("");
   const [newO2Email,setNewO2Email]=useState("");
@@ -7562,7 +7560,7 @@ export default function App(){
   const [bases,       setBases]       = useFirestoreState("bases", INIT_BASES);
   const [contacts,    setContacts]    = useFirestoreState("contacts", INIT_CONTACTS);
   const [listeRouge,  setListeRouge]  = useFirestoreState("listeRouge", []);
-  const [carnetBordTypes, setCarnetBordTypes] = useFirestoreState("carnetBordTypes", INIT_CARNET_TYPES);
+  const [carnetBordTypes] = useFirestoreState("carnetBordTypes", INIT_CARNET_TYPES);
   useEffect(()=>{
     if(!carnetBordTypes||carnetBordTypes.length===0) return;
     const missing=carnetBordTypes.filter(c=>!transportTypes.some(t=>t.label===c.label));
