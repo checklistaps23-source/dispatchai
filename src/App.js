@@ -581,6 +581,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                     <div key={v.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:6,gap:8}}>
                       <span style={{fontSize:13,fontWeight:600,flexShrink:0}}>{vIcon(type)} {v.name} — {v.driver}</span>
                       <input value={v.plaque||""} onChange={e=>setVehicles(p=>p.map(x=>x.id===v.id?{...x,plaque:e.target.value}:x))} placeholder="Plaque" style={{flex:1,minWidth:70,maxWidth:110,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 8px",color:C.text,fontSize:11}}/>
+                      <input type="number" value={v.places||""} onChange={e=>setVehicles(p=>p.map(x=>x.id===v.id?{...x,places:parseInt(e.target.value)||0}:x))} placeholder="Places" title="Nombre de places (Préventif)" style={{width:60,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 6px",color:C.text,fontSize:11,textAlign:"center"}}/>
                       <button onClick={()=>setVehicles(p=>p.filter(x=>x.id!==v.id))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0}}>Supprimer</button>
                     </div>
                   ))}
@@ -2076,6 +2077,9 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
     vehiculesEngages:[], materielChecked:[], personnel:[],
   });
   const [pickPersonId,setPickPersonId]=useState("");
+  const [showAddExternal,setShowAddExternal]=useState(false);
+  const [externalName,setExternalName]=useState("");
+  const [externalPlaque,setExternalPlaque]=useState("");
   const [newNom,setNewNom]=useState(""); const [newPrenom,setNewPrenom]=useState(""); const [newFonction,setNewFonction]=useState("");
 
   useEffect(()=>{
@@ -2094,7 +2098,13 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[form]);
 
-  const eligibleDrivers=(vehicleType)=>(personnel||[]).filter(p=>p.rouleAmbu||(p.roulePmr&&vehicleType!=="AMB"));
+  const eligibleDrivers=(vehicleType,currentVehicleId)=>{
+    const rouleOk=(personnel||[]).filter(p=>p.rouleAmbu||(p.roulePmr&&vehicleType!=="AMB"));
+    const selectedNames=new Set(form.personnel.map(p=>`${p.nom} ${p.prenom}`.trim()));
+    const inFiche=rouleOk.filter(p=>selectedNames.has(p.name));
+    const takenElsewhere=new Set(form.vehiculesEngages.filter(v=>v.vehicleId!==currentVehicleId&&v.chauffeur).map(v=>v.chauffeur));
+    return inFiche.filter(p=>!takenElsewhere.has(p.name));
+  };
 
   const toggleVehicule=(v)=>{
     setForm(f=>{
@@ -2267,17 +2277,33 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
             return(<button key={v.id} onClick={()=>toggleVehicule(v)} style={{padding:"8px 4px",borderRadius:8,border:`1px solid ${active?C.purple:C.border}`,background:active?C.purpleSoft:"transparent",color:active?C.purple:C.muted,fontSize:12,fontWeight:700,cursor:"pointer"}}>{v.name}</button>);
           })}
         </div>
+        {showAddExternal?(
+          <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+            <input value={externalName} onChange={e=>setExternalName(e.target.value)} placeholder="Nom véhicule (ex: LOC 112)" style={{flex:1,minWidth:140,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:12}}/>
+            <input value={externalPlaque} onChange={e=>setExternalPlaque(e.target.value)} placeholder="Plaque" style={{width:110,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:12}}/>
+            <button onClick={()=>{
+              if(!externalName.trim()) return;
+              setForm(f=>({...f,vehiculesEngages:[...f.vehiculesEngages,{vehicleId:"ext_"+Date.now(),vehicleName:externalName.trim(),vehicleType:"AMB",chauffeur:"",isExternal:true,plaque:externalPlaque.trim()}]}));
+              setExternalName("");setExternalPlaque("");setShowAddExternal(false);
+            }} style={{background:C.success,border:"none",borderRadius:8,color:"white",padding:"8px 14px",fontSize:12,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
+            <button onClick={()=>{setShowAddExternal(false);setExternalName("");setExternalPlaque("");}} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"8px 12px",fontSize:12,cursor:"pointer"}}>Annuler</button>
+          </div>
+        ):(
+          <button onClick={()=>setShowAddExternal(true)} style={{background:"transparent",border:`1px dashed ${C.border}`,borderRadius:8,color:C.muted,padding:"8px 14px",fontSize:12,cursor:"pointer",marginBottom:10}}>+ Véhicule externe</button>
+        )}
         {form.vehiculesEngages.map(v=>{
           const selectedNames=new Set(form.personnel.map(p=>`${p.prenom} ${p.nom}`.trim()));
-          const options=eligibleDrivers(v.vehicleType);
+          const options=eligibleDrivers(v.vehicleType,v.vehicleId);
           const prioritized=[...options].sort((a,b)=>(selectedNames.has(b.name)?1:0)-(selectedNames.has(a.name)?1:0));
+          const vehObj=(vehicles||[]).find(x=>x.id===v.vehicleId);
           return(
             <div key={v.vehicleId} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-              <span style={{fontSize:12,color:C.muted,width:70}}>{v.vehicleName}</span>
+              <span style={{fontSize:12,color:C.muted,width:100}}>{v.vehicleName}{v.isExternal?" (ext.)":vehObj?.places?` (${vehObj.places} places)`:""}</span>
               <select value={v.chauffeur} onChange={e=>setChauffeur(v.vehicleId,e.target.value)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:12}}>
                 <option value="">— Chauffeur —</option>
                 {prioritized.map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}
               </select>
+              {v.isExternal&&<button onClick={()=>setForm(f=>({...f,vehiculesEngages:f.vehiculesEngages.filter(x=>x.vehicleId!==v.vehicleId)}))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:8,color:C.danger,padding:"8px 10px",fontSize:11,cursor:"pointer"}}>🗑</button>}
             </div>
           );
         })}
@@ -2347,6 +2373,9 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, transportT
   const [showDeleteConfirm,setShowDeleteConfirm]=useState(false);
   const [carnetBordOk,setCarnetBordOk]=useState({}); // {vehicleId: bool}
   const [highlightSection,setHighlightSection]=useState(null);
+  const [bonExternalVehicle,setBonExternalVehicle]=useState(null); // véhicule externe en cours de bon
+  const [bonPreForm,setBonPreForm]=useState(null); // {chauffeur, convoyeur, personneSup}
+  const [currentBonExternal,setCurrentBonExternal]=useState(null);
 
   const nonPrevVehicules=f.vehiculesEngages.filter(v=>{
     const vehObj=(vehicles||[]).find(x=>x.id===v.vehicleId);
@@ -2475,6 +2504,60 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, transportT
     return <DailyChecklistView vehicle={checklistVehicle} driverName={f.vehiculesEngages.find(v=>v.vehicleId===checklistVehicle.id)?.chauffeur||""} onComplete={()=>setChecklistVehicle(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   }
 
+  if(bonExternalVehicle&&!currentBonExternal){
+    const fichePersonnelNames=f.personnel.map(p=>`${p.nom} ${p.prenom}`.trim());
+    return(
+      <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+        <style>{GS}</style>
+        <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={()=>{setBonExternalVehicle(null);setBonPreForm(null);}} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:7,color:C.muted,padding:"5px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div style={{fontWeight:800,fontSize:15}}>🚑 Bon de transport — {bonExternalVehicle.vehicleName}</div>
+        </div>
+        <div style={{flex:1,padding:16,maxWidth:500,margin:"0 auto",width:"100%"}}>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Chauffeur</div>
+            <select value={bonPreForm?.chauffeur||bonExternalVehicle.chauffeur||""} onChange={e=>setBonPreForm(p=>({...(p||{}),chauffeur:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13}}>
+              <option value="">— Choisir —</option>
+              {fichePersonnelNames.map(n=>(<option key={n} value={n}>{n}</option>))}
+            </select>
+          </div>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Convoyeur (obligatoire)</div>
+            <select value={bonPreForm?.convoyeur||""} onChange={e=>setBonPreForm(p=>({...(p||{}),convoyeur:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13}}>
+              <option value="">— Choisir —</option>
+              {fichePersonnelNames.filter(n=>n!==(bonPreForm?.chauffeur||bonExternalVehicle.chauffeur)).map(n=>(<option key={n} value={n}>{n}</option>))}
+            </select>
+          </div>
+          <div style={{marginBottom:20}}>
+            <div style={{fontSize:11,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Personne supplémentaire (optionnel — infirmier, médecin…)</div>
+            <select value={bonPreForm?.personneSup||""} onChange={e=>setBonPreForm(p=>({...(p||{}),personneSup:e.target.value}))} style={{width:"100%",background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13}}>
+              <option value="">— Aucune —</option>
+              {fichePersonnelNames.filter(n=>n!==(bonPreForm?.chauffeur||bonExternalVehicle.chauffeur)&&n!==bonPreForm?.convoyeur).map(n=>(<option key={n} value={n}>{n}</option>))}
+            </select>
+          </div>
+          <button disabled={!(bonPreForm?.chauffeur||bonExternalVehicle.chauffeur)||!bonPreForm?.convoyeur} onClick={()=>{
+            const chauffeurName=bonPreForm?.chauffeur||bonExternalVehicle.chauffeur;
+            setCurrentBonExternal({
+              id:`vierge_${Date.now()}`, courseId:null, isVierge:true,
+              vehicule:bonExternalVehicle.vehicleName, chauffeur:chauffeurName,
+              patient:"", depart:f.adresse||f.lieu||"", arrivee:"",
+              convention:"", type:"",
+              convoyeur:bonPreForm.convoyeur, stagiaire:null,
+              chauffeurLabel:chauffeurName, convoyeurLabel:bonPreForm.convoyeur, roleSwapped:false,
+              date:new Date().toISOString(),
+              base:"",heurePC:"",heureDep1:"",heureArr1:"",tempsAttente:"",heureDep2:"",heureArr2:"",kmDepart:"",patientAssis:false,deplInutile:false,deplMotif:"",observations:"",consommables:"",raisonUrgence:"",evolution:"",remarques:"",signature:null,valide:false,parametres:[{heure:"PEC",fc:"",ta:"",spo2:"",glycemie:"",temp:""}],
+              plaque:bonExternalVehicle.plaque||"", personneSupplementaire:bonPreForm.personneSup||"",
+            });
+          }} style={{width:"100%",background:(!(bonPreForm?.chauffeur||bonExternalVehicle.chauffeur)||!bonPreForm?.convoyeur)?C.panel2:C.success,border:"none",borderRadius:10,color:(!(bonPreForm?.chauffeur||bonExternalVehicle.chauffeur)||!bonPreForm?.convoyeur)?C.muted:"white",padding:14,fontWeight:800,fontSize:15,cursor:"pointer"}}>Continuer →</button>
+        </div>
+      </div>
+    );
+  }
+
+  if(bonExternalVehicle&&currentBonExternal){
+    return <BonView bon={currentBonExternal} vehicle={{name:bonExternalVehicle.vehicleName,type:"AMB"}} driver={currentBonExternal.chauffeur} bases={[]} onSave={(next)=>{ saveBonArchive(next); setCurrentBonExternal(next); }} onBack={()=>{setBonExternalVehicle(null);setCurrentBonExternal(null);setBonPreForm(null);}}/>;
+  }
+
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
@@ -2560,10 +2643,17 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, transportT
                   <span style={{fontWeight:700,fontSize:13,color:C.text,width:70}}>{v.vehicleName}</span>
                   <span style={{flex:1,fontSize:12,color:C.muted}}>{v.chauffeur||"— Chauffeur non désigné —"}</span>
                 </div>
+                {v.isExternal&&v.plaque&&<div style={{fontSize:11,color:C.muted,marginBottom:8}}>Plaque : {v.plaque}</div>}
                 {!readOnly&&(
                 <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>setChecklistVehicle(vehObj)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 Checklist</button>
-                  {vehObj.type!=="PREV"&&<button onClick={()=>setCarnetVehicle(vehObj)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📓 Carnet de bord</button>}
+                  {v.isExternal?(
+                    <button onClick={()=>setBonExternalVehicle(v)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🚑 Bon de transport</button>
+                  ):(
+                    <>
+                      <button onClick={()=>setChecklistVehicle(vehObj)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 Checklist</button>
+                      {vehObj.type!=="PREV"&&<button onClick={()=>setCarnetVehicle(vehObj)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📓 Carnet de bord</button>}
+                    </>
+                  )}
                 </div>
                 )}
               </div>
@@ -8135,4 +8225,3 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
     </div>
   );
 }
-
