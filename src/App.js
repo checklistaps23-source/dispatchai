@@ -2347,7 +2347,6 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, transportT
   const [showDeleteConfirm,setShowDeleteConfirm]=useState(false);
   const [carnetBordOk,setCarnetBordOk]=useState({}); // {vehicleId: bool}
   const [highlightSection,setHighlightSection]=useState(null);
-  const eligibleDrivers=(vehicleType)=>(personnel||[]).filter(p=>p.rouleAmbu||(p.roulePmr&&vehicleType!=="AMB"));
 
   const nonPrevVehicules=f.vehiculesEngages.filter(v=>{
     const vehObj=(vehicles||[]).find(x=>x.id===v.vehicleId);
@@ -2378,7 +2377,6 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, transportT
     const confirmed=f.materielConfirmed||{};
     save({...f,materielConfirmed:{...confirmed,[id]:confirmed[id]==="ok"?"nok":"ok"}});
   };
-  const setVehiculeChauffeur=(vehicleId,chauffeur)=>save({...f,vehiculesEngages:f.vehiculesEngages.map(v=>v.vehicleId===vehicleId?{...v,chauffeur}:v)});
 
   const horairesMissionComplete=!!(f.departEffectif&&f.heureSurPlace&&f.heureFinMission&&f.heureRetourBaseMission);
   const feuillePrestationComplete=f.personnel.length>0&&f.personnel.every(p=>(p.surPlace||p.heureDepartBase)&&p.heureDebutPrestation&&p.heureFinPrestation&&p.heureRetourBase);
@@ -8137,3 +8135,4 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
     </div>
   );
 }
+
