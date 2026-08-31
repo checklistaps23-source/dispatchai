@@ -234,6 +234,13 @@ const INIT_CARNET_TYPES = [
   {id:"retour_base",label:"Retour base",icon:"🏠"},
   {id:"retour_domicile",label:"Retour domicile du chauffeur",icon:"🚗"},
 ];
+function typeEmojiToLabel(val){
+  if(!val) return "";
+  const id=Object.keys(TYPE_MAP).find(k=>TYPE_MAP[k]===val);
+  if(!id) return val;
+  const found=INIT_CARNET_TYPES.find(t=>t.id===id);
+  return found?found.label:val;
+}
 
 const INIT_BASES = ["La Glanerie","Baudour","Ath"];
 const INIT_CONTACTS = [
@@ -2905,11 +2912,20 @@ function printBon(bon){
   const lignes=[
     ["Véhicule",bon.vehicule],["Chauffeur",bon.chauffeurLabel||bon.chauffeur],["Convoyeur",bon.convoyeurLabel||""],
     ["Patient",bon.patient],["Départ",bon.depart],["Arrivée",bon.arrivee],
-    ["Convention",bon.convention],["Type",bon.type],
-    ["Base",bon.base],["Heure PEC",bon.heurePC],["Départ 1",bon.heureDep1],["Arrivée 1",bon.heureArr1],
+    ["Convention",bon.convention],["Type",typeEmojiToLabel(bon.type)],
+    ["Base de départ",bon.base],["Heure PEC",bon.heurePC],["Départ 1",bon.heureDep1],["Arrivée 1",bon.heureArr1],
     ["Temps d'attente",bon.tempsAttente],["Départ 2",bon.heureDep2],["Arrivée 2",bon.heureArr2],
-    ["Km départ",bon.kmDepart],["Observations",bon.observations],["Remarques",bon.remarques],
+    ["Km départ",bon.kmDepart],["Patient assis",bon.patientAssis?"Oui":""],["Déplacement inutile",bon.deplInutile?"Oui":""],
+    ["Motif",bon.deplMotif],["Consommables",bon.consommables],["Raison urgence",bon.raisonUrgence],
+    ["Évolution",bon.evolution],["Observations",bon.observations],["Remarques",bon.remarques],
   ].filter(([,v])=>v);
+  const paramsRows=(bon.parametres||[]).filter(p=>p.fc||p.ta||p.spo2||p.glycemie||p.temp);
+  const paramsHtml=paramsRows.length>0?`
+    <h1 style="margin-top:20px;">Paramètres</h1>
+    <table>
+      <tr><td style="font-weight:700;">Heure</td><td style="font-weight:700;">FC</td><td style="font-weight:700;">TA</td><td style="font-weight:700;">SpO2</td><td style="font-weight:700;">Glycémie</td><td style="font-weight:700;">Temp</td></tr>
+      ${paramsRows.map(p=>`<tr><td>${p.heure||""}</td><td>${p.fc||""}</td><td>${p.ta||""}</td><td>${p.spo2||""}</td><td>${p.glycemie||""}</td><td>${p.temp||""}</td></tr>`).join("")}
+    </table>`:"";
   const html=`<html><head><title>Bon de transport</title><style>
     body{font-family:Arial,sans-serif;padding:30px;color:#111}
     h1{font-size:18px;border-bottom:2px solid #111;padding-bottom:8px}
@@ -2919,25 +2935,11 @@ function printBon(bon){
   </style></head><body>
     <h1>Bon de transport — ${new Date(bon.date).toLocaleDateString("fr-FR")}</h1>
     <table>${lignes.map(([l,v])=>`<tr><td>${l}</td><td>${String(v).replace(/</g,"&lt;")}</td></tr>`).join("")}</table>
+    ${paramsHtml}
+    <script>window.onload=()=>window.print();</script>
   </body></html>`;
-
-  let iframe=document.getElementById("aps-print-frame");
-  if(iframe) iframe.remove();
-  iframe=document.createElement("iframe");
-  iframe.id="aps-print-frame";
-  iframe.style.position="fixed";
-  iframe.style.right="0"; iframe.style.bottom="0";
-  iframe.style.width="0"; iframe.style.height="0";
-  iframe.style.border="0";
-  document.body.appendChild(iframe);
-  const doc=iframe.contentWindow.document;
-  doc.open(); doc.write(html); doc.close();
-  iframe.onload=()=>{
-    setTimeout(()=>{
-      iframe.contentWindow.focus();
-      iframe.contentWindow.print();
-    },250);
-  };
+  const w=window.open("","_blank");
+  if(w){w.document.write(html);w.document.close();}
 }
 
 async function exportBonsZip(bons){
@@ -2947,7 +2949,7 @@ async function exportBonsZip(bons){
   const zip=new window.JSZip();
   bons.forEach(bon=>{
     const d=new Date(bon.date);
-    const year=String(d.getFullYear()), month=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
+    const year=String(d.getFullYear()), month=MOIS_FR[d.getMonth()], day=String(d.getDate()).padStart(2,"0");
     const doc=new jsPDF();
     let y=15;
     doc.setFontSize(14); doc.text("Bon de transport — "+d.toLocaleDateString("fr-FR"),10,y); y+=10;
@@ -2955,15 +2957,23 @@ async function exportBonsZip(bons){
     const lignes=[
       ["Véhicule",bon.vehicule],["Chauffeur",bon.chauffeurLabel||bon.chauffeur],["Convoyeur",bon.convoyeurLabel||""],
       ["Patient",bon.patient],["Départ",bon.depart],["Arrivée",bon.arrivee],
-      ["Convention",bon.convention],["Type",bon.type],
-      ["Base",bon.base],["Heure PEC",bon.heurePC],["Départ 1",bon.heureDep1],["Arrivée 1",bon.heureArr1],
+      ["Convention",bon.convention],["Type",typeEmojiToLabel(bon.type)],
+      ["Base de départ",bon.base],["Heure PEC",bon.heurePC],["Départ 1",bon.heureDep1],["Arrivée 1",bon.heureArr1],
       ["Temps d'attente",bon.tempsAttente],["Départ 2",bon.heureDep2],["Arrivée 2",bon.heureArr2],
-      ["Km départ",bon.kmDepart],["Observations",bon.observations],["Remarques",bon.remarques],
+      ["Km départ",bon.kmDepart],["Patient assis",bon.patientAssis?"Oui":""],["Déplacement inutile",bon.deplInutile?"Oui":""],
+      ["Motif",bon.deplMotif],["Consommables",bon.consommables],["Raison urgence",bon.raisonUrgence],
+      ["Évolution",bon.evolution],["Observations",bon.observations],["Remarques",bon.remarques],
     ].filter(([,v])=>v);
     lignes.forEach(([l,v])=>{ doc.text(`${l}: ${String(v)}`,10,y); y+=7; if(y>280){doc.addPage();y=15;} });
+    const paramsRows=(bon.parametres||[]).filter(p=>p.fc||p.ta||p.spo2||p.glycemie||p.temp);
+    if(paramsRows.length>0){
+      y+=3; doc.setFontSize(11); doc.text("Paramètres",10,y); y+=7; doc.setFontSize(10);
+      paramsRows.forEach(p=>{ doc.text(`${p.heure||""} — FC:${p.fc||"—"} TA:${p.ta||"—"} SpO2:${p.spo2||"—"} Glyc:${p.glycemie||"—"} Temp:${p.temp||"—"}`,10,y); y+=7; if(y>280){doc.addPage();y=15;} });
+    }
     const pdfBlob=doc.output("blob");
     const safeName=(bon.patient||bon.id).toString().replace(/[^a-z0-9]/gi,"_");
-    zip.folder(year).folder(month).folder(day).file(`bon_${safeName}_${bon.id}.pdf`, pdfBlob);
+    const heurePrefix=(bon.heurePC||bon.heureDep1||"00h00").replace(/[^0-9h]/g,"").padStart(5,"0");
+    zip.folder(year).folder(month).folder(day).file(`${heurePrefix}_bon_${safeName}_${bon.id}.pdf`, pdfBlob);
   });
   const content=await zip.generateAsync({type:"blob"});
   const url=URL.createObjectURL(content);
@@ -2977,6 +2987,8 @@ function BonsListView({ traite, bases, onBack, themeMode, toggleTheme }){
   const [bons,setBons]=useState([]);
   const [openBon,setOpenBon]=useState(null);
   const [exporting,setExporting]=useState(false);
+  const [viewMode,setViewMode]=useState("liste"); // liste | calendrier
+  const [calendarDate,setCalendarDate]=useState(null);
 
   useEffect(()=>{
     const unsub=onSnapshot(collection(dbChecklists,"dispatchai_bons_archive"), snap=>{
@@ -2997,8 +3009,22 @@ function BonsListView({ traite, bases, onBack, themeMode, toggleTheme }){
     return <BonView bon={openBon} onSave={(b)=>{saveBonArchive(b);setOpenBon(null);}} onBack={()=>setOpenBon(null)} vehicle={vehicleGuess} driver={openBon.chauffeurLabel} bases={bases}/>;
   }
 
-  const groups={};
-  bons.forEach(b=>{ const c=b.convention||"Non précisé"; if(!groups[c]) groups[c]=[]; groups[c].push(b); });
+  const parseHeure=(h)=>{ if(!h) return 9999; const m=String(h).match(/(\d{1,2})h(\d{2})/); if(!m) return 9999; return parseInt(m[1])*60+parseInt(m[2]); };
+  const dateToISO=(d)=>{ const dt=new Date(d); return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,"0")}-${String(dt.getDate()).padStart(2,"0")}`; };
+  const bonsDuJour=calendarDate?bons.filter(b=>dateToISO(b.date)===calendarDate).sort((a,b)=>parseHeure(a.heurePC||a.heureDep1)-parseHeure(b.heurePC||b.heureDep1)):[];
+
+  const BonCard=({b})=>(
+    <div key={b.id} onClick={()=>setOpenBon(b)} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 15px",marginBottom:8,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
+      <div style={{flex:1,minWidth:0}}>
+        <div style={{fontWeight:700,fontSize:13,color:C.text}}>{b.patient||"Bon vierge"}</div>
+        <div style={{fontSize:11,color:C.muted,marginTop:2}}>{b.vehicule} — {(b.heurePC||b.heureDep1)?`${b.heurePC||b.heureDep1} — `:""}{new Date(b.date).toLocaleDateString("fr-FR")} — {b.chauffeurLabel||b.chauffeur}</div>
+      </div>
+      <div style={{display:"flex",gap:6,flexShrink:0}}>
+        <button onClick={(e)=>{e.stopPropagation();printBon(b);}} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"7px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🖨️</button>
+        <button onClick={(e)=>marquerTraite(b,e)} style={{background:traite?C.panel2:C.successSoft,border:`1px solid ${traite?C.border:C.success}`,borderRadius:8,color:traite?C.muted:C.success,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{traite?"↩️ Retraiter":"✅ Traité"}</button>
+      </div>
+    </div>
+  );
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -3009,6 +3035,12 @@ function BonsListView({ traite, bases, onBack, themeMode, toggleTheme }){
           <div style={{fontWeight:800,fontSize:16,color:C.success}}>{traite?"📅 Historique":"🧾 Bons à traiter"}</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {traite&&(
+            <div style={{display:"flex",gap:4,background:C.panel2,borderRadius:8,padding:3}}>
+              <button onClick={()=>{setViewMode("liste");setCalendarDate(null);}} style={{background:viewMode==="liste"?C.success:"transparent",color:viewMode==="liste"?"white":C.muted,border:"none",borderRadius:6,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 Liste</button>
+              <button onClick={()=>setViewMode("calendrier")} style={{background:viewMode==="calendrier"?C.success:"transparent",color:viewMode==="calendrier"?"white":C.muted,border:"none",borderRadius:6,padding:"5px 11px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🗓️ Calendrier</button>
+            </div>
+          )}
           {traite&&bons.length>0&&(
             <button disabled={exporting} onClick={async()=>{setExporting(true); try{await exportBonsZip(bons);}catch(e){console.error("Erreur export ZIP:",e);} setExporting(false);}} style={{background:C.successSoft,border:`1px solid ${C.success}`,borderRadius:8,color:C.success,padding:"6px 12px",fontSize:11,fontWeight:700,cursor:"pointer"}}>{exporting?"Génération…":"📦 Exporter ZIP"}</button>
           )}
@@ -3016,24 +3048,25 @@ function BonsListView({ traite, bases, onBack, themeMode, toggleTheme }){
         </div>
       </div>
       <div style={{flex:1,padding:16,paddingBottom:40,maxWidth:700,margin:"0 auto",width:"100%"}}>
-        {bons.length===0&&<div style={{textAlign:"center",color:C.muted,padding:40}}>{traite?"Aucun bon traité":"Aucun bon en attente"}</div>}
-        {Object.entries(groups).map(([conv,items])=>(
-          <div key={conv} style={{marginBottom:20}}>
-            <div style={{fontSize:11,fontWeight:700,color:C.success,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>{conv} ({items.length})</div>
-            {items.map(b=>(
-              <div key={b.id} onClick={()=>setOpenBon(b)} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"13px 15px",marginBottom:8,cursor:"pointer",display:"flex",justifyContent:"space-between",alignItems:"center",gap:10}}>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontWeight:700,fontSize:13,color:C.text}}>{b.patient||"Bon vierge"}</div>
-                  <div style={{fontSize:11,color:C.muted,marginTop:2}}>{b.vehicule} — {new Date(b.date).toLocaleDateString("fr-FR")} — {b.chauffeurLabel||b.chauffeur}</div>
-                </div>
-                <div style={{display:"flex",gap:6,flexShrink:0}}>
-                  <button onClick={(e)=>{e.stopPropagation();printBon(b);}} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"7px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🖨️</button>
-                  <button onClick={(e)=>marquerTraite(b,e)} style={{background:traite?C.panel2:C.successSoft,border:`1px solid ${traite?C.border:C.success}`,borderRadius:8,color:traite?C.muted:C.success,padding:"7px 12px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>{traite?"↩️ Retraiter":"✅ Traité"}</button>
-                </div>
-              </div>
-            ))}
+        {viewMode==="liste"&&(
+          <>
+            {bons.length===0&&<div style={{textAlign:"center",color:C.muted,padding:40}}>{traite?"Aucun bon traité":"Aucun bon en attente"}</div>}
+            {bons.map(b=>(<BonCard key={b.id} b={b}/>))}
+          </>
+        )}
+        {viewMode==="calendrier"&&!calendarDate&&(
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:16}}>
+            <SimpleDatePicker onSelect={setCalendarDate} themeC={C}/>
           </div>
-        ))}
+        )}
+        {viewMode==="calendrier"&&calendarDate&&(
+          <>
+            <button onClick={()=>setCalendarDate(null)} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"7px 13px",fontSize:12,cursor:"pointer",marginBottom:14}}>← Autre date</button>
+            <div style={{fontSize:13,fontWeight:700,color:C.text,marginBottom:12,textTransform:"capitalize"}}>{new Date(calendarDate+"T00:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year:"numeric"})}</div>
+            {bonsDuJour.length===0&&<div style={{textAlign:"center",color:C.muted,padding:40}}>Aucun bon ce jour-là</div>}
+            {bonsDuJour.map(b=>(<BonCard key={b.id} b={b}/>))}
+          </>
+        )}
       </div>
     </div>
   );
