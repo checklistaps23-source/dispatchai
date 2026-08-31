@@ -484,7 +484,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                 <div>
                   <div style={{fontSize:10,color:C.muted,marginBottom:10}}>🚑♿ Ajoute dans les deux listes automatiquement</div>
                   <div style={{display:"flex",gap:8,marginTop:8}}>
-                    <input value={newVal} onChange={e=>setNewVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newVal.trim()){const n=newVal.trim();setDriversAmb(p=>[...p,n].sort((a,b)=>a.localeCompare(b)));setDriversTpmr(p=>[...p,n].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} placeholder="Prénom Nom (AMB + TPMR)…" style={{background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.accent}`,borderRadius:9,padding:"10px 13px",outline:"none",width:"100%",fontFamily:"inherit"}}/>
+                    <input value={newVal} onChange={e=>setNewVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newVal.trim()){const n=newVal.trim();setDriversAmb(p=>[...p,n].sort((a,b)=>a.localeCompare(b)));setDriversTpmr(p=>[...p,n].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} placeholder="Nom Prénom (AMB + TPMR)…" style={{background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.accent}`,borderRadius:9,padding:"10px 13px",outline:"none",width:"100%",fontFamily:"inherit"}}/>
                     <button onClick={()=>{if(newVal.trim()){const n=newVal.trim();setDriversAmb(p=>[...p,n].sort((a,b)=>a.localeCompare(b)));setDriversTpmr(p=>[...p,n].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} style={{background:C.accent,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
                   </div>
                   <div style={{marginTop:14,fontSize:11,color:C.muted}}>Chauffeurs ajoutés dans AMB/TPMR :</div>
@@ -505,7 +505,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                     </div>
                   ))}
                   <div style={{display:"flex",gap:8,marginTop:8}}>
-                    <input value={newVal} onChange={e=>setNewVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newVal.trim()){setDriversAmb(p=>[...p,newVal.trim()].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} placeholder="Prénom Nom ambulancier…" style={{background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none",width:"100%",fontFamily:"inherit"}}/>
+                    <input value={newVal} onChange={e=>setNewVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newVal.trim()){setDriversAmb(p=>[...p,newVal.trim()].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} placeholder="Nom Prénom ambulancier…" style={{background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none",width:"100%",fontFamily:"inherit"}}/>
                     <button onClick={()=>{if(newVal.trim()){setDriversAmb(p=>[...p,newVal.trim()].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
                   </div>
                 </div>
@@ -520,7 +520,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                     </div>
                   ))}
                   <div style={{display:"flex",gap:8,marginTop:8}}>
-                    <input value={newVal} onChange={e=>setNewVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newVal.trim()){setDriversTpmr(p=>[...p,newVal.trim()].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} placeholder="Prénom Nom chauffeur TPMR…" style={{background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none",width:"100%",fontFamily:"inherit"}}/>
+                    <input value={newVal} onChange={e=>setNewVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newVal.trim()){setDriversTpmr(p=>[...p,newVal.trim()].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} placeholder="Nom Prénom chauffeur TPMR…" style={{background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none",width:"100%",fontFamily:"inherit"}}/>
                     <button onClick={()=>{if(newVal.trim()){setDriversTpmr(p=>[...p,newVal.trim()].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
                   </div>
                 </div>
@@ -546,7 +546,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                   ))}
                   {stagiairesAmb.length===0&&<div style={{textAlign:"center",padding:"16px 0",color:C.muted,fontSize:13}}>Aucun stagiaire</div>}
                   <div style={{display:"flex",gap:8,marginTop:8}}>
-                    <TextInput value={newVal} onChange={e=>setNewVal(e.target.value)} onBlur={()=>{}} placeholder="Prénom Nom stagiaire AMB…"/>
+                    <TextInput value={newVal} onChange={e=>setNewVal(e.target.value)} onBlur={()=>{}} placeholder="Nom Prénom stagiaire AMB…"/>
                     <button onClick={()=>{if(newVal.trim()){setStagiairesAmb(p=>[...p,newVal.trim()].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} style={{background:C.purple,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
                   </div>
                 </div>
@@ -562,7 +562,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                   ))}
                   {formationTpmr.length===0&&<div style={{textAlign:"center",padding:"16px 0",color:C.muted,fontSize:13}}>Aucune formation</div>}
                   <div style={{display:"flex",gap:8,marginTop:8}}>
-                    <TextInput value={newVal} onChange={e=>setNewVal(e.target.value)} onBlur={()=>{}} placeholder="Prénom Nom en formation TPMR…"/>
+                    <TextInput value={newVal} onChange={e=>setNewVal(e.target.value)} onBlur={()=>{}} placeholder="Nom Prénom en formation TPMR…"/>
                     <button onClick={()=>{if(newVal.trim()){setFormationTpmr(p=>[...p,newVal.trim()].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} style={{background:C.blue,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
                   </div>
                 </div>
