@@ -485,12 +485,13 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                   <div style={{fontSize:10,color:C.muted,marginBottom:10}}>🚑♿ Ajoute dans les deux listes automatiquement</div>
                   <div style={{display:"flex",gap:8,marginTop:8}}>
                     <input value={newVal} onChange={e=>setNewVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newVal.trim()){const n=newVal.trim();setDriversAmb(p=>[...p,n].sort((a,b)=>a.localeCompare(b)));setDriversTpmr(p=>[...p,n].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} placeholder="Nom Prénom (AMB + TPMR)…" style={{background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none",width:"100%",fontFamily:"inherit"}}/>
-                    <button onClick={()=>{if(newVal.trim()){const n=newVal.trim();setDriversAmb(p=>[...p,n].sort((a,b)=>a.localeCompare(b)));setDriversTpmr(p=>[...p,n].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} style={{background:C.accent,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
+                    <button onClick={()=>{if(newVal.trim()){const n=newVal.trim();setDriversAmb(p=>[...p,n].sort((a,b)=>a.localeCompare(b)));setDriversTpmr(p=>[...p,n].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
                   </div>
                   <div style={{marginTop:14,fontSize:11,color:C.muted}}>Chauffeurs ajoutés dans AMB/TPMR :</div>
                   {[...new Set([...driversAmb,...driversTpmr])].sort((a,b)=>a.localeCompare(b)).filter(d=>driversAmb.includes(d)&&driversTpmr.includes(d)).map(d=>(
                     <div key={d} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:6,marginTop:6}}>
                       <span style={{fontSize:13,fontWeight:600}}>🚑♿ {d}</span>
+                      <button onClick={()=>{setDriversAmb(p=>p.filter(x=>x!==d));setDriversTpmr(p=>p.filter(x=>x!==d));}} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
                     </div>
                   ))}
                 </div>
@@ -503,8 +504,9 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                     <button onClick={()=>{if(newVal.trim()){setDriversAmb(p=>[...p,newVal.trim()].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
                   </div>
                   {[...driversAmb].sort((a,b)=>a.localeCompare(b)).map(d=>(
-                    <div key={d} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7}}>
-                      <span style={{fontSize:14,fontWeight:600}}>🚑 {d}</span>
+                    <div key={d} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7,gap:8}}>
+                      <span style={{fontSize:14,fontWeight:600,flex:1}}>🚑 {d}</span>
+                      {!driversTpmr.includes(d)&&<button onClick={()=>setDriversTpmr(p=>[...p,d].sort((a,b)=>a.localeCompare(b)))} style={{background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:7,color:C.accent,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>→ TPMR</button>}
                       <button onClick={()=>setDriversAmb(p=>p.filter(x=>x!==d))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
                     </div>
                   ))}
@@ -518,8 +520,9 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                     <button onClick={()=>{if(newVal.trim()){setDriversTpmr(p=>[...p,newVal.trim()].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
                   </div>
                   {[...driversTpmr].sort((a,b)=>a.localeCompare(b)).map(d=>(
-                    <div key={d} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7}}>
-                      <span style={{fontSize:14,fontWeight:600}}>♿ {d}</span>
+                    <div key={d} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7,gap:8}}>
+                      <span style={{fontSize:14,fontWeight:600,flex:1}}>♿ {d}</span>
+                      {!driversAmb.includes(d)&&<button onClick={()=>setDriversAmb(p=>[...p,d].sort((a,b)=>a.localeCompare(b)))} style={{background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:7,color:C.accent,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>→ AMB</button>}
                       <button onClick={()=>setDriversTpmr(p=>p.filter(x=>x!==d))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
                     </div>
                   ))}
@@ -2650,7 +2653,7 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, transportT
                     <button onClick={()=>setBonExternalVehicle(v)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>🚑 Bon de transport</button>
                   ):(
                     <>
-                      <button onClick={()=>setChecklistVehicle(vehObj)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 Checklist</button>
+                      {vehObj.type!=="PREV"&&<button onClick={()=>setChecklistVehicle(vehObj)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📋 Checklist</button>}
                       {vehObj.type!=="PREV"&&<button onClick={()=>setCarnetVehicle(vehObj)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"8px",fontSize:11,fontWeight:700,cursor:"pointer"}}>📓 Carnet de bord</button>}
                     </>
                   )}
@@ -3958,7 +3961,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
       <div style={{flex:1,padding:"24px 20px",maxWidth:640,margin:"0 auto",width:"100%"}}>
         <div style={{fontSize:26,fontWeight:800,marginBottom:4}}>Bonjour 👋</div>
         <div style={{fontSize:13,color:C.muted,marginBottom:24}}>Choisissez votre véhicule</div>
-        {["TPMR","VSL","AMB","PREV"].map(type=>{
+        {["TPMR","VSL","AMB"].map(type=>{
           const group=vehicles.filter(v=>v.type===type);
           if(!group.length) return null;
           return(
