@@ -4108,7 +4108,6 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
   const [showMedicalPopup,setShowMedicalPopup]=useState(false);
   const [showCotationForm,setShowCotationForm]=useState(false);
   const [cotationIsAutoEndService,setCotationIsAutoEndService]=useState(false);
-  const [autoCotationChecked,setAutoCotationChecked]=useState(false);
   const [stagiaireSelec,setStagiaireSelec]=useState(null);
   const [roleSwapped,setRoleSwapped]=useState(false);
 
