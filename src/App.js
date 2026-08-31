@@ -579,7 +579,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                   </div>
                   {vehicles.filter(v=>v.type===type).map(v=>(
                     <div key={v.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:6,gap:8}}>
-                      <span style={{fontSize:13,fontWeight:600,flexShrink:0}}>{vIcon(type)} {v.name} — {v.driver}</span>
+                      <span style={{fontSize:13,fontWeight:600,flexShrink:0}}>{vIcon(type)} {v.name}</span>
                       <input value={v.plaque||""} onChange={e=>setVehicles(p=>p.map(x=>x.id===v.id?{...x,plaque:e.target.value}:x))} placeholder="Plaque" style={{flex:1,minWidth:70,maxWidth:110,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 8px",color:C.text,fontSize:11}}/>
                       <input type="number" value={v.places||""} onChange={e=>setVehicles(p=>p.map(x=>x.id===v.id?{...x,places:parseInt(e.target.value)||0}:x))} placeholder="Places" title="Nombre de places (Préventif)" style={{width:60,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"5px 6px",color:C.text,fontSize:11,textAlign:"center"}}/>
                       <button onClick={()=>setVehicles(p=>p.filter(x=>x.id!==v.id))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer",flexShrink:0}}>Supprimer</button>
@@ -1119,7 +1119,6 @@ function PlanningAccordion({vehicles,courses,vCourses}){
           <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:6}}>
             <span style={{color:vColor(v.type),fontSize:12}}>{vIcon(v.type)}</span>
             <span style={{fontWeight:700,fontSize:11}}>{v.name}</span>
-            <span style={{fontSize:10,color:C.muted}}>— {v.driver}</span>
             <div style={{flex:1,height:1,background:C.border}}/>
             <span style={{fontSize:10,color:C.accent,fontWeight:600}}>{vCourses(v.id).length}c</span>
           </div>
@@ -1591,7 +1590,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
                   ):v.horsBase?(
                     <div style={{fontSize:10,color:"#f59e0b",fontWeight:700}}>🚗 Hors base — chez {v.horsBase.driver}</div>
                   ):(
-                    <div style={{fontSize:10,color:C.muted}}>{v.driver}</div>
+                    <div style={{fontSize:10,color:C.muted}}>Disponible</div>
                   )}
                   {!horsService&&<div style={{fontSize:10,color:C.accent,fontWeight:600,marginTop:2}}>{cnt} course{cnt>1?"s":""}</div>}
                 </div>
@@ -1653,7 +1652,6 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:6}}>
                   <div>
                     <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}><span style={{fontSize:18,color:vColor(selectedV.type)}}>{vIcon(selectedV.type)}</span><span style={{fontWeight:800,fontSize:15}}>{selectedV.name}</span></div>
-                    <div style={{fontSize:11,color:C.muted,marginBottom:4}}>👤 {selectedV.driver}</div>
                     <div style={{display:"flex",alignItems:"center",gap:4}}>
                       <div style={{width:6,height:6,borderRadius:"50%",background:{en_course:C.success,disponible:C.blue,attente:C.warning}[selectedV.status]||C.muted}}/>
                       <span style={{fontSize:10,color:{en_course:C.success,disponible:C.blue,attente:C.warning}[selectedV.status]||C.muted,fontWeight:600}}>{{en_course:"En course",disponible:"Disponible",attente:"En attente"}[selectedV.status]||"—"}</span>
@@ -1699,7 +1697,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
                 <button key={v.id} onClick={()=>setDispConfirm({course:dispTransfer.course,toVehicle:v})}
                   style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:7,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
                   <span style={{fontSize:16,color:vColor(v.type)}}>{vIcon(v.type)}</span>
-                  <div><div style={{fontWeight:700,fontSize:13}}>{v.name}</div><div style={{fontSize:10,color:C.muted}}>{v.driver} — <span style={{color:v.status==="disponible"?C.success:C.warning}}>{v.status==="disponible"?"Disponible":"En course"}</span></div></div>
+                  <div><div style={{fontWeight:700,fontSize:13}}>{v.name}</div><div style={{fontSize:10,color:C.muted}}><span style={{color:v.status==="disponible"?C.success:C.warning}}>{v.status==="disponible"?"Disponible":"En course"}</span></div></div>
                 </button>
               ))}
             </div>
@@ -1742,7 +1740,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
                     <div key={v.id} style={{display:"flex",alignItems:"center",justifyContent:"space-between",background:v.active?C.successSoft:C.panel2,border:`1px solid ${v.active?C.success:C.border}`,borderRadius:8,padding:"9px 13px",marginBottom:5}}>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         <span style={{fontSize:15,color:vColor(type)}}>{vIcon(type)}</span>
-                        <div><div style={{fontWeight:700,fontSize:12}}>{v.name}</div><div style={{fontSize:10,color:C.muted}}>👤 {v.driver}</div></div>
+                        <div><div style={{fontWeight:700,fontSize:12}}>{v.name}</div></div>
                       </div>
                       <div onClick={()=>setVehicles(p=>p.map(x=>x.id===v.id?{...x,active:!x.active}:x))} style={{width:40,height:22,background:v.active?C.success:C.border,borderRadius:11,position:"relative",cursor:"pointer",transition:"background 0.2s",flexShrink:0}}>
                         <div style={{position:"absolute",top:2,left:v.active?20:2,width:18,height:18,background:"white",borderRadius:"50%",transition:"left 0.2s",boxShadow:"0 1px 3px rgba(0,0,0,0.3)"}}/>
@@ -4363,7 +4361,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
               <button key={v.id} onClick={()=>{if(v.active)setConfirmTransfer({course:showTransfer,vehicle:v});}} disabled={!v.active}
                 style={{width:"100%",background:v.active?C.panel2:C.dangerSoft,border:`1px solid ${v.active?C.border:C.danger}`,borderRadius:10,padding:"12px 14px",marginBottom:7,textAlign:"left",cursor:v.active?"pointer":"not-allowed",display:"flex",alignItems:"center",gap:10,opacity:v.active?1:0.7}}>
                 <span style={{fontSize:16,color:v.active?vColor(v.type):C.danger}}>{vIcon(v.type)}</span>
-                <div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:v.active?C.text:C.danger}}>{v.name}</div><div style={{fontSize:10,color:C.muted}}>{v.active?v.driver:"Hors service"}</div></div>
+                <div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:v.active?C.text:C.danger}}>{v.name}</div><div style={{fontSize:10,color:C.muted}}>{v.active?"Disponible":"Hors service"}</div></div>
               </button>
             ))}
           </div>
