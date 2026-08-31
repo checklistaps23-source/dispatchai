@@ -182,8 +182,8 @@ const INIT_DRIVERS_TPMR = [
   "Garcia E.","Lambert C.","Leroy P.",
   "Martin L.","Moreau S.","Petit R.","Picard L.","Renard P.",
 ];
-const INIT_STAGIAIRES_AMB = ["Merci T."];
-const INIT_FORMATION_TPMR = ["Noël A."];
+const INIT_STAGIAIRES_AMB = [];
+const INIT_FORMATION_TPMR = [];
 
 const INIT_CONVENTIONS = [
   {id:"prive",label:"Privé",icon:"👤"},
@@ -392,7 +392,7 @@ function PinModal({onSuccess,onCancel}){
   );
 }
 
-function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,stagiairesAmb,setStagiairesAmb,formationTpmr,setFormationTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,preventifMissionTypes,setPreventifMissionTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,peremptionEmails,setPeremptionEmails,preventifEmails,setPreventifEmails,listeRouge,setListeRouge,onBack,themeMode,toggleTheme}){
+function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,preventifMissionTypes,setPreventifMissionTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,peremptionEmails,setPeremptionEmails,preventifEmails,setPreventifEmails,listeRouge,setListeRouge,onBack,themeMode,toggleTheme}){
   const [tab,setTab]=useState("chauffeurs");
   const [tpmrVslTemplate,setTpmrVslTemplate]=useFirestoreState("tpmrVslChecklistTemplate",{ sections:[] });
   const [documentCategories,setDocumentCategories]=useFirestoreState("documentCategories",["Carte grise","Assurance","Contrôle technique"]);
@@ -451,7 +451,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
   const removeItem=(sIdx,shIdx,itIdx)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.filter((_,k)=>k!==itIdx)}:sh)}:s)}));
   const updateItem=(sIdx,shIdx,itIdx,field,val)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.map((it,k)=>k===itIdx?{...it,[field]:val}:it)}:sh)}:s)}));
 
-  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"stagiaires",icon:"🎓",label:"Stag/Form."},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"daily",icon:"🚑",label:"APS Daily"},{id:"listerouge",icon:"🚫",label:"Liste rouge"},{id:"documents",icon:"📁",label:"Documents"},{id:"emails",icon:"✉️",label:"Emails"}];
+  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"daily",icon:"🚑",label:"APS Daily"},{id:"listerouge",icon:"🚫",label:"Liste rouge"},{id:"documents",icon:"📁",label:"Documents"},{id:"emails",icon:"✉️",label:"Emails"}];
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
@@ -526,48 +526,6 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,sta
                       <button onClick={()=>setDriversTpmr(p=>p.filter(x=>x!==d))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
                     </div>
                   ))}
-                </div>
-              )}
-            </div>
-          )}
-          {tab==="stagiaires"&&(
-            <div>
-              <SectionTitle icon="🎓" title="Stagiaires & Formation"/>
-              <div style={{display:"flex",gap:6,marginBottom:16}}>
-                {[{id:"amb",label:"🚑 Stagiaires AMB"},{id:"tpmr",label:"♿ Formation TPMR"}].map(s=>(
-                  <button key={s.id} onClick={()=>setSubTab(s.id)} style={{padding:"7px 14px",borderRadius:8,border:`1.5px solid ${subTab===s.id?C.purple:C.border}`,background:subTab===s.id?C.purpleSoft:"transparent",color:subTab===s.id?C.purple:C.muted,fontWeight:subTab===s.id?700:500,fontSize:12,cursor:"pointer"}}>{s.label}</button>
-                ))}
-              </div>
-              {subTab==="amb"&&(
-                <div>
-                  <div style={{fontSize:10,color:C.muted,marginBottom:10}}>Stagiaires observateurs ambulance</div>
-                  {[...stagiairesAmb].sort((a,b)=>a.localeCompare(b)).map(s=>(
-                    <div key={s} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}><span>🎓</span><span style={{fontSize:14,fontWeight:600,color:C.purple}}>{s}</span><span style={{fontSize:10,color:C.purple}}>(stagiaire)</span></div>
-                      <button onClick={()=>setStagiairesAmb(p=>p.filter(x=>x!==s))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
-                    </div>
-                  ))}
-                  {stagiairesAmb.length===0&&<div style={{textAlign:"center",padding:"16px 0",color:C.muted,fontSize:13}}>Aucun stagiaire</div>}
-                  <div style={{display:"flex",gap:8,marginTop:8}}>
-                    <TextInput value={newVal} onChange={e=>setNewVal(e.target.value)} onBlur={()=>{}} placeholder="Nom Prénom stagiaire AMB…"/>
-                    <button onClick={()=>{if(newVal.trim()){setStagiairesAmb(p=>[...p,newVal.trim()].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} style={{background:C.purple,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
-                  </div>
-                </div>
-              )}
-              {subTab==="tpmr"&&(
-                <div>
-                  <div style={{fontSize:10,color:C.muted,marginBottom:10}}>Personnes en formation TPMR/VSL</div>
-                  {[...formationTpmr].sort((a,b)=>a.localeCompare(b)).map(s=>(
-                    <div key={s} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7}}>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}><span>📋</span><span style={{fontSize:14,fontWeight:600,color:C.blue}}>{s}</span><span style={{fontSize:10,color:C.blue}}>(formation)</span></div>
-                      <button onClick={()=>setFormationTpmr(p=>p.filter(x=>x!==s))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
-                    </div>
-                  ))}
-                  {formationTpmr.length===0&&<div style={{textAlign:"center",padding:"16px 0",color:C.muted,fontSize:13}}>Aucune formation</div>}
-                  <div style={{display:"flex",gap:8,marginTop:8}}>
-                    <TextInput value={newVal} onChange={e=>setNewVal(e.target.value)} onBlur={()=>{}} placeholder="Nom Prénom en formation TPMR…"/>
-                    <button onClick={()=>{if(newVal.trim()){setFormationTpmr(p=>[...p,newVal.trim()].sort((a,b)=>a.localeCompare(b)));setNewVal("");}}} style={{background:C.blue,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
-                  </div>
                 </div>
               )}
             </div>
@@ -3232,6 +3190,302 @@ function DocumentsView({ vehicles, documentCategories, onBack, themeMode, toggle
   );
 }
 
+// ═══════════════════════════════════════
+// STAGIAIRES — Stagiaires AMB (école) et Formation TPMR (sélection médicale + cotation)
+// ═══════════════════════════════════════
+const COTATION_ECOLES=["Jurbise","Leuze"];
+
+function CotationTpmrForm({ stagiaireName, formateur, criteres, onSave, onCancel }){
+  const [jour,setJour]=useState(null); // chargement
+  const [scores,setScores]=useState({});
+  const [saving,setSaving]=useState(false);
+
+  useEffect(()=>{
+    let cancelled=false;
+    getDocs(query(collection(dbChecklists,"dispatchai_cotations_tpmr"), where("stagiaire","==",stagiaireName))).then(snap=>{
+      if(cancelled) return;
+      setJour(snap.size+1);
+    }).catch(()=>{ if(!cancelled) setJour(1); });
+    return ()=>{ cancelled=true; };
+  },[stagiaireName]);
+
+  if(jour===null){
+    return <div style={{minHeight:"100vh",background:C.bg,display:"flex",alignItems:"center",justifyContent:"center",color:C.muted,fontFamily:"'IBM Plex Sans',sans-serif"}}>Chargement…</div>;
+  }
+
+  const isNumeric=jour<=2;
+  const canSave=criteres.length===0||criteres.every(c=>scores[c.id]!==undefined&&scores[c.id]!==null);
+
+  const handleSave=async()=>{
+    if(!canSave||saving) return;
+    setSaving(true);
+    try{
+      await addDoc(collection(dbChecklists,"dispatchai_cotations_tpmr"),{
+        stagiaire:stagiaireName, formateur, jour, echelle:isNumeric?"numerique":"acquis",
+        scores, date:todayISO(), createdAt:Date.now(),
+      });
+      onSave();
+    }catch(e){ console.error("Erreur sauvegarde cotation:", e); }
+    setSaving(false);
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",gap:10,position:"sticky",top:0,zIndex:50}}>
+        <button onClick={onCancel} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+        <div><div style={{fontWeight:800,fontSize:15}}>🎓 Cotation — {stagiaireName}</div><div style={{fontSize:10,color:C.muted}}>Jour {jour} — {isNumeric?"Échelle 1 à 5":"Acquis / Non acquis"}</div></div>
+      </div>
+      <div style={{flex:1,padding:16,paddingBottom:100,maxWidth:640,margin:"0 auto",width:"100%"}}>
+        {criteres.length===0&&<div style={{textAlign:"center",padding:40,color:C.muted}}>Aucun critère défini (Paramètres → Critères de cotation)</div>}
+        {criteres.map(c=>(
+          <div key={c.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:10}}>
+            <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{c.label}</div>
+            {isNumeric?(
+              <div style={{display:"grid",gridTemplateColumns:"repeat(6, 1fr)",gap:6}}>
+                {["Non pratiqué",1,2,3,4,5].map(v=>(
+                  <button key={v} onClick={()=>setScores(s=>({...s,[c.id]:v}))} style={{padding:"8px 2px",borderRadius:7,border:`1.5px solid ${scores[c.id]===v?C.accent:C.border}`,background:scores[c.id]===v?C.accentSoft:"transparent",color:scores[c.id]===v?C.accent:C.muted,fontSize:11,fontWeight:700,cursor:"pointer"}}>{v}</button>
+                ))}
+              </div>
+            ):(
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+                {["Acquis","Non acquis"].map(v=>(
+                  <button key={v} onClick={()=>setScores(s=>({...s,[c.id]:v}))} style={{padding:"10px",borderRadius:8,border:`1.5px solid ${scores[c.id]===v?(v==="Acquis"?C.success:C.danger):C.border}`,background:scores[c.id]===v?(v==="Acquis"?C.successSoft:C.dangerSoft):"transparent",color:scores[c.id]===v?(v==="Acquis"?C.success:C.danger):C.muted,fontSize:12,fontWeight:700,cursor:"pointer"}}>{v}</button>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginTop:16}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Formateur</div>
+          <div style={{fontSize:14,fontWeight:700}}>{formateur}</div>
+        </div>
+      </div>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.panel,borderTop:`1px solid ${C.border}`,padding:"12px 20px"}}>
+        <button disabled={!canSave||saving} onClick={handleSave} style={{width:"100%",background:(!canSave||saving)?C.panel2:C.success,border:"none",borderRadius:11,color:(!canSave||saving)?C.muted:"white",padding:13,fontWeight:800,fontSize:15,cursor:(!canSave||saving)?"not-allowed":"pointer"}}>{saving?"Enregistrement…":"✅ Enregistrer la cotation"}</button>
+      </div>
+    </div>
+  );
+}
+
+function StagiaireHistoriqueTpmr({ stagiaireName, criteres, onBack, themeMode, toggleTheme }){
+  const [entries,setEntries]=useState(null);
+  useEffect(()=>{
+    let cancelled=false;
+    getDocs(query(collection(dbChecklists,"dispatchai_cotations_tpmr"), where("stagiaire","==",stagiaireName))).then(snap=>{
+      if(cancelled) return;
+      setEntries(snap.docs.map(d=>d.data()).sort((a,b)=>(a.jour||0)-(b.jour||0)));
+    }).catch(()=>{ if(!cancelled) setEntries([]); });
+    return ()=>{ cancelled=true; };
+  },[stagiaireName]);
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:13,cursor:"pointer"}}>←</button>
+          <div style={{fontWeight:800,fontSize:16}}>📋 {stagiaireName}</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{flex:1,padding:16,maxWidth:640,margin:"0 auto",width:"100%"}}>
+        {entries===null&&<div style={{textAlign:"center",padding:40,color:C.muted}}>Chargement…</div>}
+        {entries&&entries.length===0&&<div style={{textAlign:"center",padding:40,color:C.muted}}>Aucune cotation enregistrée</div>}
+        {entries&&entries.map((e,i)=>(
+          <div key={i} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:10}}>
+            <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>Jour {e.jour} — {new Date(e.date+"T00:00:00").toLocaleDateString("fr-FR")}</div>
+            <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Formateur : {e.formateur} — {e.echelle==="numerique"?"Échelle 1-5":"Acquis/Non acquis"}</div>
+            {criteres.map(c=>(
+              <div key={c.id} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderTop:`1px solid ${C.border}`}}>
+                <span style={{color:C.muted}}>{c.label}</span>
+                <span style={{fontWeight:700,color:e.scores?.[c.id]==="Non acquis"?C.danger:e.scores?.[c.id]==="Acquis"?C.success:C.text}}>{e.scores?.[c.id]??"—"}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StagiairesView({ stagiairesAmb, setStagiairesAmb, formationTpmr, setFormationTpmr, onBack, themeMode, toggleTheme }){
+  const [section,setSection]=useState("stagiaires"); // stagiaires | creaEvalTpmr | creaEvalAmb | evalTpmr | evalAmb
+  const [newName,setNewName]=useState("");
+  const [newType,setNewType]=useState("amb"); // amb | tpmr
+  const [newEcole,setNewEcole]=useState("Jurbise");
+  const [confirmDelete,setConfirmDelete]=useState(null); // {type,id,name}
+  const [historiquePerson,setHistoriquePerson]=useState(null);
+  const [tpmrCriteres,setTpmrCriteres]=useFirestoreState("tpmrCotationCriteres",[]);
+  const [newCritere,setNewCritere]=useState("");
+  const [evalTpmrNames,setEvalTpmrNames]=useState(null);
+
+  useEffect(()=>{
+    if(section!=="evalTpmr") return;
+    let cancelled=false;
+    getDocs(collection(dbChecklists,"dispatchai_cotations_tpmr")).then(snap=>{
+      if(cancelled) return;
+      const names=[...new Set(snap.docs.map(d=>d.data().stagiaire))].sort((a,b)=>a.localeCompare(b));
+      setEvalTpmrNames(names);
+    }).catch(()=>{ if(!cancelled) setEvalTpmrNames([]); });
+    return ()=>{ cancelled=true; };
+  },[section]);
+
+  if(historiquePerson) return <StagiaireHistoriqueTpmr stagiaireName={historiquePerson} criteres={tpmrCriteres} onBack={()=>setHistoriquePerson(null)} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+
+  const SIDEBAR=[
+    {id:"stagiaires",icon:"🎓",label:"Stagiaires"},
+    {id:"creaEvalTpmr",icon:"⚙️",label:"Créa Eval TPMR"},
+    {id:"creaEvalAmb",icon:"⚙️",label:"Créa Eval AMB"},
+    {id:"evalTpmr",icon:"📋",label:"Évaluation TPMR"},
+    {id:"evalAmb",icon:"📋",label:"Évaluation AMB"},
+  ];
+
+  const addStagiaire=()=>{
+    if(!newName.trim()) return;
+    if(newType==="amb") setStagiairesAmb(p=>[...p,{id:"stag"+Date.now(),name:newName.trim(),ecole:newEcole}]);
+    else setFormationTpmr(p=>[...p,{id:"form"+Date.now(),name:newName.trim(),selectionMedicale:false}]);
+    setNewName("");
+  };
+
+  const doDelete=()=>{
+    if(!confirmDelete) return;
+    if(confirmDelete.type==="amb") setStagiairesAmb(p=>p.filter(x=>x.id!==confirmDelete.id));
+    else setFormationTpmr(p=>p.filter(x=>x.id!==confirmDelete.id));
+    setConfirmDelete(null);
+  };
+
+  return(
+    <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
+      <style>{GS}</style>
+      <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10,position:"sticky",top:0,zIndex:50}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <button onClick={onBack} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:13,cursor:"pointer"}}>← Menu</button>
+          <div style={{width:34,height:34,background:C.purple,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>🎓</div>
+          <div><div style={{fontWeight:700,fontSize:14}}>Stagiaires</div><div style={{fontSize:9,color:C.muted,textTransform:"uppercase",letterSpacing:"1px"}}>Formation & Cotation</div></div>
+        </div>
+        <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{flex:1,display:"flex",overflow:"hidden"}}>
+        <div style={{width:180,background:C.panel,borderRight:`1px solid ${C.border}`,padding:"12px 8px",display:"flex",flexDirection:"column",gap:4,flexShrink:0}}>
+          {SIDEBAR.map(s=>(
+            <button key={s.id} onClick={()=>setSection(s.id)} style={{padding:"11px 14px",borderRadius:9,border:"none",background:section===s.id?C.purpleSoft:"transparent",color:section===s.id?C.purple:C.muted,fontWeight:section===s.id?700:500,fontSize:13,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:8}}>
+              <span>{s.icon}</span>{s.label}
+            </button>
+          ))}
+        </div>
+        <div style={{flex:1,overflowY:"auto",padding:24}}>
+
+          {section==="stagiaires"&&(
+            <div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Ajoute un nom, choisis AMB ou TPMR — le champ complémentaire s'adapte automatiquement.</div>
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                <input value={newName} onChange={e=>setNewName(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") addStagiaire();}} placeholder="Nom Prénom…" style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 13px",color:C.text,fontSize:13}}/>
+                <button onClick={addStagiaire} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer"}}>+</button>
+              </div>
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                {[["amb","🚑 Stagiaire AMB"],["tpmr","♿ Formation TPMR"]].map(([id,label])=>(
+                  <button key={id} onClick={()=>setNewType(id)} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${newType===id?C.purple:C.border}`,background:newType===id?C.purpleSoft:"transparent",color:newType===id?C.purple:C.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>{label}</button>
+                ))}
+              </div>
+              {newType==="amb"&&(
+                <div style={{display:"flex",gap:8,marginBottom:20}}>
+                  {COTATION_ECOLES.map(ec=>(
+                    <button key={ec} onClick={()=>setNewEcole(ec)} style={{flex:1,padding:"8px",borderRadius:8,border:`1.5px solid ${newEcole===ec?C.purple:C.border}`,background:newEcole===ec?C.purpleSoft:"transparent",color:newEcole===ec?C.purple:C.muted,fontWeight:700,fontSize:12,cursor:"pointer"}}>{ec}</button>
+                  ))}
+                </div>
+              )}
+              {newType==="tpmr"&&<div style={{marginBottom:20}}/>}
+
+              <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:10}}>🚑 Stagiaires AMB</div>
+              {stagiairesAmb.map(s=>(
+                <div key={s.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <span style={{fontSize:14,fontWeight:600,color:C.purple}}>{s.name}</span>
+                    <button onClick={()=>setConfirmDelete({type:"amb",id:s.id,name:s.name})} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
+                  </div>
+                  <div style={{fontSize:11,color:C.muted}}>École : <b style={{color:C.purple}}>{s.ecole}</b></div>
+                </div>
+              ))}
+              {stagiairesAmb.length===0&&<div style={{textAlign:"center",padding:"14px 0",color:C.muted,fontSize:13}}>Aucun stagiaire AMB</div>}
+
+              <div style={{fontSize:11,fontWeight:700,color:C.blue,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:10,marginTop:24}}>♿ Formation TPMR</div>
+              {formationTpmr.map(s=>(
+                <div key={s.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7}}>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                    <span style={{fontSize:14,fontWeight:600,color:C.blue}}>{s.name}</span>
+                    <button onClick={()=>setConfirmDelete({type:"tpmr",id:s.id,name:s.name})} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
+                  </div>
+                  <button onClick={()=>setFormationTpmr(p=>p.map(x=>x.id===s.id?{...x,selectionMedicale:!x.selectionMedicale}:x))} style={{width:"100%",padding:"8px",borderRadius:7,border:`1px solid ${s.selectionMedicale?C.success:C.warning}`,background:s.selectionMedicale?C.successSoft:C.warningSoft,color:s.selectionMedicale?C.success:C.warning,fontSize:11,fontWeight:700,cursor:"pointer"}}>
+                    {s.selectionMedicale?"✅ Sélection médicale — peut rouler avec un patient":"⚠️ Pas de sélection médicale — rouler à vide uniquement"}
+                  </button>
+                </div>
+              ))}
+              {formationTpmr.length===0&&<div style={{textAlign:"center",padding:"14px 0",color:C.muted,fontSize:13}}>Aucune formation en cours</div>}
+            </div>
+          )}
+
+          {section==="creaEvalTpmr"&&(
+            <div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Ces critères seront utilisés à chaque cotation. Jours 1-2 : échelle Non pratiqué/1-5. Jour 3 et plus : Acquis/Non acquis.</div>
+              <div style={{display:"flex",gap:8,marginBottom:16}}>
+                <input value={newCritere} onChange={e=>setNewCritere(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newCritere.trim()){setTpmrCriteres(p=>[...p,{id:"crit"+Date.now(),label:newCritere.trim()}]);setNewCritere("");}}} placeholder="Nom du critère…" style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 13px",color:C.text,fontSize:13}}/>
+                <button onClick={()=>{if(newCritere.trim()){setTpmrCriteres(p=>[...p,{id:"crit"+Date.now(),label:newCritere.trim()}]);setNewCritere("");}}} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer"}}>+</button>
+              </div>
+              {tpmrCriteres.map(c=>(
+                <div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:7}}>
+                  <span style={{fontSize:13,fontWeight:600}}>{c.label}</span>
+                  <button onClick={()=>setTpmrCriteres(p=>p.filter(x=>x.id!==c.id))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
+                </div>
+              ))}
+              {tpmrCriteres.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:C.muted,fontSize:13}}>Aucun critère défini</div>}
+            </div>
+          )}
+
+          {section==="creaEvalAmb"&&(
+            <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
+              <div style={{fontSize:40,marginBottom:12}}>🚑</div>
+              <div style={{fontSize:14}}>Bientôt disponible</div>
+            </div>
+          )}
+
+          {section==="evalTpmr"&&(
+            <div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Clique sur un nom pour voir son historique de cotations (conservé même après suppression du stagiaire de la liste active).</div>
+              {evalTpmrNames===null&&<div style={{textAlign:"center",padding:40,color:C.muted}}>Chargement…</div>}
+              {evalTpmrNames&&evalTpmrNames.length===0&&<div style={{textAlign:"center",padding:40,color:C.muted}}>Aucune cotation enregistrée</div>}
+              {evalTpmrNames&&evalTpmrNames.map(name=>(
+                <button key={name} onClick={()=>setHistoriquePerson(name)} style={{width:"100%",textAlign:"left",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"12px 14px",marginBottom:7,color:C.blue,fontSize:14,fontWeight:600,cursor:"pointer"}}>📋 {name}</button>
+              ))}
+            </div>
+          )}
+
+          {section==="evalAmb"&&(
+            <div style={{textAlign:"center",padding:"60px 20px",color:C.muted}}>
+              <div style={{fontSize:40,marginBottom:12}}>🚑</div>
+              <div style={{fontSize:14}}>Bientôt disponible</div>
+            </div>
+          )}
+
+        </div>
+      </div>
+
+      {confirmDelete&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:20}}>
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:360,maxWidth:"100%"}}>
+            <div style={{fontWeight:800,fontSize:16,marginBottom:8,color:C.danger}}>🗑 Supprimer ?</div>
+            <div style={{fontSize:13,color:C.muted,marginBottom:20}}>"{confirmDelete.name}" sera retiré de la liste active. Son historique de cotations reste conservé.</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setConfirmDelete(null)} style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"11px",fontSize:13,cursor:"pointer"}}>Annuler</button>
+              <button onClick={doDelete} style={{flex:1,background:C.danger,border:"none",borderRadius:9,color:"white",padding:"11px",fontWeight:700,fontSize:13,cursor:"pointer"}}>Supprimer</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function GarageView({ onBack, themeMode, toggleTheme }){
   const [defects,setDefects]=useState([]);
   const [tvMode,setTvMode]=useState(false);
@@ -3817,7 +4071,7 @@ function DailyChecklistView({ vehicle, driverName, onComplete, themeMode, toggle
   );
 }
 
-function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehicles,setVehicles,contacts,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,transportTypes,onBack,onEndService,themeMode,toggleTheme}){
+function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrCriteres,vehicles,setVehicles,contacts,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,transportTypes,onBack,onEndService,themeMode,toggleTheme}){
   const [showBons,setShowBons]=useState(false);
   const [showContacts,setShowContacts]=useState(false);
   const [showPlans,setShowPlans]=useState(false);
@@ -3851,6 +4105,10 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
   const [currentBon,setCurrentBon]=useState(null);
 
   const [convoyeur,setConvoyeur]=useState(null);
+  const [showMedicalPopup,setShowMedicalPopup]=useState(false);
+  const [showCotationForm,setShowCotationForm]=useState(false);
+  const [cotationIsAutoEndService,setCotationIsAutoEndService]=useState(false);
+  const [autoCotationChecked,setAutoCotationChecked]=useState(false);
   const [stagiaireSelec,setStagiaireSelec]=useState(null);
   const [roleSwapped,setRoleSwapped]=useState(false);
 
@@ -3954,6 +4212,12 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
     </div>
   );
 
+  if(showCotationForm&&stagiaireSelec){
+    return <CotationTpmrForm stagiaireName={stagiaireSelec} formateur={driver} criteres={tpmrCriteres||[]}
+      onSave={()=>{ setShowCotationForm(false); if(cotationIsAutoEndService) onEndService(); }}
+      onCancel={()=>{ setShowCotationForm(false); if(cotationIsAutoEndService) onEndService(); }}/>;
+  }
+
   if(screen==="choix_nom") return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
@@ -3992,7 +4256,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
     const vType=vehicle?.type;
     const isAmbType=vType==="AMB";
     const driversList=isAmbType?[...driversAmb].sort((a,b)=>a.localeCompare(b)):[...driversTpmr].sort((a,b)=>a.localeCompare(b));
-    const extraList=isAmbType?[...stagiairesAmb].sort((a,b)=>a.localeCompare(b)):[...formationTpmr].sort((a,b)=>a.localeCompare(b));
+    const extraList=isAmbType?[...stagiairesAmb].sort((a,b)=>a.name.localeCompare(b.name)):[...formationTpmr].sort((a,b)=>a.name.localeCompare(b.name));
     const canContinue=driver&&(vType!=="AMB"||convoyeur);
     return(
       <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -4035,11 +4299,11 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
               </div>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
                 <button onClick={()=>setStagiaireSelec(null)} style={{background:!stagiaireSelec?C.panel2:"transparent",border:`1.5px solid ${C.border}`,borderRadius:11,padding:"10px 14px",color:C.muted,fontSize:12,cursor:"pointer"}}>— Aucun</button>
-                {extraList.map(s=>{const active=stagiaireSelec===s;const col=isAmbType?C.purple:C.blue;return(
-                  <button key={s} onClick={()=>setStagiaireSelec(active?null:s)}
+                {extraList.map(s=>{const active=stagiaireSelec===s.name;const col=isAmbType?C.purple:C.blue;return(
+                  <button key={s.name} onClick={()=>setStagiaireSelec(active?null:s.name)}
                     style={{background:active?`${col}22`:C.panel,border:`1.5px solid ${active?col:C.border}`,borderRadius:11,padding:"10px 14px",color:active?col:C.muted,display:"flex",alignItems:"center",gap:8,cursor:"pointer"}}>
                     <span>{isAmbType?"🎓":"📋"}</span>
-                    <div><div style={{fontWeight:active?700:500,fontSize:12}}>{s}</div><div style={{fontSize:9,color:col}}>{isAmbType?"(stagiaire)":"(formation)"}</div></div>
+                    <div><div style={{fontWeight:active?700:500,fontSize:12}}>{s.name}</div><div style={{fontSize:9,color:col}}>{isAmbType?s.ecole||"stagiaire":"(formation)"}</div></div>
                   </button>
                 );})}
               </div>
@@ -4051,12 +4315,39 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
           <button onClick={()=>{
             if(!canContinue) return;
             if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:null}:v));
+            if(!isAmbType&&stagiaireSelec){
+              const popupKey=`medicalPopup_${todayISO()}_${stagiaireSelec}`;
+              if(!lsGet(popupKey,false)){
+                setShowMedicalPopup(true);
+                return;
+              }
+            }
             setScreen("daily_checklist");
           }} disabled={!canContinue}
             style={{width:"100%",background:canContinue?C.success:C.panel2,border:"none",borderRadius:11,color:canContinue?"white":C.muted,padding:"13px",fontWeight:800,fontSize:15,cursor:canContinue?"pointer":"not-allowed",opacity:canContinue?1:0.6}}>
             ✅ Commencer le service
           </button>
         </div>
+        {showMedicalPopup&&(()=>{
+          const stag=formationTpmr.find(f=>f.name===stagiaireSelec);
+          const hasSelection=stag?.selectionMedicale;
+          return(
+            <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300,padding:20}}>
+              <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:360,maxWidth:"100%"}}>
+                <div style={{fontSize:32,textAlign:"center",marginBottom:10}}>{hasSelection?"✅":"⚠️"}</div>
+                <div style={{fontWeight:800,fontSize:16,textAlign:"center",marginBottom:8}}>{stagiaireSelec}</div>
+                <div style={{fontSize:13,textAlign:"center",color:hasSelection?C.success:C.warning,fontWeight:700,marginBottom:20}}>
+                  {hasSelection?"Sélection médicale — peut rouler avec un patient":"Pas de sélection médicale — ne peut pas rouler avec un patient, peut uniquement rouler à vide"}
+                </div>
+                <button onClick={()=>{
+                  lsSet(`medicalPopup_${todayISO()}_${stagiaireSelec}`,true);
+                  setShowMedicalPopup(false);
+                  setScreen("daily_checklist");
+                }} style={{width:"100%",background:C.success,border:"none",borderRadius:10,color:"white",padding:13,fontWeight:800,fontSize:14,cursor:"pointer"}}>OK</button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     );
   }
@@ -4130,7 +4421,16 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
         ):(
           <button onClick={()=>{setSignalVehicle(vehicle.name);setSignalNom(isAmb?[driver,convoyeur].filter(Boolean).join(" / "):driver);setShowSignaler(true);}} style={{width:"100%",marginBottom:8,background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:10,color:C.danger,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🚨 Signaler un problème</button>
         )}
-        {vehicle?.type!=="PREV"&&<button onClick={()=>setShowCarnetBord(true)} style={{width:"100%",marginBottom:8,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📓 Carnet de bord</button>}
+        {vehicle?.type!=="PREV"&&(
+          !isAmb&&stagiaireSelec?(
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
+              <button onClick={()=>setShowCarnetBord(true)} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📓 Carnet de bord</button>
+              <button onClick={()=>setShowCotationForm(true)} style={{flex:1,background:C.blueSoft,border:`1px solid ${C.blue}`,borderRadius:10,color:C.blue,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🎓 Cotation</button>
+            </div>
+          ):(
+            <button onClick={()=>setShowCarnetBord(true)} style={{width:"100%",marginBottom:8,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,color:C.text,padding:"11px",fontSize:13,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📓 Carnet de bord</button>
+          )
+        )}
         <div style={{display:"flex",gap:8,marginBottom:10}}>
           <button onClick={()=>setShowPlans(true)} style={{flex:1,background:C.blueSoft,border:`1px solid ${C.blue}`,borderRadius:10,color:C.blue,padding:"11px",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>🗺️ Plans</button>
           <button onClick={()=>setShowContacts(true)} style={{flex:1,background:C.accentSoft,border:`1px solid ${C.accent}`,borderRadius:10,color:C.accent,padding:"11px",fontSize:13,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>📞 Contacts</button>
@@ -4244,9 +4544,15 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,vehic
 
       {endCarnetMission&&(
         <CarnetBordModal vehicle={vehicle} driver={driver} myCourses={myCourses} transportTypes={transportTypes} forcedMission={endCarnetMission}
-          onForcedSaved={()=>{
+          onForcedSaved={async()=>{
             if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:endCarnetMission==="retour_domicile"?{driver,since:Date.now()}:null}:v));
             setEndCarnetMission(null);
+            if(!isAmb&&stagiaireSelec){
+              try{
+                const snap=await getDocs(query(collection(dbChecklists,"dispatchai_cotations_tpmr"), where("stagiaire","==",stagiaireSelec), where("date","==",todayISO())));
+                if(snap.empty){ setCotationIsAutoEndService(true); setShowCotationForm(true); return; }
+              }catch(e){ console.error("Erreur vérification cotation:", e); }
+            }
             onEndService();
           }}
           onClose={()=>setEndCarnetMission(null)}/>
@@ -7623,6 +7929,7 @@ export default function App(){
   const [driversAmb,  setDriversAmb]  = useFirestoreState("driversAmb", INIT_DRIVERS_AMB);
   const [driversTpmr, setDriversTpmr] = useFirestoreState("driversTpmr", INIT_DRIVERS_TPMR);
   const [stagiairesAmb,setStagiairesAmb] = useFirestoreState("stagiairesAmb", INIT_STAGIAIRES_AMB);
+  const [tpmrCriteres] = useFirestoreState("tpmrCotationCriteres", []);
   const [formationTpmr,setFormationTpmr] = useFirestoreState("formationTpmr", INIT_FORMATION_TPMR);
   const [conventions, setConventions] = useFirestoreState("conventions", INIT_CONVENTIONS);
   const [equipements, setEquipements] = useFirestoreState("equipements", INIT_EQUIPEMENTS);
@@ -7801,20 +8108,22 @@ export default function App(){
   if(appView==="formulaire") return <FormulaireView onBack={backToSubMenu} onSubmit={submitCourse} conventions={conventions} equipements={equipements} transportTypes={transportTypes} contacts={contacts} listeRouge={listeRouge} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} tarifs={tarifs} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="planning") return <PlanningView courses={courses} setCourses={setCourses} vehicles={vehicles} patients={patientsHabituels} setPatients={setPatientsHabituels} categories={patientCategories} setCategories={setPatientCategories} conventions={conventions} transportTypes={transportTypes} equipements={equipements} pending={pending} onAssignPending={validateCourse} onGoFormulaire={()=>setAppView("formulaire")} onBack={backToSubMenu} onSchedule={submitFromPatientHabituel} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} transportTypes={transportTypes} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} tpmrCriteres={tpmrCriteres} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} transportTypes={transportTypes} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} peremptionEmails={peremptionEmails} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="documents") return <DocumentsView vehicles={vehicles} documentCategories={documentCategories} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="stagiaires") return <StagiairesView stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="bons") return <BonsMenuView bases={bases} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} vehicles={vehicles} transportTypes={transportTypes} preventifMissionTypes={preventifMissionTypes} preventifEmails={preventifEmails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="signaler") return <SignalerCompletView onBack={()=>setAppView("menu")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} stagiairesAmb={stagiairesAmb} setStagiairesAmb={setStagiairesAmb} formationTpmr={formationTpmr} setFormationTpmr={setFormationTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} preventifMissionTypes={preventifMissionTypes} setPreventifMissionTypes={setPreventifMissionTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} peremptionEmails={peremptionEmails} setPeremptionEmails={setPeremptionEmails} preventifEmails={preventifEmails} setPreventifEmails={setPreventifEmails} listeRouge={listeRouge} setListeRouge={setListeRouge} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} preventifMissionTypes={preventifMissionTypes} setPreventifMissionTypes={setPreventifMissionTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} peremptionEmails={peremptionEmails} setPeremptionEmails={setPeremptionEmails} preventifEmails={preventifEmails} setPreventifEmails={setPreventifEmails} listeRouge={listeRouge} setListeRouge={setListeRouge} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
       <div style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
+          {showDispMenu&&<button onClick={()=>setShowDispMenu(false)} style={{background:"transparent",border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:13,cursor:"pointer"}}>←</button>}
           <div style={{width:34,height:34,background:C.accent,borderRadius:9,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>🚑</div>
           <div><div style={{fontWeight:700,fontSize:15}}>DispatchAI</div><div style={{fontSize:8,color:C.muted,textTransform:"uppercase",letterSpacing:"1px"}}>A.P.S. · Système de dispatch</div></div>
         </div>
@@ -7822,6 +8131,7 @@ export default function App(){
           <Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge>
           <Clock/>
           {showDispMenu&&<button onClick={()=>setAppView("documents")} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📁 Documents</button>}
+          {showDispMenu&&<button onClick={()=>setAppView("stagiaires")} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>🎓 Stagiaires</button>}
           <button onClick={()=>{const next=themeMode==="light"?"dark":"light";applyThemeMode(next);applyCkThemeMode(next);setThemeMode(next);}} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
           <button onClick={()=>setAppView("parametres")} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>⚙️ Paramètres</button>
         </div>
@@ -7894,7 +8204,6 @@ export default function App(){
             </>
           ):(
             <div>
-              <button onClick={()=>setShowDispMenu(false)} style={{background:"transparent",border:"none",color:C.muted,fontSize:13,cursor:"pointer",marginBottom:16,display:"flex",alignItems:"center",gap:6}}>← Retour</button>
               <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:20}}>
                 {[{val:courses.length,label:"Courses du jour",color:C.blue},{val:Object.keys(checklistsData).filter(n=>!checklistStatuses[n]?.complete).length,label:"Checklists ALPHA restantes",color:Object.keys(checklistsData).filter(n=>!checklistStatuses[n]?.complete).length===0?C.success:"#dc2626"}].map(s=>(
                   <div key={s.label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:"14px",textAlign:"center"}}>
