@@ -2272,7 +2272,10 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:10}}>
           {(vehicles||[]).map(v=>{
             const active=form.vehiculesEngages.some(x=>x.vehicleId===v.id);
-            return(<button key={v.id} onClick={()=>toggleVehicule(v)} style={{padding:"8px 4px",borderRadius:8,border:`1px solid ${active?C.purple:C.border}`,background:active?C.purpleSoft:"transparent",color:active?C.purple:C.muted,fontSize:12,fontWeight:700,cursor:"pointer"}}>{v.name}</button>);
+            return(<button key={v.id} onClick={()=>toggleVehicule(v)} style={{padding:"8px 4px",borderRadius:8,border:`1px solid ${active?C.purple:C.border}`,background:active?C.purpleSoft:"transparent",color:active?C.purple:C.muted,fontSize:12,fontWeight:700,cursor:"pointer",display:"flex",flexDirection:"column",gap:2}}>
+              <span>{v.name}</span>
+              {v.places?<span style={{fontSize:10,fontWeight:600,opacity:0.75}}>{v.places} places</span>:null}
+            </button>);
           })}
         </div>
         {showAddExternal?(
@@ -2293,10 +2296,9 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
           const selectedNames=new Set(form.personnel.map(p=>`${p.prenom} ${p.nom}`.trim()));
           const options=eligibleDrivers(v.vehicleType,v.vehicleId);
           const prioritized=[...options].sort((a,b)=>(selectedNames.has(b.name)?1:0)-(selectedNames.has(a.name)?1:0));
-          const vehObj=(vehicles||[]).find(x=>x.id===v.vehicleId);
           return(
             <div key={v.vehicleId} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
-              <span style={{fontSize:12,color:C.muted,width:100}}>{v.vehicleName}{v.isExternal?" (ext.)":vehObj?.places?` (${vehObj.places} places)`:""}</span>
+              <span style={{fontSize:12,color:C.muted,width:100}}>{v.vehicleName}{v.isExternal?" (ext.)":""}</span>
               <select value={v.chauffeur} onChange={e=>setChauffeur(v.vehicleId,e.target.value)} style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"8px 10px",color:C.text,fontSize:12}}>
                 <option value="">— Chauffeur —</option>
                 {prioritized.map(p=>(<option key={p.id} value={p.name}>{p.name}</option>))}
@@ -7818,7 +7820,7 @@ export default function App(){
           <Clock/>
           {showDispMenu&&<button onClick={()=>setAppView("documents")} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📁 Documents</button>}
           <button onClick={()=>{const next=themeMode==="light"?"dark":"light";applyThemeMode(next);applyCkThemeMode(next);setThemeMode(next);}} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
-          <button onClick={()=>setShowPin(true)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>⚙️ Paramètres</button>
+          <button onClick={()=>setAppView("parametres")} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>⚙️ Paramètres</button>
         </div>
       </div>
       <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"40px 20px"}}>
