@@ -209,7 +209,7 @@ const INIT_TRANSPORT_TYPES = [
   {id:"hospitalisation",label:"Hospitalisation",icon:"🛏"},
   {id:"urgences",label:"Urgences",icon:"🚨"},
   {id:"transfert_inter",label:"Transfert inter-site",icon:"🔄"},
-  {id:"transfert_extra",label:"Transfert extra-site",icon:"🚀"},
+  {id:"transfert_extra",label:"Transfert extra-site",icon:"🏥↗️"},
   {id:"radiotherapie",label:"Radiothérapie",icon:"☢️"},
   {id:"oncologie",label:"Oncologie",icon:"🎗"},
   {id:"dialyse",label:"Dialyse",icon:"💧"},
@@ -262,7 +262,7 @@ const vColor = t => t==="AMB"?C.danger:t==="VSL"?C.purple:t==="PREV"?C.warning:C
 const needsAmb = (mobilite, equip) => mobilite==="brancard"||(equip||[]).some(e=>["perfusion","oxygene","chaise_evac"].includes(e));
 
 const CONV_MAP = {"epicura":"Épicura","partenamut":"Partenamut","home":"Home","chwapi":"CHWAPI","chm":"CHM","prive":"Privé","mutas":"Mutas","prison":"Prison","az_glorieux":"AZ Glorieux"};
-const TYPE_MAP = {"consultation":"🏥","hospitalisation":"🛏","urgences":"🚨","transfert_inter":"🔄","transfert_extra":"🚀","radiotherapie":"☢️","oncologie":"🎗","dialyse":"💧","retour_domicile":"🏠"};
+const TYPE_MAP = {"consultation":"🏥","hospitalisation":"🛏","urgences":"🚨","transfert_inter":"🔄","transfert_extra":"🏥↗️","radiotherapie":"☢️","oncologie":"🎗","dialyse":"💧","retour_domicile":"🏠"};
 
 function Clock(){
   const [t,setT]=useState(new Date());
@@ -458,7 +458,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,veh
   const removeItem=(sIdx,shIdx,itIdx)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.filter((_,k)=>k!==itIdx)}:sh)}:s)}));
   const updateItem=(sIdx,shIdx,itIdx,field,val)=>setEditingChecklist(p=>({...p,sections:p.sections.map((s,i)=>i===sIdx?{...s,shelves:s.shelves.map((sh,j)=>j===shIdx?{...sh,items:sh.items.map((it,k)=>k===itIdx?{...it,[field]:val}:it)}:sh)}:s)}));
 
-  const TABS=[{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"vehicules",icon:"🚐",label:"Véhicules"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"transports",icon:"🔖",label:"Transports"},{id:"bases",icon:"🏠",label:"Bases"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"daily",icon:"🚑",label:"APS Daily"},{id:"listerouge",icon:"🚫",label:"Liste rouge"},{id:"documents",icon:"📁",label:"Documents"},{id:"emails",icon:"✉️",label:"Emails"}];
+  const TABS=[{id:"daily",icon:"🚑",label:"APS Daily"},{id:"bases",icon:"🏠",label:"Bases"},{id:"chauffeurs",icon:"👤",label:"Chauffeurs"},{id:"checklists",icon:"📋",label:"Checklists"},{id:"contacts",icon:"📒",label:"Contacts"},{id:"conventions",icon:"📞",label:"Conventions"},{id:"documents",icon:"📁",label:"Documents"},{id:"emails",icon:"✉️",label:"Emails"},{id:"equipements",icon:"🏥",label:"Équipements"},{id:"listerouge",icon:"🚫",label:"Liste rouge"},{id:"plans",icon:"🗺️",label:"Plans"},{id:"tarifs",icon:"💶",label:"Tarifs"},{id:"transports",icon:"🔖",label:"Transports"},{id:"vehicules",icon:"🚐",label:"Véhicules"}];
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
       <style>{GS}</style>
@@ -4125,6 +4125,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
   },[screen, vehicle?.name]);
   const [showCarnetBord,setShowCarnetBord]=useState(false);
   const [endCarnetMission,setEndCarnetMission]=useState(null); // "retour_base" | "retour_domicile" | null
+  const [changingVehicle,setChangingVehicle]=useState(false);
   const [signalVehicle,setSignalVehicle]=useState("");
   const [signalDesc,setSignalDesc]=useState("");
   const [signalNom,setSignalNom]=useState("");
@@ -4232,6 +4233,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
         <Badge color={C.success} soft={C.successSoft} pulse>En ligne</Badge>
         <Clock/>
         <button onClick={toggleTheme} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 11px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+        {showEnd&&<button onClick={()=>{setChangingVehicle(true);setEndCarnetMission("retour_base");}} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:7,color:C.text,padding:"7px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🔄 Changer</button>}
         {showEnd&&<button onClick={async()=>{
           try{
             const snap=await getDocs(query(collection(dbChecklists,"dispatchai_carnet_bord"), where("vehicle","==",vehicle.name), where("date","==",todayISO()), where("status","==","open")));
@@ -4393,8 +4395,8 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
       <style>{GS}</style>
       <HeaderC title="Planning du jour" sub={`${vehicle?.name} · ${driver}`} showEnd/>
       <div style={{flex:1,padding:"16px 16px 100px",maxWidth:640,margin:"0 auto",width:"100%"}}>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:18}}>
-          {[{val:myCourses.length,label:"Total",color:C.accent},{val:myActives.length,label:"Restantes",color:C.blue},{val:myTermines.length,label:"Terminées",color:C.success},{val:bons.length,label:"Bons",color:C.purple}].map(s=>(
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:18}}>
+          {[{val:myActives.length,label:"Restantes",color:C.blue},{val:bons.length,label:"Bons",color:C.purple}].map(s=>(
             <div key={s.label} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:11,padding:"10px",textAlign:"center"}}>
               <div style={{fontSize:20,fontWeight:800,color:s.color}}>{s.val}</div>
               <div style={{fontSize:9,color:C.muted,textTransform:"uppercase",marginTop:2}}>{s.label}</div>
@@ -4579,6 +4581,12 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
           onForcedSaved={async()=>{
             if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:endCarnetMission==="retour_domicile"?{driver,since:Date.now()}:null}:v));
             setEndCarnetMission(null);
+            if(changingVehicle){
+              setChangingVehicle(false);
+              setVehicle(null);
+              setScreen("choix_vehicule");
+              return;
+            }
             if(!isAmb&&stagiaireSelec){
               try{
                 const snap=await getDocs(query(collection(dbChecklists,"dispatchai_cotations_tpmr"), where("stagiaire","==",stagiaireSelec), where("date","==",todayISO())));
@@ -4587,7 +4595,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
             }
             onEndService();
           }}
-          onClose={()=>setEndCarnetMission(null)}/>
+          onClose={()=>{setEndCarnetMission(null);setChangingVehicle(false);}}/>
       )}
 
       {showCarnetBord&&(
@@ -4816,8 +4824,10 @@ function BonView({bon,onSave,onBack,vehicle,driver,bases}){
   const setConso=(i,v)=>setConsommables(p=>p.map((x,j)=>j===i?v:x));
   const isAmb=vehicle?.type==="AMB";
   const isTpmr=vehicle?.type==="TPMR"||vehicle?.type==="VSL";
-  const isUrgences=b.type==="urgences"||b.type==="Urgences";
+  const isUrgences=b.type==="urgences"||b.type==="Urgences"||b.type===TYPE_MAP["urgences"];
   const handleSend=(validate)=>onSave({...b,signature:sig,valide:validate,parametres,consommables});
+  const pecOk=parametres&&parametres[0]&&(parametres[0].fc||parametres[0].ta||parametres[0].spo2||parametres[0].glycemie||parametres[0].temp);
+  const canValidate=!!b.kmDepart&&!!b.heurePC&&!!b.heureDep1&&!!b.heureArr1&&!!b.patient&&!!b.depart&&!!b.dateNaissance&&!!b.arrivee&&!!b.convention&&!!b.type&&!!b.base&&(!b.heureDep2||!!b.tempsAttente)&&(!isUrgences||(pecOk&&!!b.raisonUrgence));
   const inStyle={width:"100%",background:"#07090f",border:"1px solid #1a2d45",borderRadius:8,padding:"9px 12px",color:"#e8f0fa",fontSize:13,fontFamily:"inherit"};
   const chaufLabel=b.chauffeurLabel||driver||b.chauffeur||"";
   const convLabel=b.convoyeurLabel||"";
@@ -5038,7 +5048,7 @@ function BonView({bon,onSave,onBack,vehicle,driver,bases}){
 
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.panel,borderTop:`1px solid ${C.border}`,padding:"12px 16px",display:"flex",gap:8}}>
         <button onClick={()=>handleSend(false)} style={{flex:1,background:C.panel2,border:`1px solid ${C.border}`,borderRadius:11,color:C.muted,padding:"13px",fontWeight:700,fontSize:14,cursor:"pointer"}}>💾 Brouillon</button>
-        <button onClick={()=>handleSend(true)} style={{flex:2,background:C.success,border:"none",borderRadius:11,color:"white",padding:"13px",fontWeight:800,fontSize:14,cursor:"pointer"}}>✅ Valider & Envoyer</button>
+        <button disabled={!canValidate} onClick={()=>handleSend(true)} style={{flex:2,background:canValidate?C.success:C.panel2,border:"none",borderRadius:11,color:canValidate?"white":C.muted,padding:"13px",fontWeight:800,fontSize:14,cursor:canValidate?"pointer":"not-allowed"}}>✅ Valider & Envoyer</button>
       </div>
     </div>
   );
