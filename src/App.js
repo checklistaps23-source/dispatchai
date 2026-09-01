@@ -4726,7 +4726,6 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
               {isEnCours&&<div style={{position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${C.accent},#fbbf24)`}}/>}
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
-                  <span style={{fontSize:22}}>{TYPE_MAP[c.type]||"🚑"}</span>
                   <div style={{fontSize:18,fontWeight:900}}>{c.heure}</div>
                 </div>
                 <div style={{display:"flex",gap:6,alignItems:"center"}}>
