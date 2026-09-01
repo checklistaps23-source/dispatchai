@@ -1500,7 +1500,7 @@ function LiveFleetMap({ vehicles, gpsSessions, selectedV, setSelectedV, themeC }
   },[gpsSessions,vehicles,selectedV,setSelectedV]);
 
   return(
-    <div style={{flex:1,position:"relative",overflow:"hidden"}}>
+    <div style={{flex:1,position:"relative",overflow:"hidden",isolation:"isolate"}}>
       <div ref={mapRef} style={{position:"absolute",inset:0,background:themeC.bg}}/>
       {!leafletReady&&(
         <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:themeC.muted,fontSize:13}}>Chargement de la carte…</div>
