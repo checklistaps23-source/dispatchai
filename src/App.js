@@ -3231,6 +3231,7 @@ const COTATION_ECOLES=["Jurbise","Leuze"];
 function CotationTpmrForm({ stagiaireName, formateur, criteres, onSave, onCancel }){
   const [jour,setJour]=useState(null); // chargement
   const [scores,setScores]=useState({});
+  const [remarque,setRemarque]=useState("");
   const [saving,setSaving]=useState(false);
 
   useEffect(()=>{
@@ -3255,7 +3256,7 @@ function CotationTpmrForm({ stagiaireName, formateur, criteres, onSave, onCancel
     setSaving(true);
     try{
       await addDoc(collection(dbChecklists,"dispatchai_cotations_tpmr"),{
-        stagiaire:stagiaireName, formateur, jour, echelle:isNumeric?"numerique":"acquis",
+        stagiaire:stagiaireName, formateur, jour, echelle:isNumeric?"numerique":"acquis", remarque,
         scores, date:todayISO(), createdAt:Date.now(),
       });
       onSave();
@@ -3294,7 +3295,11 @@ function CotationTpmrForm({ stagiaireName, formateur, criteres, onSave, onCancel
           </div>
           )
         ))}
-        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginTop:16}}>
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginTop:16,marginBottom:16}}>
+          <div style={{fontSize:11,color:C.muted,marginBottom:6,textTransform:"uppercase"}}>Remarque</div>
+          <textarea value={remarque} onChange={e=>setRemarque(e.target.value)} placeholder="Remarque éventuelle sur cette évaluation…" style={{width:"100%",background:C.bg,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 11px",color:C.text,fontSize:13,minHeight:70,resize:"vertical",fontFamily:"inherit",boxSizing:"border-box"}}/>
+        </div>
+        <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14}}>
           <div style={{fontSize:11,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Formateur</div>
           <div style={{fontSize:14,fontWeight:700}}>{formateur}</div>
         </div>
@@ -3344,6 +3349,7 @@ function StagiaireHistoriqueTpmr({ stagiaireName, criteres, onBack, themeMode, t
               </div>
               )
             ))}
+            {e.remarque&&<div style={{marginTop:10,paddingTop:8,borderTop:`1px solid ${C.border}`,fontSize:11}}><span style={{color:C.muted}}>Remarque : </span><span style={{color:C.text}}>{e.remarque}</span></div>}
           </div>
         ))}
       </div>
