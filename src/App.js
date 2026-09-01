@@ -1994,7 +1994,7 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
                 }} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
               </div>
               {PREVENTIF_GRADES.map(grade=>{
-                const group=personnel.filter(p=>p.grade===grade);
+                const group=personnel.filter(p=>p.grade===grade).sort((a,b)=>a.name.localeCompare(b.name));
                 if(group.length===0) return null;
                 return(
                   <div key={grade} style={{marginBottom:18}}>
@@ -2284,7 +2284,7 @@ function PreventifFicheForm({ vehicles, personnel, materiel, radioCanaux, fiches
           <select value={pickPersonId} onChange={e=>setPickPersonId(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&pickPersonId) addPersonnelFromList();}} style={{flex:1,minWidth:160,background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"7px 9px",color:C.text,fontSize:12}}>
             <option value="">— Choisir dans le personnel —</option>
             {PREVENTIF_GRADES.map(grade=>{
-              const group=(personnel||[]).filter(p=>p.grade===grade);
+              const group=(personnel||[]).filter(p=>p.grade===grade).sort((a,b)=>a.name.localeCompare(b.name));
               if(group.length===0) return null;
               return <optgroup key={grade} label={grade}>{group.map(p=>(<option key={p.id} value={p.id}>{p.name}</option>))}</optgroup>;
             })}
@@ -2464,7 +2464,9 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, transportT
         const aResp=`${a.nom} ${a.prenom}`.trim()===f.responsableMission?0:1;
         const bResp=`${b.nom} ${b.prenom}`.trim()===f.responsableMission?0:1;
         if(aResp!==bResp) return aResp-bResp;
-        return PREVENTIF_GRADES.indexOf(a.fonction)-PREVENTIF_GRADES.indexOf(b.fonction);
+        const gDiff=PREVENTIF_GRADES.indexOf(a.fonction)-PREVENTIF_GRADES.indexOf(b.fonction);
+        if(gDiff!==0) return gDiff;
+        return `${a.nom} ${a.prenom}`.trim().localeCompare(`${b.nom} ${b.prenom}`.trim());
       });
       const feuilleRows=sortedPersonnel.map(p=>{
         const isResp=`${p.nom} ${p.prenom}`.trim()===f.responsableMission;
@@ -2714,7 +2716,9 @@ function PreventifFicheDetail({ fiche, materiel, personnel, vehicles, transportT
                 const aResp=`${a.nom} ${a.prenom}`.trim()===f.responsableMission?0:1;
                 const bResp=`${b.nom} ${b.prenom}`.trim()===f.responsableMission?0:1;
                 if(aResp!==bResp) return aResp-bResp;
-                return PREVENTIF_GRADES.indexOf(a.fonction)-PREVENTIF_GRADES.indexOf(b.fonction);
+                const gDiff=PREVENTIF_GRADES.indexOf(a.fonction)-PREVENTIF_GRADES.indexOf(b.fonction);
+                if(gDiff!==0) return gDiff;
+                return `${a.nom} ${a.prenom}`.trim().localeCompare(`${b.nom} ${b.prenom}`.trim());
               }).map(p=>{
                 const isResponsable=`${p.nom} ${p.prenom}`.trim()===f.responsableMission;
                 return(
