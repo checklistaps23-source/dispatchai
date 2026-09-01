@@ -3,7 +3,7 @@
 // mais avec une collection dédiée ("dispatchai_checklists") pour ne pas
 // mélanger avec les anciennes données de l'app APS Checklists.
 import { initializeApp } from "firebase/app";
-import { getFirestore } from "firebase/firestore";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from "firebase/firestore";
 
 const checklistsFirebaseConfig = {
   apiKey: "AIzaSyAHxMNER2le2Hb65R2qXWaYRhKrjN8zJaU",
@@ -18,4 +18,6 @@ const checklistsFirebaseConfig = {
 // Nommée "checklists" pour coexister avec l'autre app Firebase (dispatchai-aps)
 // initialisée dans firebase.js, sans conflit.
 const checklistsApp = initializeApp(checklistsFirebaseConfig, "checklists");
-export const dbChecklists = getFirestore(checklistsApp);
+export const dbChecklists = initializeFirestore(checklistsApp, {
+  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+});
