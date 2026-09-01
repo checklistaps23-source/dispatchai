@@ -1993,12 +1993,13 @@ function PreventifParametresView({ personnel, setPersonnel, materiel, setMaterie
                   setNewName("");
                 }} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"9px 16px",fontSize:13,fontWeight:700,cursor:"pointer"}}>+ Ajouter</button>
               </div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:14}}>Total : {personnel.length} personne{personnel.length>1?"s":""}</div>
               {PREVENTIF_GRADES.map(grade=>{
                 const group=personnel.filter(p=>p.grade===grade).sort((a,b)=>a.name.localeCompare(b.name));
                 if(group.length===0) return null;
                 return(
                   <div key={grade} style={{marginBottom:18}}>
-                    <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>{grade}</div>
+                    <div style={{fontSize:11,fontWeight:700,color:C.purple,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>{grade} <span style={{fontWeight:500,color:C.muted,textTransform:"none",letterSpacing:"normal"}}>({group.length})</span></div>
                     {group.map(p=>(
                       <div key={p.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px",marginBottom:6}}>
                         {editingPersonId===p.id?(
