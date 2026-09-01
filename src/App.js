@@ -1434,6 +1434,86 @@ function DevisModal({tarifs,onClose}){
   );
 }
 
+function LiveFleetMap({ vehicles, gpsSessions, selectedV, setSelectedV, themeC }){
+  const mapRef=useRef(null);
+  const mapInstanceRef=useRef(null);
+  const markersRef=useRef({});
+  const [leafletReady,setLeafletReady]=useState(false);
+
+  useEffect(()=>{
+    let cancelled=false;
+    (async()=>{
+      if(!document.querySelector('link[href*="leaflet.css"]')){
+        const link=document.createElement("link");
+        link.rel="stylesheet";
+        link.href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css";
+        document.head.appendChild(link);
+      }
+      try{
+        await loadExternalScript("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js", ()=>!!window.L);
+        if(!cancelled) setLeafletReady(true);
+      }catch(e){ console.error("Erreur chargement carte:", e); }
+    })();
+    return ()=>{ cancelled=true; };
+  },[]);
+
+  useEffect(()=>{
+    if(!leafletReady||!mapRef.current||mapInstanceRef.current) return;
+    const L=window.L;
+    const map=L.map(mapRef.current).setView([50.4542,3.9523],11); // Mons, Hainaut
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+      attribution:'&copy; OpenStreetMap contributors', maxZoom:19,
+    }).addTo(map);
+    mapInstanceRef.current=map;
+    setTimeout(()=>map.invalidateSize(),150);
+  },[leafletReady]);
+
+  useEffect(()=>{
+    if(!mapInstanceRef.current||!window.L) return;
+    const L=window.L;
+    const map=mapInstanceRef.current;
+    const currentIds=new Set();
+    vehicles.forEach(v=>{
+      const sess=gpsSessions.find(s=>s.vehicleId===v.id);
+      if(!sess||sess.lat==null||sess.lng==null) return;
+      const key=String(v.id);
+      currentIds.add(key);
+      const isSelected=selectedV?.id===v.id;
+      const color=isSelected?"#22c55e":(sess.locationBlocked?"#ef4444":"#3b82f6");
+      const icon=L.divIcon({
+        className:"", html:`<div style="background:${color};color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);">${vIcon(v.type)}</div>`,
+        iconSize:[32,32], iconAnchor:[16,16],
+      });
+      if(markersRef.current[key]){
+        markersRef.current[key].setLatLng([sess.lat,sess.lng]);
+        markersRef.current[key].setIcon(icon);
+      }else{
+        const marker=L.marker([sess.lat,sess.lng],{icon}).addTo(map);
+        marker.on("click",()=>setSelectedV(isSelected?null:v));
+        marker.bindTooltip(v.name,{permanent:false,direction:"top"});
+        markersRef.current[key]=marker;
+      }
+    });
+    Object.keys(markersRef.current).forEach(key=>{
+      if(!currentIds.has(key)){ map.removeLayer(markersRef.current[key]); delete markersRef.current[key]; }
+    });
+  },[gpsSessions,vehicles,selectedV,setSelectedV]);
+
+  return(
+    <div style={{flex:1,position:"relative",overflow:"hidden"}}>
+      <div ref={mapRef} style={{position:"absolute",inset:0,background:themeC.bg}}/>
+      {!leafletReady&&(
+        <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",color:themeC.muted,fontSize:13}}>Chargement de la carte…</div>
+      )}
+      <div style={{position:"absolute",bottom:12,left:12,background:themeC.panel+"ee",border:`1px solid ${themeC.border}`,borderRadius:9,padding:"9px 13px",zIndex:1000}}>
+        <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}><div style={{width:6,height:6,borderRadius:"50%",background:"#3b82f6"}}/><span style={{fontSize:10,color:themeC.mutedLight}}>Position en direct</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}><div style={{width:6,height:6,borderRadius:"50%",background:"#ef4444"}}/><span style={{fontSize:10,color:themeC.mutedLight}}>Localisation coupée</span></div>
+        {selectedV&&<div style={{marginTop:6,paddingTop:6,borderTop:`1px solid ${themeC.border}`,fontSize:10,color:"#22c55e",fontWeight:700}}>🟢 {selectedV.name} sélectionné</div>}
+      </div>
+    </div>
+  );
+}
+
 function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValidate,onRefuse,onBack,contacts,tarifs,themeMode,toggleTheme}){
   const [selectedV,setSelectedV]=useState(null);
   const [centerTab,setCenterTab]=useState("planning");
@@ -1446,6 +1526,14 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
   const [dispConfirm,setDispConfirm]=useState(null);
   const [showContacts,setShowContacts]=useState(false);
   const [showDevis,setShowDevis]=useState(false);
+  const [gpsSessions,setGpsSessions]=useState([]); // sessions actives avec position GPS
+  useEffect(()=>{
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_active_sessions"), snap=>{
+      setGpsSessions(snap.docs.map(d=>({id:d.id,...d.data()})));
+    });
+    return ()=>unsub();
+  },[]);
+  const blockedSessions=gpsSessions.filter(s=>s.locationBlocked);
 
   const pendingToday=pending.filter(p=>(p.dateISO||todayISO())===todayISO());
   const coursesToday=courses.filter(c=>(c.dateISO||todayISO())===todayISO());
@@ -1492,6 +1580,13 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
         </div>
       </div>
 
+      {blockedSessions.length>0&&(
+        <div style={{background:"rgba(239,68,68,0.08)",borderBottom:`1px solid ${C.danger}`,padding:"9px 18px",flexShrink:0}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,fontSize:12,color:C.danger,fontWeight:700}}>
+            📍🚫 Localisation coupée : {blockedSessions.map(s=>`${s.driver} (${s.vehicleName})`).join(", ")}
+          </div>
+        </div>
+      )}
       {showPending&&currentPending&&(
         <div style={{background:"rgba(245,158,11,0.06)",borderBottom:`1px solid ${C.warning}`,padding:"10px 18px",flexShrink:0,animation:"slideIn 0.3s ease"}}>
           <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
@@ -1576,40 +1671,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
           {centerTab==="planning"?(
             <PlanningAccordion vehicles={vehicles} courses={coursesToday} vCourses={vCourses}/>
           ):(
-            <div style={{flex:1,position:"relative",overflow:"hidden"}}>
-              <svg width="100%" height="100%" style={{position:"absolute",inset:0}}>
-                <defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M 40 0 L 0 0 0 40" fill="none" stroke={C.border} strokeWidth="0.5" opacity="0.5"/></pattern></defs>
-                <rect width="100%" height="100%" fill={C.bg}/>
-                <rect width="100%" height="100%" fill="url(#g)"/>
-                <line x1="5%" y1="50%" x2="95%" y2="50%" stroke={C.border} strokeWidth="2" opacity="0.4"/>
-                <line x1="50%" y1="5%" x2="50%" y2="95%" stroke={C.border} strokeWidth="2" opacity="0.4"/>
-                <circle cx="50%" cy="46%" r="8" fill={C.accentSoft} stroke={C.accent} strokeWidth="1.5"/>
-                <text x="50%" y="46%" textAnchor="middle" dominantBaseline="central" fill={C.accent} fontSize="8" fontFamily="IBM Plex Sans" fontWeight="bold">CHU</text>
-                {activeVehicles.map(v=>{
-                  const sc={en_course:C.success,disponible:C.blue,attente:C.warning}[v.status]||C.muted;
-                  const isSelected=selectedV?.id===v.id;
-                  const col=isSelected?C.success:vColor(v.type);
-                  return(
-                    <g key={v.id} onClick={()=>setSelectedV(isSelected?null:v)} style={{cursor:"pointer"}}>
-                      {isSelected&&<>
-                        <circle cx={`${v.x}%`} cy={`${v.y}%`} r="28" fill="rgba(34,197,94,0.08)" stroke={C.success} strokeWidth="1.5" strokeDasharray="4 3" opacity="0.8"/>
-                        <circle cx={`${v.x}%`} cy={`${v.y}%`} r="22" fill="rgba(34,197,94,0.06)" stroke={C.success} strokeWidth="2" opacity="0.6"/>
-                      </>}
-                      <circle cx={`${v.x}%`} cy={`${v.y}%`} r={isSelected?18:15} fill={isSelected?"rgba(34,197,94,0.18)":C.panel2} stroke={isSelected?C.success:col} strokeWidth={isSelected?3:1.5}/>
-                      <text x={`${v.x}%`} y={`${v.y}%`} textAnchor="middle" dominantBaseline="central" fontSize={isSelected?13:11} fill={isSelected?"#fff":col} fontFamily="IBM Plex Sans">{vIcon(v.type)}</text>
-                      <circle cx={`${v.x+1.3}%`} cy={`${v.y-1.7}%`} r="4.5" fill={isSelected?C.success:sc} stroke={C.bg} strokeWidth="1.5"/>
-                      {isSelected&&<text x={`${v.x}%`} y={`${parseFloat(v.y)+3.5}%`} textAnchor="middle" fontSize="7" fill={C.success} fontFamily="IBM Plex Sans" fontWeight="bold">{v.name}</text>}
-                    </g>
-                  );
-                })}
-              </svg>
-              <div style={{position:"absolute",bottom:12,left:12,background:C.panel+"ee",border:`1px solid ${C.border}`,borderRadius:9,padding:"9px 13px"}}>
-                {[{color:C.success,label:"En course"},{color:C.blue,label:"Disponible"},{color:C.warning,label:"Attente"}].map(l=>(
-                  <div key={l.label} style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}><div style={{width:6,height:6,borderRadius:"50%",background:l.color}}/><span style={{fontSize:10,color:C.mutedLight}}>{l.label}</span></div>
-                ))}
-                {selectedV&&<div style={{marginTop:6,paddingTop:6,borderTop:`1px solid ${C.border}`,fontSize:10,color:C.success,fontWeight:700}}>🟢 {selectedV.name} sélectionné</div>}
-              </div>
-            </div>
+            <LiveFleetMap vehicles={activeVehicles} gpsSessions={gpsSessions} selectedV={selectedV} setSelectedV={setSelectedV} themeC={C}/>
           )}
         </div>
 
@@ -4166,6 +4228,9 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
   const [changingVehicle,setChangingVehicle]=useState(false);
   const [sessionDocId,setSessionDocId]=useState(()=>lsGet("aps_sessionDocId",null));
   useEffect(()=>{ lsSet("aps_sessionDocId",sessionDocId); },[sessionDocId]);
+  const [watchId,setWatchId]=useState(null);
+  const [locationBlocked,setLocationBlocked]=useState(false);
+  const lastGpsWriteRef=useRef(0);
   const [activeSessions,setActiveSessions]=useState([]); // [{id, vehicleId, vehicleName, driver}]
   useEffect(()=>{
     const unsub=onSnapshot(collection(dbChecklists,"dispatchai_active_sessions"), snap=>{
@@ -4173,6 +4238,40 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
     });
     return ()=>unsub();
   },[]);
+
+  const startGpsTracking=(sessDocId)=>{
+    if(!navigator.geolocation||!sessDocId) return;
+    const id=navigator.geolocation.watchPosition(
+      (pos)=>{
+        setLocationBlocked(false);
+        const now=Date.now();
+        if(now-lastGpsWriteRef.current<28000) return; // throttle ~30s
+        lastGpsWriteRef.current=now;
+        setDoc(doc(dbChecklists,"dispatchai_active_sessions",sessDocId),{
+          lat:pos.coords.latitude, lng:pos.coords.longitude, locationBlocked:false, gpsUpdatedAt:now,
+        },{merge:true}).catch(e=>console.error("Erreur écriture position GPS:", e));
+      },
+      (err)=>{
+        if(err.code===1){ // PERMISSION_DENIED
+          setLocationBlocked(true);
+          setDoc(doc(dbChecklists,"dispatchai_active_sessions",sessDocId),{locationBlocked:true},{merge:true}).catch(()=>{});
+        }
+      },
+      {enableHighAccuracy:false, maximumAge:25000, timeout:20000}
+    );
+    setWatchId(id);
+  };
+  const stopGpsTracking=()=>{
+    if(watchId!=null&&navigator.geolocation){ navigator.geolocation.clearWatch(watchId); }
+    setWatchId(null);
+    setLocationBlocked(false);
+  };
+  // Reprend le suivi GPS si une session était déjà active (retour sur l'app après un rechargement)
+  useEffect(()=>{
+    if(sessionDocId&&watchId==null) startGpsTracking(sessionDocId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[sessionDocId]);
+
   const [signalVehicle,setSignalVehicle]=useState("");
   const [signalDesc,setSignalDesc]=useState("");
   const [signalNom,setSignalNom]=useState("");
@@ -4293,6 +4392,88 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
     </div>
   );
 
+  if(locationBlocked&&sessionDocId){
+    return(
+      <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,textAlign:"center"}}>
+        <style>{GS}</style>
+        <div style={{fontSize:48,marginBottom:16}}>📍🚫</div>
+        <div style={{fontWeight:800,fontSize:18,marginBottom:10,color:C.danger}}>Localisation désactivée</div>
+        <div style={{fontSize:13,color:C.muted,maxWidth:340,marginBottom:24,lineHeight:1.5}}>
+          La localisation a été coupée alors que ton service est en cours. Elle doit rester activée pendant toute la durée de ta mission. Réactive-la pour continuer à utiliser l'application.
+        </div>
+        <button onClick={()=>{
+          if(navigator.geolocation){
+            navigator.geolocation.getCurrentPosition(
+              ()=>{ setLocationBlocked(false); if(sessionDocId) startGpsTracking(sessionDocId); },
+              ()=>{},
+              {enableHighAccuracy:false}
+            );
+          }
+        }} style={{background:C.success,border:"none",borderRadius:10,color:"white",padding:"13px 24px",fontWeight:800,fontSize:14,cursor:"pointer",marginBottom:12}}>🔄 Vérifier à nouveau</button>
+        <button onClick={async()=>{
+          if(!vehicle){
+            // Filet de sécurité : pas de véhicule connu, on nettoie et termine directement
+            stopGpsTracking();
+            if(sessionDocId){
+              try{ await deleteDoc(doc(dbChecklists,"dispatchai_active_sessions",sessionDocId)); }catch(e){ console.error("Erreur suppression session active:", e); }
+            }
+            setSessionDocId(null);
+            lsSet("aps_sessionDocId",null);
+            onEndService();
+            return;
+          }
+          try{
+            const snap=await getDocs(query(collection(dbChecklists,"dispatchai_carnet_bord"), where("vehicle","==",vehicle.name), where("date","==",todayISO()), where("status","==","open")));
+            const openWithMission=snap.docs.map(d=>d.data()).find(e=>e.natureMission==="retour_base"||e.natureMission==="retour_domicile");
+            if(openWithMission){ setEndCarnetMission(openWithMission.natureMission); return; }
+          }catch(e){ console.error("Erreur vérification fin de service:", e); }
+          setShowEndChoice(true);
+        }} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:10,color:C.danger,padding:"11px 22px",fontWeight:700,fontSize:13,cursor:"pointer"}}>🔴 Terminer mon service</button>
+
+        {vehicle&&showEndChoice&&(
+          <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:230}}>
+            <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:380,maxWidth:"92vw",animation:"pop 0.2s ease"}}>
+              <div style={{fontWeight:800,fontSize:16,marginBottom:6}}>🔴 Fin de service</div>
+              <div style={{fontSize:13,color:C.muted,marginBottom:20}}>Le véhicule {vehicle?.name} reste où ce soir ?</div>
+              <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                <button onClick={()=>{ setShowEndChoice(false); setEndCarnetMission("retour_base"); }} style={{background:C.successSoft,border:`1.5px solid ${C.success}`,borderRadius:12,padding:"14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",textAlign:"left"}}>
+                  <span style={{fontSize:24}}>🏠</span>
+                  <div><div style={{fontWeight:700,fontSize:14,color:C.success}}>Retour base</div><div style={{fontSize:11,color:C.muted}}>Le véhicule reste au dépôt</div></div>
+                </button>
+                <button onClick={()=>{ setShowEndChoice(false); setEndCarnetMission("retour_domicile"); }} style={{background:C.dangerSoft,border:`1.5px solid ${C.danger}`,borderRadius:12,padding:"14px",display:"flex",alignItems:"center",gap:12,cursor:"pointer",textAlign:"left"}}>
+                  <span style={{fontSize:24}}>🚗</span>
+                  <div><div style={{fontWeight:700,fontSize:14,color:C.danger}}>Retour domicile</div><div style={{fontSize:11,color:C.muted}}>Je le ramène chez moi</div></div>
+                </button>
+              </div>
+              <button onClick={()=>setShowEndChoice(false)} style={{width:"100%",marginTop:14,background:"transparent",border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"10px",fontSize:13,cursor:"pointer"}}>Annuler</button>
+            </div>
+          </div>
+        )}
+
+        {vehicle&&endCarnetMission&&(
+          <CarnetBordModal vehicle={vehicle} driver={driver} myCourses={myCourses} transportTypes={transportTypes} forcedMission={endCarnetMission}
+            onForcedSaved={async()=>{
+              if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:endCarnetMission==="retour_domicile"?{driver,since:Date.now()}:null}:v));
+              setEndCarnetMission(null);
+              stopGpsTracking();
+              if(sessionDocId){
+                try{ await deleteDoc(doc(dbChecklists,"dispatchai_active_sessions",sessionDocId)); }catch(e){ console.error("Erreur suppression session active:", e); }
+              }else{
+                try{
+                  const snap=await getDocs(query(collection(dbChecklists,"dispatchai_active_sessions"), where("vehicleId","==",vehicle.id), where("driver","==",driver)));
+                  for(const d of snap.docs){ await deleteDoc(doc(dbChecklists,"dispatchai_active_sessions",d.id)); }
+                }catch(e){ console.error("Erreur suppression session active (secours):", e); }
+              }
+              setSessionDocId(null);
+              lsSet("aps_sessionDocId",null);
+              onEndService();
+            }}
+            onClose={()=>setEndCarnetMission(null)}/>
+        )}
+      </div>
+    );
+  }
+
   if(showCotationForm&&stagiaireSelec){
     return <CotationTpmrForm stagiaireName={stagiaireSelec} formateur={driver} criteres={tpmrCriteres||[]}
       onSave={()=>{ setShowCotationForm(false); if(cotationIsAutoEndService) onEndService(); }}
@@ -4407,6 +4588,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
             try{
               const docRef=await addDoc(collection(dbChecklists,"dispatchai_active_sessions"),{vehicleId:vehicle.id,vehicleName:vehicle.name,driver,startedAt:Date.now()});
               setSessionDocId(docRef.id);
+              startGpsTracking(docRef.id);
             }catch(e){ console.error("Erreur création session active:", e); }
             if(!isAmbType&&stagiaireSelec){
               const popupKey=`medicalPopup_${todayISO()}_${stagiaireSelec}`;
@@ -4640,15 +4822,17 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
           onForcedSaved={async()=>{
             if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:endCarnetMission==="retour_domicile"?{driver,since:Date.now()}:null}:v));
             setEndCarnetMission(null);
+            stopGpsTracking();
             if(sessionDocId){
               try{ await deleteDoc(doc(dbChecklists,"dispatchai_active_sessions",sessionDocId)); }catch(e){ console.error("Erreur suppression session active:", e); }
-              setSessionDocId(null);
             }else{
               try{
                 const snap=await getDocs(query(collection(dbChecklists,"dispatchai_active_sessions"), where("vehicleId","==",vehicle.id), where("driver","==",driver)));
                 for(const d of snap.docs){ await deleteDoc(doc(dbChecklists,"dispatchai_active_sessions",d.id)); }
               }catch(e){ console.error("Erreur suppression session active (secours):", e); }
             }
+            setSessionDocId(null);
+            lsSet("aps_sessionDocId",null);
             if(changingVehicle){
               setChangingVehicle(false);
               setVehicle(null);
