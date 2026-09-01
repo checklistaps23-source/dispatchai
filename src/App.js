@@ -4164,7 +4164,8 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
   const [showCarnetBord,setShowCarnetBord]=useState(false);
   const [endCarnetMission,setEndCarnetMission]=useState(null); // "retour_base" | "retour_domicile" | null
   const [changingVehicle,setChangingVehicle]=useState(false);
-  const [sessionDocId,setSessionDocId]=useState(null);
+  const [sessionDocId,setSessionDocId]=useState(()=>lsGet("aps_sessionDocId",null));
+  useEffect(()=>{ lsSet("aps_sessionDocId",sessionDocId); },[sessionDocId]);
   const [activeSessions,setActiveSessions]=useState([]); // [{id, vehicleId, vehicleName, driver}]
   useEffect(()=>{
     const unsub=onSnapshot(collection(dbChecklists,"dispatchai_active_sessions"), snap=>{
@@ -4642,6 +4643,11 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
             if(sessionDocId){
               try{ await deleteDoc(doc(dbChecklists,"dispatchai_active_sessions",sessionDocId)); }catch(e){ console.error("Erreur suppression session active:", e); }
               setSessionDocId(null);
+            }else{
+              try{
+                const snap=await getDocs(query(collection(dbChecklists,"dispatchai_active_sessions"), where("vehicleId","==",vehicle.id), where("driver","==",driver)));
+                for(const d of snap.docs){ await deleteDoc(doc(dbChecklists,"dispatchai_active_sessions",d.id)); }
+              }catch(e){ console.error("Erreur suppression session active (secours):", e); }
             }
             if(changingVehicle){
               setChangingVehicle(false);
