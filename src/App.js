@@ -4164,6 +4164,14 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
   const [showCarnetBord,setShowCarnetBord]=useState(false);
   const [endCarnetMission,setEndCarnetMission]=useState(null); // "retour_base" | "retour_domicile" | null
   const [changingVehicle,setChangingVehicle]=useState(false);
+  const [sessionDocId,setSessionDocId]=useState(null);
+  const [activeSessions,setActiveSessions]=useState([]); // [{id, vehicleId, vehicleName, driver}]
+  useEffect(()=>{
+    const unsub=onSnapshot(collection(dbChecklists,"dispatchai_active_sessions"), snap=>{
+      setActiveSessions(snap.docs.map(d=>({id:d.id,...d.data()})));
+    });
+    return ()=>unsub();
+  },[]);
   const [signalVehicle,setSignalVehicle]=useState("");
   const [signalDesc,setSignalDesc]=useState("");
   const [signalNom,setSignalNom]=useState("");
@@ -4308,14 +4316,18 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
                 <div style={{flex:1,height:1,background:C.border}}/>
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:9}}>
-                {group.map(v=>(
-                  <button key={v.id} onClick={()=>{if(v.active){setVehicle(v);setScreen("choix_vehicule");window.scrollTo(0,0);}}} disabled={!v.active}
-                    style={{background:v.active?C.panel:C.dangerSoft,border:`1.5px solid ${v.active?C.border:C.danger}`,borderRadius:13,padding:"18px 10px",color:v.active?C.text:C.danger,textAlign:"center",cursor:v.active?"pointer":"not-allowed",display:"flex",flexDirection:"column",alignItems:"center",gap:7,opacity:v.active?1:0.7}}>
-                    <span style={{fontSize:28,color:v.active?vColor(type):C.danger}}>{vIcon(type)}</span>
+                {group.map(v=>{
+                  const takenSession=activeSessions.find(s=>s.vehicleId===v.id);
+                  const isLocked=!!takenSession;
+                  return(
+                  <button key={v.id} onClick={()=>{if(v.active&&!isLocked){setVehicle(v);setScreen("choix_vehicule");window.scrollTo(0,0);}}} disabled={!v.active||isLocked}
+                    style={{background:!v.active?C.dangerSoft:isLocked?C.panel2:C.panel,border:`1.5px solid ${!v.active?C.danger:isLocked?C.border:C.border}`,borderRadius:13,padding:"18px 10px",color:!v.active?C.danger:isLocked?C.muted:C.text,textAlign:"center",cursor:(v.active&&!isLocked)?"pointer":"not-allowed",display:"flex",flexDirection:"column",alignItems:"center",gap:7,opacity:(!v.active||isLocked)?0.6:1}}>
+                    <span style={{fontSize:28,color:!v.active?C.danger:isLocked?C.muted:vColor(type)}}>{vIcon(type)}</span>
                     <span style={{fontWeight:700,fontSize:13}}>{v.name}</span>
                     {!v.active&&<span style={{fontSize:9,fontWeight:700,textTransform:"uppercase"}}>Hors service</span>}
+                    {v.active&&isLocked&&<span style={{fontSize:9,fontWeight:700,textTransform:"uppercase"}}>En service — {takenSession.driver}</span>}
                   </button>
-                ))}
+                  );})}
               </div>
             </div>
           );
@@ -4339,13 +4351,17 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
           <div style={{marginBottom:24}}>
             <div style={{fontSize:11,fontWeight:800,color:C.accent,textTransform:"uppercase",letterSpacing:"1px",marginBottom:12}}>🚗 Chauffeur</div>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              {driversList.map(d=>{const active=driver===d;return(
-                <button key={d} onClick={()=>setDriver(d)}
-                  style={{background:active?C.accentSoft:C.panel,border:`1.5px solid ${active?C.accent:C.border}`,borderRadius:11,padding:"12px 14px",color:active?C.accent:C.text,display:"flex",alignItems:"center",gap:10,cursor:"pointer",transition:"all 0.15s"}}>
-                  <div style={{width:34,height:34,background:active?C.accent:C.panel2,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>👤</div>
-                  <span style={{fontWeight:active?700:500,fontSize:13}}>{d}</span>
+              {driversList.map(d=>{
+                const active=driver===d;
+                const takenSession=activeSessions.find(s=>s.driver===d);
+                const isLocked=!!takenSession;
+                return(
+                <button key={d} onClick={()=>{if(!isLocked) setDriver(d);}} disabled={isLocked}
+                  style={{background:isLocked?C.panel2:active?C.accentSoft:C.panel,border:`1.5px solid ${isLocked?C.border:active?C.accent:C.border}`,borderRadius:11,padding:"12px 14px",color:isLocked?C.muted:active?C.accent:C.text,display:"flex",alignItems:"center",gap:10,cursor:isLocked?"not-allowed":"pointer",transition:"all 0.15s",opacity:isLocked?0.6:1}}>
+                  <div style={{width:34,height:34,background:isLocked?C.panel2:active?C.accent:C.panel2,borderRadius:8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>👤</div>
+                  <div><span style={{fontWeight:active?700:500,fontSize:13}}>{d}</span>{isLocked&&<div style={{fontSize:9,color:C.muted}}>En service — {takenSession.vehicleName}</div>}</div>
                 </button>
-              );})}
+                );})}
             </div>
           </div>
 
@@ -4384,9 +4400,13 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
         </div>
         <div style={{position:"fixed",bottom:0,left:0,right:0,background:C.panel,borderTop:`1px solid ${C.border}`,padding:"12px 20px"}}>
           {!canContinue&&vType==="AMB"&&<div style={{fontSize:11,color:C.warning,textAlign:"center",marginBottom:8}}>⚠ Sélectionnez un chauffeur ET un convoyeur</div>}
-          <button onClick={()=>{
+          <button onClick={async()=>{
             if(!canContinue) return;
             if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:null}:v));
+            try{
+              const docRef=await addDoc(collection(dbChecklists,"dispatchai_active_sessions"),{vehicleId:vehicle.id,vehicleName:vehicle.name,driver,startedAt:Date.now()});
+              setSessionDocId(docRef.id);
+            }catch(e){ console.error("Erreur création session active:", e); }
             if(!isAmbType&&stagiaireSelec){
               const popupKey=`medicalPopup_${todayISO()}_${stagiaireSelec}`;
               if(!lsGet(popupKey,false)){
@@ -4619,10 +4639,14 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
           onForcedSaved={async()=>{
             if(setVehicles) setVehicles(p=>p.map(v=>v.id===vehicle.id?{...v,horsBase:endCarnetMission==="retour_domicile"?{driver,since:Date.now()}:null}:v));
             setEndCarnetMission(null);
+            if(sessionDocId){
+              try{ await deleteDoc(doc(dbChecklists,"dispatchai_active_sessions",sessionDocId)); }catch(e){ console.error("Erreur suppression session active:", e); }
+              setSessionDocId(null);
+            }
             if(changingVehicle){
               setChangingVehicle(false);
               setVehicle(null);
-              setScreen("choix_vehicule");
+              setScreen("choix_nom");
               return;
             }
             if(!isAmb&&stagiaireSelec){
