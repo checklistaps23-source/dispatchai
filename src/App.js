@@ -8641,52 +8641,52 @@ export default function App(){
           <button onClick={()=>setAppView("parametres")} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:8,color:C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>⚙️ Paramètres</button>
         </div>
       </div>
-      <div style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"40px 20px"}}>
+      <div className="menu-wrap" style={{flex:1,display:"flex",alignItems:"center",justifyContent:"center",padding:"40px 20px"}}>
         <div style={{width:"100%",maxWidth:700,animation:"fadeUp 0.4s ease"}}>
           {!showDispMenu?(
             <>
             <div className="menu-grid-4" style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(210px, 1fr))",gap:14}}>
-              <button onClick={()=>setShowDispMenu(true)}
+              <button onClick={()=>setShowDispMenu(true)} className="menu-card"
                 style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"24px 20px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:10,position:"relative",overflow:"hidden"}}>
                 {pendingTodayCount>0&&<div style={{position:"absolute",top:12,right:12,background:C.warningSoft,border:`1px solid ${C.warning}`,borderRadius:20,padding:"3px 9px",fontSize:10,color:C.warning,fontWeight:700,display:"flex",alignItems:"center",gap:4}}><div style={{width:5,height:5,borderRadius:"50%",background:C.warning,animation:"blink 1.2s infinite"}}/>{pendingTodayCount} en attente</div>}
-                <div style={{width:48,height:48,background:C.accentSoft,border:`1.5px solid ${C.accent}`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>🖥️</div>
+                <div className="menu-card-icon" style={{width:48,height:48,background:C.accentSoft,border:`1.5px solid ${C.accent}`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>🖥️</div>
                 <div>
-                  <div style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Dispatch</div>
-                  <div style={{fontSize:11,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>Centre de contrôle</div>
-                  <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Gérer la flotte, valider les courses, formulaire de saisie.</div>
+                  <div className="menu-card-title" style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Dispatch</div>
+                  <div className="menu-card-sub" style={{fontSize:11,color:C.accent,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>Centre de contrôle</div>
+                  <div className="menu-card-desc" style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Gérer la flotte, valider les courses, formulaire de saisie.</div>
                 </div>
-                <div style={{fontSize:12,color:C.accent,fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
+                <div className="menu-card-open" style={{fontSize:12,color:C.accent,fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
               </button>
-              <button onClick={()=>setAppView("chauffeur")}
+              <button onClick={()=>setAppView("chauffeur")} className="menu-card"
                 style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"24px 20px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:10}}>
-                <div style={{width:48,height:48,background:C.successSoft,border:`1.5px solid ${C.success}`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>🚑</div>
+                <div className="menu-card-icon" style={{width:48,height:48,background:C.successSoft,border:`1.5px solid ${C.success}`,borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>🚑</div>
                 <div>
-                  <div style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Chauffeur</div>
-                  <div style={{fontSize:11,color:C.success,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>Tablette de bord</div>
-                  <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Voir le planning, démarrer les courses, gérer les bons de transport.</div>
+                  <div className="menu-card-title" style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Chauffeur</div>
+                  <div className="menu-card-sub" style={{fontSize:11,color:C.success,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>Tablette de bord</div>
+                  <div className="menu-card-desc" style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Voir le planning, démarrer les courses, gérer les bons de transport.</div>
                 </div>
-                <div style={{fontSize:12,color:C.success,fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
+                <div className="menu-card-open" style={{fontSize:12,color:C.success,fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
               </button>
-              <button onClick={()=>setAppView("checklists")}
+              <button onClick={()=>setAppView("checklists")} className="menu-card"
                 style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"24px 20px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:10}}>
-                <div style={{width:48,height:48,background:"rgba(220,38,38,0.12)",border:"1.5px solid #dc2626",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>📋</div>
+                <div className="menu-card-icon" style={{width:48,height:48,background:"rgba(220,38,38,0.12)",border:"1.5px solid #dc2626",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>📋</div>
                 <div>
-                  <div style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Checklist</div>
-                  <div style={{fontSize:11,color:C.text,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:2}}>Hygiène</div>
-                  <div style={{fontSize:11,color:"#dc2626",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>Contrôle véhicules</div>
-                  <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Vérifier le matériel embarqué par véhicule (Alpha 1 à 7).</div>
+                  <div className="menu-card-title" style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Checklist</div>
+                  <div className="menu-card-sub" style={{fontSize:11,color:C.text,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:2}}>Hygiène</div>
+                  <div className="menu-card-sub" style={{fontSize:11,color:"#dc2626",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>Contrôle véhicules</div>
+                  <div className="menu-card-desc" style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Vérifier le matériel embarqué par véhicule (Alpha 1 à 7).</div>
                 </div>
-                <div style={{fontSize:12,color:"#dc2626",fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
+                <div className="menu-card-open" style={{fontSize:12,color:"#dc2626",fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
               </button>
-              <button onClick={()=>setAppView("preventif")} className="preventif-card"
+              <button onClick={()=>setAppView("preventif")} className="preventif-card menu-card"
                 style={{background:C.panel,border:`1.5px solid ${C.purple}`,borderRadius:16,padding:"22px 20px",display:"flex",flexDirection:"column",gap:10,cursor:"pointer",textAlign:"left"}}>
-                <div className="preventif-icon" style={{width:48,height:48,background:C.purpleSoft,border:`1.5px solid ${C.purple}`,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>🚑</div>
+                <div className="preventif-icon menu-card-icon" style={{width:48,height:48,background:C.purpleSoft,border:`1.5px solid ${C.purple}`,borderRadius:13,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26,flexShrink:0}}>🚑</div>
                 <div style={{flex:1}}>
-                  <div style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Préventif</div>
-                  <div style={{fontSize:11,color:C.purple,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:6}}>Postes de secours événementiels</div>
-                  <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Fiches événements, matériel, personnel et véhicule assigné.</div>
+                  <div className="menu-card-title" style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Préventif</div>
+                  <div className="menu-card-sub" style={{fontSize:11,color:C.purple,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:6}}>Postes de secours événementiels</div>
+                  <div className="menu-card-desc" style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Fiches événements, matériel, personnel et véhicule assigné.</div>
                 </div>
-                <div style={{fontSize:13,color:C.purple,fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
+                <div className="menu-card-open" style={{fontSize:13,color:C.purple,fontWeight:700,marginTop:"auto"}}>Ouvrir →</div>
               </button>
             </div>
             <div style={{display:"flex",gap:10,marginTop:14}}>
