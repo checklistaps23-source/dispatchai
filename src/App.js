@@ -4230,6 +4230,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
   useEffect(()=>{ lsSet("aps_sessionDocId",sessionDocId); },[sessionDocId]);
   const [watchId,setWatchId]=useState(null);
   const [locationBlocked,setLocationBlocked]=useState(false);
+  const [navChoiceAddr,setNavChoiceAddr]=useState(null);
   const lastGpsWriteRef=useRef(0);
   const [activeSessions,setActiveSessions]=useState([]); // [{id, vehicleId, vehicleName, driver}]
   useEffect(()=>{
@@ -4750,7 +4751,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
                 <div style={{display:"flex",gap:8}}><span>🏁</span><div><div style={{fontSize:9,color:C.muted,fontWeight:700,textTransform:"uppercase"}}>Destination</div><div style={{fontSize:13,fontWeight:600}}>{c.arrivee}</div></div></div>
               </div>
               <div style={{display:"flex",gap:8}}>
-                <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(isEnCours?c.arrivee:c.depart)}`} target="_blank" rel="noreferrer" style={{flex:1,background:C.blueSoft,border:`1px solid ${C.blue}`,borderRadius:9,color:C.blue,padding:"11px",fontWeight:700,fontSize:13,textAlign:"center",textDecoration:"none",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>🗺 GPS</a>
+                <button onClick={()=>setNavChoiceAddr(isEnCours?c.arrivee:c.depart)} style={{flex:1,background:C.blueSoft,border:`1px solid ${C.blue}`,borderRadius:9,color:C.blue,padding:"11px",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:5}}>🗺 GPS</button>
                 {st==="planifie"&&<button onClick={()=>setStatut(c.id,"en_cours")} style={{flex:3,background:C.accentSoft,border:`1.5px solid ${C.accent}`,borderRadius:9,color:C.accent,padding:"11px",fontWeight:800,fontSize:13,cursor:"pointer"}}>▶ Démarrer</button>}
                 {st==="en_cours"&&<button onClick={()=>{setCourse(c);openBon(c);}} style={{flex:3,background:C.successSoft,border:`1.5px solid ${C.success}`,borderRadius:9,color:C.success,padding:"11px",fontWeight:800,fontSize:13,cursor:"pointer"}}>📄 Bon de transport</button>}
                 <button onClick={()=>setShowTransfer(c)} style={{background:C.panel2,border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"11px 10px",fontSize:11,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap"}}>🔀 Transférer</button>
@@ -4793,6 +4794,24 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
                 {(!contacts||contacts.length===0)&&<div style={{textAlign:"center",padding:"30px 0",color:C.muted}}>Aucun contact enregistré</div>}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {navChoiceAddr&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:250,padding:20}} onClick={()=>setNavChoiceAddr(null)}>
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:24,width:340,maxWidth:"100%"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontWeight:800,fontSize:16,marginBottom:6}}>🗺 Ouvrir la navigation</div>
+            <div style={{fontSize:12,color:C.muted,marginBottom:18}}>{navChoiceAddr}</div>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <a href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(navChoiceAddr)}`} target="_blank" rel="noreferrer" onClick={()=>setNavChoiceAddr(null)} style={{background:C.blueSoft,border:`1.5px solid ${C.blue}`,borderRadius:12,padding:"14px",display:"flex",alignItems:"center",gap:12,textDecoration:"none",color:C.blue,fontWeight:700,fontSize:14}}>
+                <span style={{fontSize:22}}>🗺</span>Google Maps
+              </a>
+              <a href={`https://waze.com/ul?q=${encodeURIComponent(navChoiceAddr)}&navigate=yes`} target="_blank" rel="noreferrer" onClick={()=>setNavChoiceAddr(null)} style={{background:C.purpleSoft,border:`1.5px solid ${C.purple}`,borderRadius:12,padding:"14px",display:"flex",alignItems:"center",gap:12,textDecoration:"none",color:C.purple,fontWeight:700,fontSize:14}}>
+                <span style={{fontSize:22}}>🧭</span>Waze
+              </a>
+            </div>
+            <button onClick={()=>setNavChoiceAddr(null)} style={{width:"100%",marginTop:14,background:"transparent",border:`1px solid ${C.border}`,borderRadius:9,color:C.muted,padding:"10px",fontSize:13,cursor:"pointer"}}>Annuler</button>
           </div>
         </div>
       )}
