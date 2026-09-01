@@ -3247,7 +3247,8 @@ function CotationTpmrForm({ stagiaireName, formateur, criteres, onSave, onCancel
   }
 
   const isNumeric=jour<=2;
-  const canSave=criteres.length===0||criteres.every(c=>scores[c.id]!==undefined&&scores[c.id]!==null);
+  const scorables=criteres.filter(c=>c.type!=="titre");
+  const canSave=scorables.length===0||scorables.every(c=>scores[c.id]!==undefined&&scores[c.id]!==null);
 
   const handleSave=async()=>{
     if(!canSave||saving) return;
@@ -3272,6 +3273,9 @@ function CotationTpmrForm({ stagiaireName, formateur, criteres, onSave, onCancel
       <div style={{flex:1,padding:16,paddingBottom:100,maxWidth:640,margin:"0 auto",width:"100%"}}>
         {criteres.length===0&&<div style={{textAlign:"center",padding:40,color:C.muted}}>Aucun critère défini (Paramètres → Critères de cotation)</div>}
         {criteres.map(c=>(
+          c.type==="titre"?(
+            <div key={c.id} style={{fontSize:12,fontWeight:800,color:C.purple,textTransform:"uppercase",letterSpacing:"0.6px",marginTop:18,marginBottom:8,paddingBottom:4,borderBottom:`2px solid ${C.purple}`}}>{c.label}</div>
+          ):(
           <div key={c.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginBottom:10}}>
             <div style={{fontSize:13,fontWeight:600,marginBottom:10}}>{c.label}</div>
             {isNumeric?(
@@ -3288,6 +3292,7 @@ function CotationTpmrForm({ stagiaireName, formateur, criteres, onSave, onCancel
               </div>
             )}
           </div>
+          )
         ))}
         <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:14,marginTop:16}}>
           <div style={{fontSize:11,color:C.muted,marginBottom:4,textTransform:"uppercase"}}>Formateur</div>
@@ -3330,10 +3335,14 @@ function StagiaireHistoriqueTpmr({ stagiaireName, criteres, onBack, themeMode, t
             <div style={{fontWeight:700,fontSize:14,marginBottom:2}}>Jour {e.jour} — {new Date(e.date+"T00:00:00").toLocaleDateString("fr-FR")}</div>
             <div style={{fontSize:11,color:C.muted,marginBottom:8}}>Formateur : {e.formateur} — {e.echelle==="numerique"?"Échelle 1-5":"Acquis/Non acquis"}</div>
             {criteres.map(c=>(
+              c.type==="titre"?(
+                <div key={c.id} style={{fontSize:10,fontWeight:800,color:C.purple,textTransform:"uppercase",letterSpacing:"0.5px",marginTop:10,marginBottom:2,paddingTop:6}}>{c.label}</div>
+              ):(
               <div key={c.id} style={{display:"flex",justifyContent:"space-between",fontSize:12,padding:"4px 0",borderTop:`1px solid ${C.border}`}}>
                 <span style={{color:C.muted}}>{c.label}</span>
                 <span style={{fontWeight:700,color:e.scores?.[c.id]==="Non acquis"?C.danger:e.scores?.[c.id]==="Acquis"?C.success:C.text}}>{e.scores?.[c.id]??"—"}</span>
               </div>
+              )
             ))}
           </div>
         ))}
@@ -3351,6 +3360,7 @@ function StagiairesView({ stagiairesAmb, setStagiairesAmb, formationTpmr, setFor
   const [historiquePerson,setHistoriquePerson]=useState(null);
   const [tpmrCriteres,setTpmrCriteres]=useFirestoreState("tpmrCotationCriteres",[]);
   const [newCritere,setNewCritere]=useState("");
+  const [newTitre,setNewTitre]=useState("");
   const [evalTpmrNames,setEvalTpmrNames]=useState(null);
 
   useEffect(()=>{
@@ -3460,17 +3470,39 @@ function StagiairesView({ stagiairesAmb, setStagiairesAmb, formationTpmr, setFor
 
           {section==="creaEvalTpmr"&&(
             <div>
-              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Ces critères seront utilisés à chaque cotation. Jours 1-2 : échelle Non pratiqué/1-5. Jour 3 et plus : Acquis/Non acquis.</div>
-              <div style={{display:"flex",gap:8,marginBottom:16}}>
-                <input value={newCritere} onChange={e=>setNewCritere(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newCritere.trim()){setTpmrCriteres(p=>[...p,{id:"crit"+Date.now(),label:newCritere.trim()}]);setNewCritere("");}}} placeholder="Nom du critère…" style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 13px",color:C.text,fontSize:13}}/>
-                <button onClick={()=>{if(newCritere.trim()){setTpmrCriteres(p=>[...p,{id:"crit"+Date.now(),label:newCritere.trim()}]);setNewCritere("");}}} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer"}}>+</button>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Ces critères seront utilisés à chaque cotation. Jours 1-2 : échelle Non pratiqué/1-5. Jour 3 et plus : Acquis/Non acquis. Ajoute des titres pour regrouper tes critères par catégorie.</div>
+              <div style={{display:"flex",gap:8,marginBottom:8}}>
+                <input value={newTitre} onChange={e=>setNewTitre(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newTitre.trim()){setTpmrCriteres(p=>[...p,{id:"titre"+Date.now(),type:"titre",label:newTitre.trim()}]);setNewTitre("");}}} placeholder="Nom du titre / catégorie…" style={{flex:1,background:C.panel,border:`1.5px solid ${C.purple}`,borderRadius:9,padding:"10px 13px",color:C.text,fontSize:13}}/>
+                <button onClick={()=>{if(newTitre.trim()){setTpmrCriteres(p=>[...p,{id:"titre"+Date.now(),type:"titre",label:newTitre.trim()}]);setNewTitre("");}}} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"10px 18px",fontWeight:800,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>+ Titre</button>
               </div>
-              {tpmrCriteres.map(c=>(
-                <div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 14px",marginBottom:7}}>
-                  <span style={{fontSize:13,fontWeight:600}}>{c.label}</span>
-                  <button onClick={()=>setTpmrCriteres(p=>p.filter(x=>x.id!==c.id))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
-                </div>
-              ))}
+              <div style={{display:"flex",gap:8,marginBottom:16}}>
+                <input value={newCritere} onChange={e=>setNewCritere(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newCritere.trim()){setTpmrCriteres(p=>[...p,{id:"crit"+Date.now(),type:"critere",label:newCritere.trim()}]);setNewCritere("");}}} placeholder="Nom du critère…" style={{flex:1,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"10px 13px",color:C.text,fontSize:13}}/>
+                <button onClick={()=>{if(newCritere.trim()){setTpmrCriteres(p=>[...p,{id:"crit"+Date.now(),type:"critere",label:newCritere.trim()}]);setNewCritere("");}}} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer"}}>+</button>
+              </div>
+              {tpmrCriteres.map((c,idx)=>{
+                const moveUp=()=>{ if(idx===0) return; setTpmrCriteres(p=>{ const arr=[...p]; [arr[idx-1],arr[idx]]=[arr[idx],arr[idx-1]]; return arr; }); };
+                const moveDown=()=>{ if(idx===tpmrCriteres.length-1) return; setTpmrCriteres(p=>{ const arr=[...p]; [arr[idx],arr[idx+1]]=[arr[idx+1],arr[idx]]; return arr; }); };
+                const updateLabel=(val)=>setTpmrCriteres(p=>p.map(x=>x.id===c.id?{...x,label:val}:x));
+                return c.type==="titre"?(
+                  <div key={c.id} style={{display:"flex",alignItems:"center",gap:6,marginTop:16,marginBottom:8,paddingBottom:4,borderBottom:`2px solid ${C.purple}`}}>
+                    <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                      <button onClick={moveUp} disabled={idx===0} style={{background:"transparent",border:"none",color:idx===0?C.border:C.purple,fontSize:11,cursor:idx===0?"default":"pointer",padding:0,lineHeight:1}}>▲</button>
+                      <button onClick={moveDown} disabled={idx===tpmrCriteres.length-1} style={{background:"transparent",border:"none",color:idx===tpmrCriteres.length-1?C.border:C.purple,fontSize:11,cursor:idx===tpmrCriteres.length-1?"default":"pointer",padding:0,lineHeight:1}}>▼</button>
+                    </div>
+                    <input value={c.label} onChange={e=>updateLabel(e.target.value)} style={{flex:1,background:"transparent",border:"none",color:C.purple,fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"0.6px",padding:"3px 0"}}/>
+                    <button onClick={()=>setTpmrCriteres(p=>p.filter(x=>x.id!==c.id))} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"3px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
+                  </div>
+                ):(
+                  <div key={c.id} style={{display:"flex",alignItems:"center",gap:8,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"8px 14px",marginBottom:7}}>
+                    <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                      <button onClick={moveUp} disabled={idx===0} style={{background:"transparent",border:"none",color:idx===0?C.border:C.muted,fontSize:11,cursor:idx===0?"default":"pointer",padding:0,lineHeight:1}}>▲</button>
+                      <button onClick={moveDown} disabled={idx===tpmrCriteres.length-1} style={{background:"transparent",border:"none",color:idx===tpmrCriteres.length-1?C.border:C.muted,fontSize:11,cursor:idx===tpmrCriteres.length-1?"default":"pointer",padding:0,lineHeight:1}}>▼</button>
+                    </div>
+                    <input value={c.label} onChange={e=>updateLabel(e.target.value)} style={{flex:1,background:"transparent",border:"none",color:C.text,fontSize:13,fontWeight:600,padding:"3px 0"}}/>
+                    <button onClick={()=>setTpmrCriteres(p=>p.filter(x=>x.id!==c.id))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
+                  </div>
+                );
+              })}
               {tpmrCriteres.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:C.muted,fontSize:13}}>Aucun critère défini</div>}
             </div>
           )}
