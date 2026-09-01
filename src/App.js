@@ -6162,14 +6162,192 @@ function ChecklistView({ vehicleName, onBack, checklists, emails, themeMode, tog
 // ═══════════════════════════════════════
 // HISTORIQUE — liste des checklists envoyées (24 mois glissants)
 // ═══════════════════════════════════════
-function HistoriqueView({ onBack, vehicles, carnetBordTypes, themeMode, toggleTheme }){
-  const [screen,setScreen]=useState("home"); // home | checklists | o2 | daily_date | daily | carnet_date | carnet_vehicles | carnet_detail
+// ═══════════════════════════════════════
+// HYGIÈNE — Suivi nettoyage/désinfection des véhicules (hors Préventif)
+// ═══════════════════════════════════════
+const HYGIENE_PERIODICITES=["Mensuel","Hebdomadaire","Exceptionnel"];
+
+function HygieneView({ onBack, vehicles, readOnly, themeMode, toggleTheme }){
+  const [selectedVehicle,setSelectedVehicle]=useState(null);
+  const [viewMode,setViewMode]=useState("tous"); // "tous" | "vehicule" — pertinent seulement en readOnly
+  const [periodicite,setPeriodicite]=useState(null);
+  const [observation,setObservation]=useState("");
+  const [ambulancier1,setAmbulancier1]=useState("");
+  const [ambulancier2,setAmbulancier2]=useState("");
+  const [entries,setEntries]=useState(null);
+  const [allEntries,setAllEntries]=useState(null);
+  const [saving,setSaving]=useState(false);
+
+  const loadEntries=(vehId)=>{
+    getDocs(query(collection(dbChecklists,"dispatchai_hygiene_suivi"), where("vehicleId","==",vehId))).then(snap=>{
+      setEntries(snap.docs.map(d=>d.data()).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)));
+    }).catch(()=>setEntries([]));
+  };
+
+  useEffect(()=>{
+    if(!selectedVehicle){ setEntries(null); return; }
+    loadEntries(selectedVehicle.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[selectedVehicle]);
+
+  useEffect(()=>{
+    if(!readOnly||viewMode!=="tous") return;
+    getDocs(collection(dbChecklists,"dispatchai_hygiene_suivi")).then(snap=>{
+      setAllEntries(snap.docs.map(d=>d.data()).sort((a,b)=>(b.createdAt||0)-(a.createdAt||0)));
+    }).catch(()=>setAllEntries([]));
+  },[readOnly,viewMode]);
+
+  const canSave=periodicite&&ambulancier1.trim().length>0;
+
+  const handleSave=async()=>{
+    if(!canSave||saving) return;
+    setSaving(true);
+    try{
+      const now=new Date();
+      await addDoc(collection(dbChecklists,"dispatchai_hygiene_suivi"),{
+        vehicleId:selectedVehicle.id, vehicleName:selectedVehicle.name,
+        date:todayISO(), heure:now.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}),
+        periodicite, ambulancier1:ambulancier1.trim(), ambulancier2:ambulancier2.trim()||null,
+        observation, createdAt:Date.now(),
+      });
+      setPeriodicite(null); setObservation(""); setAmbulancier1(""); setAmbulancier2("");
+      loadEntries(selectedVehicle.id);
+    }catch(e){ console.error("Erreur sauvegarde hygiène:", e); }
+    setSaving(false);
+  };
+
+  const EntryCard=({e,showVehicle})=>(
+    <div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:12, padding:14, marginBottom:10 }}>
+      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
+        <span style={{ fontWeight:700, fontSize:13 }}>{new Date(e.date+"T00:00:00").toLocaleDateString("fr-FR")} — {e.heure}</span>
+        <span style={{ fontSize:11, fontWeight:700, color:CK_C.red }}>{e.periodicite}</span>
+      </div>
+      {showVehicle&&<div style={{ fontSize:12, fontWeight:700, color:CK_C.text, marginBottom:4 }}>{e.vehicleName}</div>}
+      <div style={{ fontSize:11, color:CK_C.muted, marginBottom:6 }}>{e.ambulancier1}{e.ambulancier2?` & ${e.ambulancier2}`:""}</div>
+      {e.observation&&<div style={{ fontSize:12, color:CK_C.text }}>{e.observation}</div>}
+    </div>
+  );
+
+  if(selectedVehicle){
+    return(
+      <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+        <style>{CK_GS}</style>
+        <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <button onClick={()=>setSelectedVehicle(null)} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+            <div style={{ fontWeight:800, fontSize:16 }}>🧼 {selectedVehicle.name}</div>
+          </div>
+          <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+        </div>
+        <div style={{ flex:1, padding:18, maxWidth:480, margin:"0 auto", width:"100%" }}>
+          {!readOnly&&(
+          <div style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:18, marginBottom:20 }}>
+            <div style={{ fontSize:11, color:CK_C.muted, marginBottom:14 }}>Date et heure enregistrées automatiquement à la validation.</div>
+            <div style={{ fontSize:11, fontWeight:700, color:CK_C.muted, textTransform:"uppercase", marginBottom:8 }}>Type de nettoyage</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:8, marginBottom:16 }}>
+              {HYGIENE_PERIODICITES.map(p=>(
+                <button key={p} onClick={()=>setPeriodicite(p)} style={{ padding:"10px 4px", borderRadius:9, border:`1.5px solid ${periodicite===p?CK_C.red:CK_C.border}`, background:periodicite===p?CK_C.red+"22":"transparent", color:periodicite===p?CK_C.red:CK_C.muted, fontWeight:700, fontSize:12, cursor:"pointer" }}>{p}</button>
+              ))}
+            </div>
+            <div style={{ fontSize:11, fontWeight:700, color:CK_C.muted, textTransform:"uppercase", marginBottom:6 }}>Ambulancier 1 (obligatoire)</div>
+            <input value={ambulancier1} onChange={e=>setAmbulancier1(e.target.value)} placeholder="Nom Prénom…" style={{ width:"100%", background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"9px 12px", color:CK_C.text, fontSize:13, marginBottom:14, boxSizing:"border-box" }}/>
+            <div style={{ fontSize:11, fontWeight:700, color:CK_C.muted, textTransform:"uppercase", marginBottom:6 }}>Ambulancier 2 (optionnel)</div>
+            <input value={ambulancier2} onChange={e=>setAmbulancier2(e.target.value)} placeholder="Nom Prénom…" style={{ width:"100%", background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"9px 12px", color:CK_C.text, fontSize:13, marginBottom:14, boxSizing:"border-box" }}/>
+            <div style={{ fontSize:11, fontWeight:700, color:CK_C.muted, textTransform:"uppercase", marginBottom:6 }}>Observation</div>
+            <textarea value={observation} onChange={e=>setObservation(e.target.value)} placeholder="Ce qui a été fait (nettoyage, désinfection…)" rows={3} style={{ width:"100%", background:CK_C.bg, border:`1px solid ${CK_C.border}`, borderRadius:8, padding:"9px 12px", color:CK_C.text, fontSize:13, resize:"vertical", fontFamily:"inherit", boxSizing:"border-box" }}/>
+            <button disabled={!canSave||saving} onClick={handleSave} style={{ width:"100%", marginTop:16, background:(!canSave||saving)?CK_C.panel2:CK_C.red, border:"none", borderRadius:10, color:(!canSave||saving)?CK_C.muted:"white", padding:12, fontWeight:800, fontSize:14, cursor:(!canSave||saving)?"not-allowed":"pointer" }}>{saving?"Enregistrement…":"✅ Enregistrer"}</button>
+          </div>
+          )}
+
+          <div style={{ fontSize:11, fontWeight:700, color:CK_C.muted, textTransform:"uppercase", marginBottom:10 }}>Historique</div>
+          {entries===null&&<div style={{ textAlign:"center", padding:30, color:CK_C.muted }}>Chargement…</div>}
+          {entries&&entries.length===0&&<div style={{ textAlign:"center", padding:30, color:CK_C.muted }}>Aucune entrée enregistrée</div>}
+          {entries&&entries.map((e,i)=>(<EntryCard key={i} e={e} showVehicle={false}/>))}
+        </div>
+      </div>
+    );
+  }
+
+  if(readOnly&&viewMode==="tous"){
+    return(
+      <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+        <style>{CK_GS}</style>
+        <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+            <button onClick={onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+            <div style={{ fontWeight:800, fontSize:16 }}>🧼 Hygiène</div>
+          </div>
+          <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+        </div>
+        <div style={{ flex:1, padding:18, maxWidth:480, margin:"0 auto", width:"100%" }}>
+          <div style={{ display:"flex", gap:4, background:CK_C.panel2, borderRadius:9, padding:3, marginBottom:16 }}>
+            <button onClick={()=>setViewMode("tous")} style={{ flex:1, background:CK_C.red, color:"white", border:"none", borderRadius:7, padding:"8px", fontSize:12, fontWeight:700, cursor:"pointer" }}>Tous</button>
+            <button onClick={()=>setViewMode("vehicule")} style={{ flex:1, background:"transparent", color:CK_C.muted, border:"none", borderRadius:7, padding:"8px", fontSize:12, fontWeight:700, cursor:"pointer" }}>Par véhicule</button>
+          </div>
+          {allEntries===null&&<div style={{ textAlign:"center", padding:30, color:CK_C.muted }}>Chargement…</div>}
+          {allEntries&&allEntries.length===0&&<div style={{ textAlign:"center", padding:30, color:CK_C.muted }}>Aucune entrée enregistrée</div>}
+          {allEntries&&allEntries.map((e,i)=>(<EntryCard key={i} e={e} showVehicle={true}/>))}
+        </div>
+      </div>
+    );
+  }
+
+  const eligibleVehicles=(vehicles||[]).filter(v=>v.type!=="PREV");
+  return(
+    <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
+      <style>{CK_GS}</style>
+      <div style={{ background:CK_C.panel, borderBottom:`1px solid ${CK_C.border}`, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", flexWrap:"wrap", gap:10, position:"sticky", top:0, zIndex:10 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <button onClick={readOnly?()=>setViewMode("tous"):onBack} style={{ background:"transparent", border:`1px solid ${CK_C.border}`, borderRadius:8, color:CK_C.muted, padding:"6px 12px", fontSize:14, cursor:"pointer" }}>←</button>
+          <div style={{ fontWeight:800, fontSize:16 }}>🧼 Hygiène</div>
+        </div>
+        <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
+      </div>
+      <div style={{ flex:1, padding:18, maxWidth:480, margin:"0 auto", width:"100%" }}>
+        {readOnly&&(
+          <div style={{ display:"flex", gap:4, background:CK_C.panel2, borderRadius:9, padding:3, marginBottom:16 }}>
+            <button onClick={()=>setViewMode("tous")} style={{ flex:1, background:"transparent", color:CK_C.muted, border:"none", borderRadius:7, padding:"8px", fontSize:12, fontWeight:700, cursor:"pointer" }}>Tous</button>
+            <button onClick={()=>setViewMode("vehicule")} style={{ flex:1, background:CK_C.red, color:"white", border:"none", borderRadius:7, padding:"8px", fontSize:12, fontWeight:700, cursor:"pointer" }}>Par véhicule</button>
+          </div>
+        )}
+        <div style={{ fontSize:13, color:CK_C.muted, marginBottom:20 }}>Choisis le véhicule.</div>
+        {["TPMR","VSL","AMB"].map(type=>{
+          const group=eligibleVehicles.filter(v=>v.type===type);
+          if(!group.length) return null;
+          return(
+            <div key={type} style={{marginBottom:22}}>
+              <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                <span style={{fontSize:18,color:vColor(type)}}>{vIcon(type)}</span>
+                <span style={{fontSize:11,fontWeight:800,color:vColor(type),textTransform:"uppercase",letterSpacing:"1px"}}>{type==="AMB"?"Ambulances ALPHA":type}</span>
+                <div style={{flex:1,height:1,background:CK_C.border}}/>
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:9}}>
+                {group.map(v=>(
+                  <button key={v.id} onClick={()=>setSelectedVehicle(v)}
+                    style={{background:CK_C.panel,border:`1.5px solid ${CK_C.border}`,borderRadius:13,padding:"18px 10px",color:CK_C.text,textAlign:"center",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:7}}>
+                    <span style={{fontSize:28,color:vColor(type)}}>{vIcon(type)}</span>
+                    <span style={{fontWeight:700,fontSize:13}}>{v.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HistoriqueView({ onBack, vehicles, carnetBordTypes, checklists, tpmrVslTemplate, peremptionEmails, themeMode, toggleTheme }){
+  const [screen,setScreen]=useState("home"); // home | checklists | o2 | daily_date | daily | carnet_date | carnet_vehicles | carnet_detail | peremption | hygiene
   const [carnetVehicle,setCarnetVehicle]=useState(null);
   const [carnetDate,setCarnetDate]=useState(null);
   const [dailyDate,setDailyDate]=useState(null);
 
   if(screen==="checklists") return <ChecklistHistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(screen==="o2") return <O2HistoriqueSubView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="peremption") return <PeremptionView onBack={()=>setScreen("home")} checklists={checklists} tpmrVslTemplate={tpmrVslTemplate} peremptionEmails={peremptionEmails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(screen==="hygiene") return <HygieneView onBack={()=>setScreen("home")} vehicles={vehicles} readOnly={true} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(screen==="daily_date") return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
@@ -6215,21 +6393,29 @@ function HistoriqueView({ onBack, vehicles, carnetBordTypes, themeMode, toggleTh
         <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 12px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
       </div>
       <div style={{ flex:1, padding:"20px", maxWidth:420, margin:"0 auto", width:"100%", display:"flex", flexDirection:"column", gap:12 }}>
-        <button onClick={()=>setScreen("checklists")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
-          <div style={{ fontSize:28 }}>📋</div>
-          <div><div style={{ fontWeight:800, fontSize:15 }}>Historique checklists</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Toutes les checklists envoyées</div></div>
+        <button onClick={()=>setScreen("daily_date")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
+          <div style={{ fontSize:28 }}>🚑</div>
+          <div><div style={{ fontWeight:800, fontSize:15 }}>APS Daily</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Checklists journalières par véhicule</div></div>
         </button>
         <button onClick={()=>setScreen("o2")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
           <div style={{ fontSize:28, color:"#3b82f6", fontWeight:900 }}>O₂</div>
-          <div><div style={{ fontWeight:800, fontSize:15 }}>Historique bouteilles O²</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Échanges véhicules et livraisons fournisseur</div></div>
-        </button>
-        <button onClick={()=>setScreen("daily_date")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
-          <div style={{ fontSize:28 }}>🚑</div>
-          <div><div style={{ fontWeight:800, fontSize:15 }}>Historique APS Daily</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Checklists journalières par véhicule</div></div>
+          <div><div style={{ fontWeight:800, fontSize:15 }}>Bouteilles O²</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Échanges véhicules et livraisons fournisseur</div></div>
         </button>
         <button onClick={()=>setScreen("carnet_date")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
           <div style={{ fontSize:28 }}>📓</div>
           <div><div style={{ fontWeight:800, fontSize:15 }}>Carnet de bord</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Historique des trajets par véhicule (3 ans)</div></div>
+        </button>
+        <button onClick={()=>setScreen("checklists")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
+          <div style={{ fontSize:28 }}>📋</div>
+          <div><div style={{ fontWeight:800, fontSize:15 }}>Checklists</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Toutes les checklists envoyées</div></div>
+        </button>
+        <button onClick={()=>setScreen("hygiene")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
+          <div style={{ fontSize:28 }}>🧼</div>
+          <div><div style={{ fontWeight:800, fontSize:15 }}>Hygiène</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Suivi nettoyage et désinfection par véhicule</div></div>
+        </button>
+        <button onClick={()=>setScreen("peremption")} style={{ background:CK_C.panel, border:`1px solid ${CK_C.border}`, borderRadius:14, padding:"20px", color:CK_C.text, display:"flex", alignItems:"center", gap:14, cursor:"pointer", textAlign:"left" }}>
+          <div style={{ fontSize:28 }}>🗓️</div>
+          <div><div style={{ fontWeight:800, fontSize:15 }}>Péremption</div><div style={{ fontSize:11, color:CK_C.muted, marginTop:2 }}>Vue d'ensemble des dates de péremption</div></div>
         </button>
       </div>
     </div>
@@ -7237,9 +7423,9 @@ function ChecklistsHome({ onBack, checklists, emails, o2Emails, peremptionEmails
 
   if (selected) return <ChecklistView vehicleName={selected} onBack={() => setSelected(null)} checklists={checklists} emails={emails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if (selectedTpmrVsl) return <TpmrVslChecklistView vehicleName={selectedTpmrVsl} template={tpmrVslTemplate} onBack={()=>setSelectedTpmrVsl(null)} emails={emails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if (screen==="historique") return <HistoriqueView onBack={()=>setScreen("home")} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if (screen==="historique") return <HistoriqueView onBack={()=>setScreen("home")} vehicles={vehicles} carnetBordTypes={carnetBordTypes} checklists={checklists} tpmrVslTemplate={tpmrVslTemplate} peremptionEmails={peremptionEmails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if (screen==="reappro") return <ReapprovisionnementView onBack={()=>setScreen("home")} themeMode={themeMode} toggleTheme={toggleTheme} emails={emails} o2Emails={o2Emails} checklists={checklists}/>;
-  if (screen==="peremption") return <PeremptionView onBack={()=>setScreen("home")} checklists={checklists} tpmrVslTemplate={tpmrVslTemplate} peremptionEmails={peremptionEmails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if (screen==="hygiene") return <HygieneView onBack={()=>setScreen("home")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if (screen==="tpmrvsl_list") return(
     <div style={{ minHeight:"100vh", background:CK_C.bg, fontFamily:"'DM Sans',sans-serif", color:CK_C.text, display:"flex", flexDirection:"column" }}>
       <style>{CK_GS}</style>
@@ -7285,7 +7471,6 @@ function ChecklistsHome({ onBack, checklists, emails, o2Emails, peremptionEmails
           </div>
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap" }}>
-          <button onClick={()=>setScreen("peremption")} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>🗓️</button>
           <button onClick={()=>setScreen("historique")} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>📅</button>
           <button onClick={toggleTheme} style={{background:CK_C.panel2,border:`1px solid ${CK_C.border}`,borderRadius:8,color:CK_C.muted,padding:"6px 10px",fontSize:11,fontWeight:600,cursor:"pointer"}}>{themeMode==="light"?"🌙":"☀️"}</button>
         </div>
@@ -7297,6 +7482,9 @@ function ChecklistsHome({ onBack, checklists, emails, o2Emails, peremptionEmails
         </div>
       )}
       <div style={{ flex:1, padding:"24px 20px", maxWidth:480, margin:"0 auto", width:"100%" }}>
+        <button onClick={()=>setScreen("hygiene")} style={{ width:"100%", marginBottom:16, background:CK_C.panel, border:`2px dashed ${CK_C.border}`, borderRadius:13, padding:"14px 20px", color:CK_C.muted, display:"flex", alignItems:"center", justifyContent:"center", gap:10, fontWeight:700, fontSize:14, cursor:"pointer" }}>
+          <span>🧼</span> Hygiène
+        </button>
         <button onClick={()=>setScreen("reappro")} style={{ width:"100%", marginBottom:16, background:CK_C.panel, border:`2px dashed ${CK_C.border}`, borderRadius:13, padding:"14px 20px", color:CK_C.muted, display:"flex", alignItems:"center", justifyContent:"center", gap:10, fontWeight:700, fontSize:14, cursor:"pointer" }}>
           <span>📦</span> Accès Réapprovisionnement
         </button>
@@ -8483,7 +8671,8 @@ export default function App(){
                 style={{background:C.panel,border:`1.5px solid ${C.border}`,borderRadius:16,padding:"24px 20px",textAlign:"left",cursor:"pointer",display:"flex",flexDirection:"column",gap:10}}>
                 <div style={{width:48,height:48,background:"rgba(220,38,38,0.12)",border:"1.5px solid #dc2626",borderRadius:12,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>📋</div>
                 <div>
-                  <div style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Checklists</div>
+                  <div style={{fontWeight:800,fontSize:17,color:C.text,marginBottom:2}}>Checklist</div>
+                  <div style={{fontSize:11,color:C.text,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:2}}>Hygiène</div>
                   <div style={{fontSize:11,color:"#dc2626",fontWeight:600,textTransform:"uppercase",letterSpacing:"0.8px",marginBottom:8}}>Contrôle véhicules</div>
                   <div style={{fontSize:12,color:C.muted,lineHeight:1.5}}>Vérifier le matériel embarqué par véhicule (Alpha 1 à 7).</div>
                 </div>
