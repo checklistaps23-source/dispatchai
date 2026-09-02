@@ -416,7 +416,7 @@ function PinModal({onSuccess,onCancel}){
   );
 }
 
-function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,preventifMissionTypes,setPreventifMissionTypes,bases,setBases,contacts,setContacts,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,peremptionEmails,setPeremptionEmails,preventifEmails,setPreventifEmails,listeRouge,setListeRouge,onBack,themeMode,toggleTheme}){
+function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,vehicles,setVehicles,conventions,setConventions,equipements,setEquipements,transportTypes,setTransportTypes,preventifMissionTypes,setPreventifMissionTypes,bases,setBases,contacts,setContacts,contactsHome,setContactsHome,plans,setPlans,tarifs,setTarifs,checklistsData,setChecklistsData,checklistEmails,setChecklistEmails,o2Emails,setO2Emails,peremptionEmails,setPeremptionEmails,preventifEmails,setPreventifEmails,listeRouge,setListeRouge,onBack,themeMode,toggleTheme}){
   const [tab,setTab]=useState("chauffeurs");
   const [tpmrVslTemplate,setTpmrVslTemplate]=useFirestoreState("tpmrVslChecklistTemplate",{ sections:[] });
   const [documentCategories,setDocumentCategories]=useFirestoreState("documentCategories",["Carte grise","Assurance","Contrôle technique"]);
@@ -432,6 +432,7 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,veh
   const [newPreventifTypeIcon,setNewPreventifTypeIcon]=useState("🚑");
   const [newPreventifTypeLabel,setNewPreventifTypeLabel]=useState("");
   const [subTab,setSubTab]=useState("amb");
+  const [contactsSubTab,setContactsSubTab]=useState("hopitaux");
   const [editingChecklist,setEditingChecklist]=useState(null); // {key, isNew, norme, edition, sections}
   const [editingDailyVehicle,setEditingDailyVehicle]=useState(null); // vehicle object being edited
   const [editingDailySections,setEditingDailySections]=useState([]);
@@ -661,16 +662,18 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,veh
             </div>
           )}
           {tab==="contacts"&&(()=>{
-            const isFlat=contacts.length>0&&contacts[0].nom!==undefined&&contacts[0].items===undefined;
-            const groups=isFlat?[{id:"g_migre",ville:"Contacts",items:contacts}]:contacts;
-            const isUrgence=(ville)=>(ville||"").toLowerCase().includes("urgence");
+            const activeContacts=contactsSubTab==="home"?contactsHome:contacts;
+            const activeSetContacts=contactsSubTab==="home"?setContactsHome:setContacts;
+            const isFlat=activeContacts.length>0&&activeContacts[0].nom!==undefined&&activeContacts[0].items===undefined;
+            const groups=isFlat?[{id:"g_migre",ville:"Contacts",items:activeContacts}]:activeContacts;
+            const isUrgence=(ville)=>contactsSubTab==="hopitaux"&&(ville||"").toLowerCase().includes("urgence");
             const sortedGroups=[...groups].sort((a,b)=>{
               const aU=isUrgence(a.ville), bU=isUrgence(b.ville);
               if(aU&&!bU) return -1;
               if(bU&&!aU) return 1;
               return a.ville.localeCompare(b.ville);
             });
-            const updateGroups=(fn)=>setContacts(fn(groups));
+            const updateGroups=(fn)=>activeSetContacts(fn(groups));
             const addGroup=()=>{
               if(!newVal.trim()) return;
               updateGroups(gs=>[...gs,{id:`grp_${Date.now()}`,ville:newVal.trim(),items:[]}]);
@@ -687,9 +690,13 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,veh
             return(
             <div>
               <SectionTitle icon="📒" title="Carnet de contacts"/>
-              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Organise tes contacts par ville. "Numéro urgence" reste toujours en premier.</div>
+              <div style={{display:"flex",gap:4,background:C.panel2,borderRadius:9,padding:3,marginBottom:16}}>
+                <button onClick={()=>setContactsSubTab("hopitaux")} style={{flex:1,background:contactsSubTab==="hopitaux"?C.accent:"transparent",color:contactsSubTab==="hopitaux"?"white":C.muted,border:"none",borderRadius:7,padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🏥 Hôpitaux</button>
+                <button onClick={()=>setContactsSubTab("home")} style={{flex:1,background:contactsSubTab==="home"?C.accent:"transparent",color:contactsSubTab==="home"?"white":C.muted,border:"none",borderRadius:7,padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🏠 Home</button>
+              </div>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>{contactsSubTab==="hopitaux"?'Organise tes contacts par ville. "Numéro urgence" reste toujours en premier.':"Organise les maisons de repos par ville, triées par ordre alphabétique."}</div>
               <div style={{display:"flex",gap:8,marginBottom:20}}>
-                <input value={newVal} onChange={e=>setNewVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") addGroup();}} placeholder="Nom de la ville (ou «Numéro urgence»)…" style={{flex:1,background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none",fontFamily:"inherit"}}/>
+                <input value={newVal} onChange={e=>setNewVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") addGroup();}} placeholder={contactsSubTab==="hopitaux"?"Nom de la ville (ou «Numéro urgence»)…":"Nom de la ville…"} style={{flex:1,background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none",fontFamily:"inherit"}}/>
                 <button onClick={addGroup} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"10px 18px",fontWeight:800,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>+ Titre</button>
               </div>
               {sortedGroups.map(g=>(
@@ -1562,7 +1569,7 @@ function LiveFleetMap({ vehicles, gpsSessions, selectedV, setSelectedV, themeC }
   );
 }
 
-function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValidate,onRefuse,onBack,contacts,tarifs,themeMode,toggleTheme}){
+function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValidate,onRefuse,onBack,contacts,contactsHome,tarifs,themeMode,toggleTheme}){
   const [selectedV,setSelectedV]=useState(null);
   const [centerTab,setCenterTab]=useState("planning");
   const [filterType,setFilterType]=useState("tous");
@@ -1833,14 +1840,16 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
         </div>
       )}
 
-      {showContacts&&<ContactsPickerModal contacts={contacts} onSelect={()=>{}} onClose={()=>setShowContacts(false)} pickMode={false}/>}
+      {showContacts&&<ContactsPickerModal contacts={contacts} contactsHome={contactsHome} onSelect={()=>{}} onClose={()=>setShowContacts(false)} pickMode={false}/>}
       {showDevis&&<DevisModal tarifs={tarifs} onClose={()=>setShowDevis(false)}/>}
     </div>
   );
 }
 
-function ContactsPickerModal({contacts,onSelect,onClose,pickMode}){
+function ContactsPickerModal({contacts,contactsHome,onSelect,onClose,pickMode}){
   const [bigContact,setBigContact]=useState(null);
+  const [listMode,setListMode]=useState("hopitaux"); // "hopitaux" | "home"
+  const activeList=listMode==="home"?(contactsHome||[]):(contacts||[]);
   return(
     <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:400}}>
       <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:"24px",width:480,maxWidth:"92vw",maxHeight:"85vh",display:"flex",flexDirection:"column",animation:"pop 0.2s ease"}}>
@@ -1848,6 +1857,12 @@ function ContactsPickerModal({contacts,onSelect,onClose,pickMode}){
           <div style={{fontWeight:800,fontSize:17}}>📒 Carnet de contacts</div>
           <button onClick={()=>{setBigContact(null);onClose();}} style={{background:"transparent",border:"none",color:C.muted,fontSize:22,cursor:"pointer"}}>×</button>
         </div>
+        {!bigContact&&(
+          <div style={{display:"flex",gap:4,background:C.panel2,borderRadius:9,padding:3,marginBottom:14,flexShrink:0}}>
+            <button onClick={()=>setListMode("hopitaux")} style={{flex:1,background:listMode==="hopitaux"?C.accent:"transparent",color:listMode==="hopitaux"?"white":C.muted,border:"none",borderRadius:7,padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🏥 Hôpitaux</button>
+            <button onClick={()=>setListMode("home")} style={{flex:1,background:listMode==="home"?C.accent:"transparent",color:listMode==="home"?"white":C.muted,border:"none",borderRadius:7,padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🏠 Home</button>
+          </div>
+        )}
         {bigContact?(
           <div style={{textAlign:"center",padding:"20px 0"}}>
             <div style={{fontSize:14,color:C.muted,marginBottom:8}}>{bigContact.nom}</div>
@@ -1860,9 +1875,9 @@ function ContactsPickerModal({contacts,onSelect,onClose,pickMode}){
         ):(
           <div style={{overflowY:"auto",flex:1}}>
             {(()=>{
-              const isFlat=contacts&&contacts.length>0&&contacts[0].nom!==undefined&&contacts[0].items===undefined;
-              const groups=isFlat?[{id:"g_migre",ville:"Contacts",items:contacts}]:(contacts||[]);
-              const isUrgence=(ville)=>(ville||"").toLowerCase().includes("urgence");
+              const isFlat=activeList&&activeList.length>0&&activeList[0].nom!==undefined&&activeList[0].items===undefined;
+              const groups=isFlat?[{id:"g_migre",ville:"Contacts",items:activeList}]:(activeList||[]);
+              const isUrgence=(ville)=>listMode==="hopitaux"&&(ville||"").toLowerCase().includes("urgence");
               const sortedGroups=[...groups].sort((a,b)=>{
                 const aU=isUrgence(a.ville), bU=isUrgence(b.ville);
                 if(aU&&!bU) return -1;
@@ -4273,9 +4288,10 @@ function DailyChecklistView({ vehicle, driverName, onComplete, themeMode, toggle
   );
 }
 
-function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrCriteres,vehicles,setVehicles,contacts,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,transportTypes,onBack,onEndService,themeMode,toggleTheme}){
+function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrCriteres,vehicles,setVehicles,contacts,contactsHome,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,transportTypes,onBack,onEndService,themeMode,toggleTheme}){
   const [showBons,setShowBons]=useState(false);
   const [showContacts,setShowContacts]=useState(false);
+  const [contactsListMode,setContactsListMode]=useState("hopitaux");
   const [showPlans,setShowPlans]=useState(false);
   const [showSignaler,setShowSignaler]=useState(false);
   const [showChangeConvoyeur,setShowChangeConvoyeur]=useState(false);
@@ -4841,6 +4857,12 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
               <div style={{fontWeight:800,fontSize:17}}>📒 Carnet de contacts</div>
               <button onClick={()=>{setShowContacts(false);setBigContact(null);}} style={{background:"transparent",border:"none",color:C.muted,fontSize:22,cursor:"pointer"}}>×</button>
             </div>
+            {!bigContact&&(
+              <div style={{display:"flex",gap:4,background:C.panel2,borderRadius:9,padding:3,marginBottom:14,flexShrink:0}}>
+                <button onClick={()=>setContactsListMode("hopitaux")} style={{flex:1,background:contactsListMode==="hopitaux"?C.accent:"transparent",color:contactsListMode==="hopitaux"?"white":C.muted,border:"none",borderRadius:7,padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🏥 Hôpitaux</button>
+                <button onClick={()=>setContactsListMode("home")} style={{flex:1,background:contactsListMode==="home"?C.accent:"transparent",color:contactsListMode==="home"?"white":C.muted,border:"none",borderRadius:7,padding:"8px",fontSize:12,fontWeight:700,cursor:"pointer"}}>🏠 Home</button>
+              </div>
+            )}
             {bigContact?(
               <div style={{textAlign:"center",padding:"20px 0"}}>
                 <div style={{fontSize:14,color:C.muted,marginBottom:8}}>{bigContact.nom}</div>
@@ -4853,9 +4875,10 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
             ):(
               <div style={{overflowY:"auto",flex:1}}>
                 {(()=>{
-                  const isFlat=contacts&&contacts.length>0&&contacts[0].nom!==undefined&&contacts[0].items===undefined;
-                  const groups=isFlat?[{id:"g_migre",ville:"Contacts",items:contacts}]:(contacts||[]);
-                  const isUrgence=(ville)=>(ville||"").toLowerCase().includes("urgence");
+                  const activeList=contactsListMode==="home"?(contactsHome||[]):(contacts||[]);
+                  const isFlat=activeList&&activeList.length>0&&activeList[0].nom!==undefined&&activeList[0].items===undefined;
+                  const groups=isFlat?[{id:"g_migre",ville:"Contacts",items:activeList}]:(activeList||[]);
+                  const isUrgence=(ville)=>contactsListMode==="hopitaux"&&(ville||"").toLowerCase().includes("urgence");
                   const sortedGroups=[...groups].sort((a,b)=>{
                     const aU=isUrgence(a.ville), bU=isUrgence(b.ville);
                     if(aU&&!bU) return -1;
@@ -8522,6 +8545,7 @@ export default function App(){
   const [preventifMissionTypes,setPreventifMissionTypes] = useFirestoreState("preventifMissionTypes", []);
   const [bases,       setBases]       = useFirestoreState("bases", INIT_BASES);
   const [contacts,    setContacts]    = useFirestoreState("contacts", INIT_CONTACTS);
+  const [contactsHome, setContactsHome] = useFirestoreState("contactsHome", []);
   const [listeRouge,  setListeRouge]  = useFirestoreState("listeRouge", []);
   const [carnetBordTypes] = useFirestoreState("carnetBordTypes", INIT_CARNET_TYPES);
   useEffect(()=>{
@@ -8690,10 +8714,10 @@ export default function App(){
   };
 
   if(showPin) return <PinModal onSuccess={()=>{setShowPin(false);setAppView("parametres");}} onCancel={()=>setShowPin(false)}/>;
-  if(appView==="formulaire") return <FormulaireView onBack={backToSubMenu} onSubmit={submitCourse} conventions={conventions} equipements={equipements} transportTypes={transportTypes} contacts={contacts} listeRouge={listeRouge} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} tarifs={tarifs} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="formulaire") return <FormulaireView onBack={backToSubMenu} onSubmit={submitCourse} conventions={conventions} equipements={equipements} transportTypes={transportTypes} contacts={contacts} contactsHome={contactsHome} listeRouge={listeRouge} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} contactsHome={contactsHome} tarifs={tarifs} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="planning") return <PlanningView courses={courses} setCourses={setCourses} vehicles={vehicles} patients={patientsHabituels} setPatients={setPatientsHabituels} categories={patientCategories} setCategories={setPatientCategories} conventions={conventions} transportTypes={transportTypes} equipements={equipements} pending={pending} onAssignPending={validateCourse} onGoFormulaire={()=>setAppView("formulaire")} onBack={backToSubMenu} onSchedule={submitFromPatientHabituel} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} tpmrCriteres={tpmrCriteres} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} transportTypes={transportTypes} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} tpmrCriteres={tpmrCriteres} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} contactsHome={contactsHome} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} transportTypes={transportTypes} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} peremptionEmails={peremptionEmails} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="documents") return <DocumentsView vehicles={vehicles} documentCategories={documentCategories} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
@@ -8701,7 +8725,7 @@ export default function App(){
   if(appView==="bons") return <BonsMenuView bases={bases} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="preventif") return <PreventifView onBack={()=>setAppView("menu")} vehicles={vehicles} transportTypes={transportTypes} preventifMissionTypes={preventifMissionTypes} preventifEmails={preventifEmails} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="signaler") return <SignalerCompletView onBack={()=>setAppView("menu")} vehicles={vehicles} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} preventifMissionTypes={preventifMissionTypes} setPreventifMissionTypes={setPreventifMissionTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} peremptionEmails={peremptionEmails} setPeremptionEmails={setPeremptionEmails} preventifEmails={preventifEmails} setPreventifEmails={setPreventifEmails} listeRouge={listeRouge} setListeRouge={setListeRouge} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="parametres") return <ParametresView driversAmb={driversAmb} setDriversAmb={setDriversAmb} driversTpmr={driversTpmr} setDriversTpmr={setDriversTpmr} vehicles={vehicles} setVehicles={setVehicles} conventions={conventions} setConventions={setConventions} equipements={equipements} setEquipements={setEquipements} transportTypes={transportTypes} setTransportTypes={setTransportTypes} preventifMissionTypes={preventifMissionTypes} setPreventifMissionTypes={setPreventifMissionTypes} bases={bases} setBases={setBases} contacts={contacts} setContacts={setContacts} contactsHome={contactsHome} setContactsHome={setContactsHome} plans={plans} setPlans={setPlans} tarifs={tarifs} setTarifs={setTarifs} checklistsData={checklistsData} setChecklistsData={setChecklistsData} checklistEmails={checklistEmails} setChecklistEmails={setChecklistEmails} o2Emails={o2Emails} setO2Emails={setO2Emails} peremptionEmails={peremptionEmails} setPeremptionEmails={setPeremptionEmails} preventifEmails={preventifEmails} setPreventifEmails={setPreventifEmails} listeRouge={listeRouge} setListeRouge={setListeRouge} onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
 
   return(
     <div style={{minHeight:"100vh",background:C.bg,fontFamily:"'IBM Plex Sans',sans-serif",color:C.text,display:"flex",flexDirection:"column"}}>
@@ -8861,7 +8885,7 @@ function validateF(form,step){
   return e;
 }
 
-function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,contacts,listeRouge,themeMode,toggleTheme}){
+function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,contacts,contactsHome,listeRouge,themeMode,toggleTheme}){
   const [step,setStep]=useState(1);
   const [form,setForm]=useState(()=>({...EMPTY_F,date:todayFR()}));
   const [touched,setTouched]=useState({});
@@ -9119,7 +9143,7 @@ function FormulaireView({onBack,onSubmit,conventions,equipements,transportTypes,
           </div>
         </div>
       )}
-      {showContactsPicker&&<ContactsPickerModal contacts={contacts} pickMode onSelect={(tel)=>set("telephone",tel)} onClose={()=>setShowContactsPicker(false)}/>}
+      {showContactsPicker&&<ContactsPickerModal contacts={contacts} contactsHome={contactsHome} pickMode onSelect={(tel)=>set("telephone",tel)} onClose={()=>setShowContactsPicker(false)}/>}
     </div>
   );
 }
