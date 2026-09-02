@@ -663,9 +663,11 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,veh
           {tab==="contacts"&&(()=>{
             const isFlat=contacts.length>0&&contacts[0].nom!==undefined&&contacts[0].items===undefined;
             const groups=isFlat?[{id:"g_migre",ville:"Contacts",items:contacts}]:contacts;
+            const isUrgence=(ville)=>(ville||"").toLowerCase().includes("urgence");
             const sortedGroups=[...groups].sort((a,b)=>{
-              if(a.ville==="Numéro urgence") return -1;
-              if(b.ville==="Numéro urgence") return 1;
+              const aU=isUrgence(a.ville), bU=isUrgence(b.ville);
+              if(aU&&!bU) return -1;
+              if(bU&&!aU) return 1;
               return a.ville.localeCompare(b.ville);
             });
             const updateGroups=(fn)=>setContacts(fn(groups));
@@ -692,8 +694,8 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,veh
               </div>
               {sortedGroups.map(g=>(
                 <div key={g.id} style={{marginBottom:22}}>
-                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingBottom:4,borderBottom:`2px solid ${g.ville==="Numéro urgence"?C.danger:C.purple}`}}>
-                    <input value={g.ville} onChange={e=>updateGroupVille(g.id,e.target.value)} style={{flex:1,background:"transparent",border:"none",color:g.ville==="Numéro urgence"?C.danger:C.purple,fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"0.6px",padding:"3px 0"}}/>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingBottom:4,borderBottom:`2px solid ${isUrgence(g.ville)?C.danger:C.purple}`}}>
+                    <input value={g.ville} onChange={e=>updateGroupVille(g.id,e.target.value)} style={{flex:1,background:"transparent",border:"none",color:isUrgence(g.ville)?C.danger:C.purple,fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"0.6px",padding:"3px 0"}}/>
                     <button onClick={()=>removeGroup(g.id)} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"3px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
                   </div>
                   {[...g.items].sort((a,b)=>a.nom.localeCompare(b.nom)).map(c=>(
@@ -1860,15 +1862,17 @@ function ContactsPickerModal({contacts,onSelect,onClose,pickMode}){
             {(()=>{
               const isFlat=contacts&&contacts.length>0&&contacts[0].nom!==undefined&&contacts[0].items===undefined;
               const groups=isFlat?[{id:"g_migre",ville:"Contacts",items:contacts}]:(contacts||[]);
+              const isUrgence=(ville)=>(ville||"").toLowerCase().includes("urgence");
               const sortedGroups=[...groups].sort((a,b)=>{
-                if(a.ville==="Numéro urgence") return -1;
-                if(b.ville==="Numéro urgence") return 1;
+                const aU=isUrgence(a.ville), bU=isUrgence(b.ville);
+                if(aU&&!bU) return -1;
+                if(bU&&!aU) return 1;
                 return a.ville.localeCompare(b.ville);
               });
               if(sortedGroups.length===0) return <div style={{textAlign:"center",padding:"30px 0",color:C.muted}}>Aucun contact enregistré</div>;
               return sortedGroups.map(g=>(
                 <div key={g.id} style={{marginBottom:16}}>
-                  <div style={{fontSize:11,fontWeight:800,color:g.ville==="Numéro urgence"?C.danger:C.purple,textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:6}}>{g.ville}</div>
+                  <div style={{fontSize:11,fontWeight:800,color:isUrgence(g.ville)?C.danger:C.purple,textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:6}}>{g.ville}</div>
                   {[...g.items].sort((a,b)=>a.nom.localeCompare(b.nom)).map(c=>(
                     <button key={c.id} onClick={()=>setBigContact(c)}
                       style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,padding:"13px 16px",marginBottom:7,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
