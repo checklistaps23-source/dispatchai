@@ -4852,14 +4852,30 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
               </div>
             ):(
               <div style={{overflowY:"auto",flex:1}}>
-                {contacts&&[...contacts].sort((a,b)=>a.nom.localeCompare(b.nom)).map(c=>(
-                  <button key={c.id} onClick={()=>setBigContact(c)}
-                    style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,padding:"13px 16px",marginBottom:7,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                    <span style={{fontSize:14,fontWeight:600,color:C.text}}>📒 {c.nom}</span>
-                    <span style={{fontSize:12,color:C.mutedLight}}>{c.tel}</span>
-                  </button>
-                ))}
-                {(!contacts||contacts.length===0)&&<div style={{textAlign:"center",padding:"30px 0",color:C.muted}}>Aucun contact enregistré</div>}
+                {(()=>{
+                  const isFlat=contacts&&contacts.length>0&&contacts[0].nom!==undefined&&contacts[0].items===undefined;
+                  const groups=isFlat?[{id:"g_migre",ville:"Contacts",items:contacts}]:(contacts||[]);
+                  const isUrgence=(ville)=>(ville||"").toLowerCase().includes("urgence");
+                  const sortedGroups=[...groups].sort((a,b)=>{
+                    const aU=isUrgence(a.ville), bU=isUrgence(b.ville);
+                    if(aU&&!bU) return -1;
+                    if(bU&&!aU) return 1;
+                    return a.ville.localeCompare(b.ville);
+                  });
+                  if(sortedGroups.length===0) return <div style={{textAlign:"center",padding:"30px 0",color:C.muted}}>Aucun contact enregistré</div>;
+                  return sortedGroups.map(g=>(
+                    <div key={g.id} style={{marginBottom:16}}>
+                      <div style={{fontSize:11,fontWeight:800,color:isUrgence(g.ville)?C.danger:C.purple,textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:6}}>{g.ville}</div>
+                      {[...g.items].sort((a,b)=>a.nom.localeCompare(b.nom)).map(c=>(
+                        <button key={c.id} onClick={()=>setBigContact(c)}
+                          style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,padding:"13px 16px",marginBottom:7,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                          <span style={{fontSize:14,fontWeight:600,color:C.text}}>📒 {c.nom}</span>
+                          <span style={{fontSize:12,color:C.mutedLight}}>{c.tel}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ));
+                })()}
               </div>
             )}
           </div>
