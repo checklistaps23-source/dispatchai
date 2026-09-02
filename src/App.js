@@ -279,6 +279,23 @@ function Badge({color,soft,children,pulse:p}){
   );
 }
 
+function AddContactRow({ onAdd }){
+  const [nom,setNom]=useState("");
+  const [tel,setTel]=useState("");
+  const submit=()=>{
+    if(!nom.trim()||!tel.trim()) return;
+    onAdd(nom,tel);
+    setNom(""); setTel("");
+  };
+  return(
+    <div style={{display:"flex",gap:8,marginTop:4}}>
+      <input value={nom} onChange={e=>setNom(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") submit();}} placeholder="Nom du contact…" style={{flex:1,background:C.bg,color:C.text,fontSize:13,border:`1.5px dashed ${C.border}`,borderRadius:9,padding:"9px 12px",outline:"none",fontFamily:"inherit"}}/>
+      <input value={tel} onChange={e=>setTel(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") submit();}} placeholder="Téléphone…" style={{width:140,background:C.bg,color:C.text,fontSize:13,border:`1.5px dashed ${C.border}`,borderRadius:9,padding:"9px 12px",outline:"none",fontFamily:"inherit"}}/>
+      <button onClick={submit} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"9px 16px",fontWeight:800,fontSize:15,cursor:"pointer",flexShrink:0}}>+</button>
+    </div>
+  );
+}
+
 function SectionTitle({icon,title}){
   return(
     <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
@@ -643,27 +660,56 @@ function ParametresView({driversAmb,setDriversAmb,driversTpmr,setDriversTpmr,veh
               </div>
             </div>
           )}
-          {tab==="contacts"&&(
+          {tab==="contacts"&&(()=>{
+            const isFlat=contacts.length>0&&contacts[0].nom!==undefined&&contacts[0].items===undefined;
+            const groups=isFlat?[{id:"g_migre",ville:"Contacts",items:contacts}]:contacts;
+            const sortedGroups=[...groups].sort((a,b)=>{
+              if(a.ville==="Numéro urgence") return -1;
+              if(b.ville==="Numéro urgence") return 1;
+              return a.ville.localeCompare(b.ville);
+            });
+            const updateGroups=(fn)=>setContacts(fn(groups));
+            const addGroup=()=>{
+              if(!newVal.trim()) return;
+              updateGroups(gs=>[...gs,{id:`grp_${Date.now()}`,ville:newVal.trim(),items:[]}]);
+              setNewVal("");
+            };
+            const removeGroup=(gid)=>updateGroups(gs=>gs.filter(g=>g.id!==gid));
+            const updateGroupVille=(gid,val)=>updateGroups(gs=>gs.map(g=>g.id===gid?{...g,ville:val}:g));
+            const addContact=(gid,nom,tel)=>{
+              if(!nom.trim()||!tel.trim()) return;
+              updateGroups(gs=>gs.map(g=>g.id===gid?{...g,items:[...g.items,{id:`c_${Date.now()}`,nom:nom.trim(),tel:tel.trim()}]}:g));
+            };
+            const removeContact=(gid,cid)=>updateGroups(gs=>gs.map(g=>g.id===gid?{...g,items:g.items.filter(c=>c.id!==cid)}:g));
+            const updateContact=(gid,cid,field,val)=>updateGroups(gs=>gs.map(g=>g.id===gid?{...g,items:g.items.map(c=>c.id===cid?{...c,[field]:val}:c)}:g));
+            return(
             <div>
               <SectionTitle icon="📒" title="Carnet de contacts"/>
-              <div style={{marginBottom:16}}>
-                {[...contacts].sort((a,b)=>a.nom.localeCompare(b.nom)).map(c=>(
-                  <div key={c.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"11px 14px",marginBottom:7}}>
-                    <div><div style={{fontSize:13,fontWeight:600}}>📒 {c.nom}</div><div style={{fontSize:11,color:C.muted}}>{c.tel}</div></div>
-                    <button onClick={()=>setContacts(p=>p.filter(x=>x.id!==c.id))} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 12px",fontSize:12,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
+              <div style={{fontSize:11,color:C.muted,marginBottom:16}}>Organise tes contacts par ville. "Numéro urgence" reste toujours en premier.</div>
+              <div style={{display:"flex",gap:8,marginBottom:20}}>
+                <input value={newVal} onChange={e=>setNewVal(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") addGroup();}} placeholder="Nom de la ville (ou «Numéro urgence»)…" style={{flex:1,background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none",fontFamily:"inherit"}}/>
+                <button onClick={addGroup} style={{background:C.purpleSoft,border:`1px solid ${C.purple}`,borderRadius:9,color:C.purple,padding:"10px 18px",fontWeight:800,fontSize:13,cursor:"pointer",whiteSpace:"nowrap"}}>+ Titre</button>
+              </div>
+              {sortedGroups.map(g=>(
+                <div key={g.id} style={{marginBottom:22}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10,paddingBottom:4,borderBottom:`2px solid ${g.ville==="Numéro urgence"?C.danger:C.purple}`}}>
+                    <input value={g.ville} onChange={e=>updateGroupVille(g.id,e.target.value)} style={{flex:1,background:"transparent",border:"none",color:g.ville==="Numéro urgence"?C.danger:C.purple,fontSize:12,fontWeight:800,textTransform:"uppercase",letterSpacing:"0.6px",padding:"3px 0"}}/>
+                    <button onClick={()=>removeGroup(g.id)} style={{background:"transparent",border:`1px solid ${C.danger}`,borderRadius:6,color:C.danger,padding:"3px 9px",fontSize:11,cursor:"pointer"}}>🗑</button>
                   </div>
-                ))}
-                {contacts.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:C.muted,fontSize:13}}>Aucun contact</div>}
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                <input value={newVal} onChange={e=>setNewVal(e.target.value)} placeholder="Nom du contact…" style={{background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none",fontFamily:"inherit"}}/>
-                <div style={{display:"flex",gap:8}}>
-                  <input value={newConvLabel} onChange={e=>setNewConvLabel(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"&&newVal.trim()&&newConvLabel.trim()){setContacts(p=>[...p,{id:`c_${Date.now()}`,nom:newVal.trim(),tel:newConvLabel.trim()}]);setNewVal("");setNewConvLabel("");}}} placeholder="Numéro de téléphone…" style={{background:C.bg,color:C.text,fontSize:13,border:`1.5px solid ${C.border}`,borderRadius:9,padding:"10px 13px",outline:"none",flex:1,fontFamily:"inherit"}}/>
-                  <button onClick={()=>{if(newVal.trim()&&newConvLabel.trim()){setContacts(p=>[...p,{id:`c_${Date.now()}`,nom:newVal.trim(),tel:newConvLabel.trim()}]);setNewVal("");setNewConvLabel("");}}} style={{background:C.success,border:"none",borderRadius:9,color:"white",padding:"10px 18px",fontWeight:800,fontSize:16,cursor:"pointer",flexShrink:0}}>+</button>
+                  {[...g.items].sort((a,b)=>a.nom.localeCompare(b.nom)).map(c=>(
+                    <div key={c.id} style={{display:"flex",alignItems:"center",gap:8,background:C.panel,border:`1px solid ${C.border}`,borderRadius:9,padding:"8px 14px",marginBottom:6}}>
+                      <input value={c.nom} onChange={e=>updateContact(g.id,c.id,"nom",e.target.value)} placeholder="Nom" style={{flex:1,background:"transparent",border:"none",color:C.text,fontSize:13,fontWeight:600,padding:"3px 0"}}/>
+                      <input value={c.tel} onChange={e=>updateContact(g.id,c.id,"tel",e.target.value)} placeholder="Téléphone" style={{width:130,background:"transparent",border:"none",color:C.muted,fontSize:12,padding:"3px 0"}}/>
+                      <button onClick={()=>removeContact(g.id,c.id)} style={{background:C.dangerSoft,border:`1px solid ${C.danger}`,borderRadius:7,color:C.danger,padding:"4px 10px",fontSize:11,fontWeight:700,cursor:"pointer"}}>Supprimer</button>
+                    </div>
+                  ))}
+                  <AddContactRow onAdd={(nom,tel)=>addContact(g.id,nom,tel)}/>
                 </div>
-              </div>
+              ))}
+              {sortedGroups.length===0&&<div style={{textAlign:"center",padding:"20px 0",color:C.muted,fontSize:13}}>Aucune ville créée</div>}
             </div>
-          )}
+            );
+          })()}
           {tab==="plans"&&(
             <div>
               <SectionTitle icon="🗺️" title="Plans des sites"/>
@@ -1811,14 +1857,28 @@ function ContactsPickerModal({contacts,onSelect,onClose,pickMode}){
           </div>
         ):(
           <div style={{overflowY:"auto",flex:1}}>
-            {contacts&&[...contacts].sort((a,b)=>a.nom.localeCompare(b.nom)).map(c=>(
-              <button key={c.id} onClick={()=>setBigContact(c)}
-                style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,padding:"13px 16px",marginBottom:7,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-                <span style={{fontSize:14,fontWeight:600,color:C.text}}>📒 {c.nom}</span>
-                <span style={{fontSize:12,color:C.mutedLight}}>{c.tel}</span>
-              </button>
-            ))}
-            {(!contacts||contacts.length===0)&&<div style={{textAlign:"center",padding:"30px 0",color:C.muted}}>Aucun contact enregistré</div>}
+            {(()=>{
+              const isFlat=contacts&&contacts.length>0&&contacts[0].nom!==undefined&&contacts[0].items===undefined;
+              const groups=isFlat?[{id:"g_migre",ville:"Contacts",items:contacts}]:(contacts||[]);
+              const sortedGroups=[...groups].sort((a,b)=>{
+                if(a.ville==="Numéro urgence") return -1;
+                if(b.ville==="Numéro urgence") return 1;
+                return a.ville.localeCompare(b.ville);
+              });
+              if(sortedGroups.length===0) return <div style={{textAlign:"center",padding:"30px 0",color:C.muted}}>Aucun contact enregistré</div>;
+              return sortedGroups.map(g=>(
+                <div key={g.id} style={{marginBottom:16}}>
+                  <div style={{fontSize:11,fontWeight:800,color:g.ville==="Numéro urgence"?C.danger:C.purple,textTransform:"uppercase",letterSpacing:"0.6px",marginBottom:6}}>{g.ville}</div>
+                  {[...g.items].sort((a,b)=>a.nom.localeCompare(b.nom)).map(c=>(
+                    <button key={c.id} onClick={()=>setBigContact(c)}
+                      style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,padding:"13px 16px",marginBottom:7,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                      <span style={{fontSize:14,fontWeight:600,color:C.text}}>📒 {c.nom}</span>
+                      <span style={{fontSize:12,color:C.mutedLight}}>{c.tel}</span>
+                    </button>
+                  ))}
+                </div>
+              ));
+            })()}
           </div>
         )}
       </div>
