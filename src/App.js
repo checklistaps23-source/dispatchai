@@ -1777,7 +1777,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
             <div style={{fontSize:12,color:C.muted,marginBottom:4}}>Course : <strong style={{color:C.text}}>{dispTransfer.course.patient}</strong></div>
             <div style={{fontSize:12,color:C.muted,marginBottom:16}}>De : <strong style={{color:C.accent}}>{dispTransfer.fromVehicle.name}</strong></div>
             <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:10}}>Choisir un véhicule :</div>
-            <div style={{overflowY:"auto",flex:1}}>
+            <div style={{overflowY:"auto",flex:1,minHeight:0}}>
               {activeVehicles.filter(v=>v.id!==dispTransfer.fromVehicle.id).map(v=>(
                 <button key={v.id} onClick={()=>setDispConfirm({course:dispTransfer.course,toVehicle:v})}
                   style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:7,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
@@ -5079,20 +5079,22 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
 
       {showTransfer&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:200}}>
-          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:"24px",width:440,maxWidth:"92vw",animation:"pop 0.2s ease"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:16,padding:"24px",width:440,maxWidth:"92vw",maxHeight:"85vh",display:"flex",flexDirection:"column",animation:"pop 0.2s ease"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12,flexShrink:0}}>
               <div style={{fontWeight:800,fontSize:16}}>🔀 Transférer la course</div>
               <button onClick={()=>setShowTransfer(null)} style={{background:"transparent",border:"none",color:C.muted,fontSize:22,cursor:"pointer"}}>×</button>
             </div>
-            <div style={{fontSize:12,color:C.muted,marginBottom:14}}>Course : <strong style={{color:C.text}}>{showTransfer.patient}</strong></div>
-            <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:10}}>Choisir un véhicule :</div>
-            {vehicles.filter(v=>v.id!==vehicle?.id).map(v=>(
-              <button key={v.id} onClick={()=>{if(v.active)setConfirmTransfer({course:showTransfer,vehicle:v});}} disabled={!v.active}
-                style={{width:"100%",background:v.active?C.panel2:C.dangerSoft,border:`1px solid ${v.active?C.border:C.danger}`,borderRadius:10,padding:"12px 14px",marginBottom:7,textAlign:"left",cursor:v.active?"pointer":"not-allowed",display:"flex",alignItems:"center",gap:10,opacity:v.active?1:0.7}}>
-                <span style={{fontSize:16,color:v.active?vColor(v.type):C.danger}}>{vIcon(v.type)}</span>
-                <div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:v.active?C.text:C.danger}}>{v.name}</div><div style={{fontSize:10,color:C.muted}}>{v.active?"Disponible":"Hors service"}</div></div>
-              </button>
-            ))}
+            <div style={{fontSize:12,color:C.muted,marginBottom:14,flexShrink:0}}>Course : <strong style={{color:C.text}}>{showTransfer.patient}</strong></div>
+            <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:10,flexShrink:0}}>Choisir un véhicule :</div>
+            <div style={{overflowY:"auto",flex:1,minHeight:0}}>
+              {vehicles.filter(v=>v.id!==vehicle?.id).map(v=>(
+                <button key={v.id} onClick={()=>{if(v.active)setConfirmTransfer({course:showTransfer,vehicle:v});}} disabled={!v.active}
+                  style={{width:"100%",background:v.active?C.panel2:C.dangerSoft,border:`1px solid ${v.active?C.border:C.danger}`,borderRadius:10,padding:"12px 14px",marginBottom:7,textAlign:"left",cursor:v.active?"pointer":"not-allowed",display:"flex",alignItems:"center",gap:10,opacity:v.active?1:0.7}}>
+                  <span style={{fontSize:16,color:v.active?vColor(v.type):C.danger}}>{vIcon(v.type)}</span>
+                  <div style={{flex:1}}><div style={{fontWeight:700,fontSize:13,color:v.active?C.text:C.danger}}>{v.name}</div><div style={{fontSize:10,color:C.muted}}>{v.active?"Disponible":"Hors service"}</div></div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
