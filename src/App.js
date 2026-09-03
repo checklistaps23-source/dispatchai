@@ -4288,7 +4288,7 @@ function DailyChecklistView({ vehicle, driverName, onComplete, themeMode, toggle
   );
 }
 
-function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrCriteres,vehicles,setVehicles,contacts,contactsHome,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,bons,saveBon,bases,transportTypes,onBack,onEndService,themeMode,toggleTheme}){
+function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrCriteres,vehicles,setVehicles,contacts,contactsHome,plans,driver,setDriver,vehicle,setVehicle,screen,setScreen,course,setCourse,statuts,setStatut,myCourses,myActives,myTermines,setCourses,bons,saveBon,bases,transportTypes,onBack,onEndService,themeMode,toggleTheme}){
   const [showBons,setShowBons]=useState(false);
   const [showContacts,setShowContacts]=useState(false);
   const [contactsListMode,setContactsListMode]=useState("hopitaux");
@@ -5108,7 +5108,13 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
             <div style={{fontSize:13,color:C.muted,marginBottom:24}}>Vers : <strong style={{color:C.accent}}>{vIcon(confirmTransfer.vehicle.type)} {confirmTransfer.vehicle.name}</strong></div>
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>setConfirmTransfer(null)} style={{flex:1,background:"transparent",border:`1px solid ${C.border}`,borderRadius:11,color:C.muted,padding:"13px",fontWeight:700,fontSize:15,cursor:"pointer"}}>Non</button>
-              <button onClick={()=>{setStatut(confirmTransfer.course.id,"planifie");setTransferDone(confirmTransfer.vehicle.name);setConfirmTransfer(null);setShowTransfer(null);setTimeout(()=>setTransferDone(null),3000);}}
+              <button onClick={()=>{
+                if(setCourses) setCourses(p=>p.map(c=>c.id===confirmTransfer.course.id?{...c,vehicleId:confirmTransfer.vehicle.id}:c));
+                setStatut(confirmTransfer.course.id,"planifie");
+                setTransferDone(confirmTransfer.vehicle.name);
+                setConfirmTransfer(null);setShowTransfer(null);
+                setTimeout(()=>setTransferDone(null),3000);
+              }}
                 style={{flex:1,background:C.success,border:"none",borderRadius:11,color:"white",padding:"13px",fontWeight:800,fontSize:15,cursor:"pointer"}}>Oui</button>
             </div>
           </div>
@@ -8719,7 +8725,7 @@ export default function App(){
   if(appView==="formulaire") return <FormulaireView onBack={backToSubMenu} onSubmit={submitCourse} conventions={conventions} equipements={equipements} transportTypes={transportTypes} contacts={contacts} contactsHome={contactsHome} listeRouge={listeRouge} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="dispatcher") return <DispatcherView vehicles={vehicles} setVehicles={setVehicles} courses={courses} setCourses={setCourses} pending={pending} onValidate={validateCourse} onRefuse={refuseCourse} onBack={backToSubMenu} contacts={contacts} contactsHome={contactsHome} tarifs={tarifs} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="planning") return <PlanningView courses={courses} setCourses={setCourses} vehicles={vehicles} patients={patientsHabituels} setPatients={setPatientsHabituels} categories={patientCategories} setCategories={setPatientCategories} conventions={conventions} transportTypes={transportTypes} equipements={equipements} pending={pending} onAssignPending={validateCourse} onGoFormulaire={()=>setAppView("formulaire")} onBack={backToSubMenu} onSchedule={submitFromPatientHabituel} themeMode={themeMode} toggleTheme={toggleTheme}/>;
-  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} tpmrCriteres={tpmrCriteres} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} contactsHome={contactsHome} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} bons={cBons} saveBon={saveBon} bases={bases} transportTypes={transportTypes} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
+  if(appView==="chauffeur")  return <ChauffeurView driversAmb={driversAmb} driversTpmr={driversTpmr} stagiairesAmb={stagiairesAmb} formationTpmr={formationTpmr} tpmrCriteres={tpmrCriteres} vehicles={vehicles} setVehicles={setVehicles} contacts={contacts} contactsHome={contactsHome} plans={plans} driver={cDriver} setDriver={setCDriver} vehicle={cVehicle} setVehicle={setCVehicle} screen={cScreen} setScreen={setCScreen} course={cCourse} setCourse={setCCourse} statuts={cStatuts} setStatut={setStatut} myCourses={myCourses} myActives={myActives} myTermines={myTermines} setCourses={setCourses} bons={cBons} saveBon={saveBon} bases={bases} transportTypes={transportTypes} onBack={()=>setAppView("menu")} onEndService={()=>{setCDriver(null);setCVehicle(null);setCScreen("choix_nom");setCStatuts({});setCCourse(null);setCBons([]);setAppView("menu");}} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="checklists") return <ChecklistsHome onBack={()=>setAppView("menu")} checklists={checklistsData} emails={checklistEmails} o2Emails={o2Emails} peremptionEmails={peremptionEmails} vehicles={vehicles} carnetBordTypes={carnetBordTypes} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="garage") return <GarageView onBack={()=>setAppView("menu")} themeMode={themeMode} toggleTheme={toggleTheme}/>;
   if(appView==="documents") return <DocumentsView vehicles={vehicles} documentCategories={documentCategories} onBack={backToSubMenu} themeMode={themeMode} toggleTheme={toggleTheme}/>;
