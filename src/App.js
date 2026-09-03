@@ -4331,7 +4331,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
       (pos)=>{
         setLocationBlocked(false);
         const now=Date.now();
-        if(now-lastGpsWriteRef.current<28000) return; // throttle ~30s
+        if(now-lastGpsWriteRef.current<9000) return; // throttle ~10s
         lastGpsWriteRef.current=now;
         setDoc(doc(dbChecklists,"dispatchai_active_sessions",sessDocId),{
           lat:pos.coords.latitude, lng:pos.coords.longitude, locationBlocked:false, gpsUpdatedAt:now,
@@ -4343,7 +4343,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
           setDoc(doc(dbChecklists,"dispatchai_active_sessions",sessDocId),{locationBlocked:true},{merge:true}).catch(()=>{});
         }
       },
-      {enableHighAccuracy:false, maximumAge:25000, timeout:20000}
+      {enableHighAccuracy:false, maximumAge:8000, timeout:15000}
     );
     setWatchId(id);
   };
