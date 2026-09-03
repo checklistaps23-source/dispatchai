@@ -1489,7 +1489,7 @@ function DevisModal({tarifs,onClose}){
   );
 }
 
-function LiveFleetMap({ vehicles, gpsSessions, selectedV, setSelectedV, themeC }){
+function LiveFleetMap({ vehicles, gpsSessions, selectedV, setSelectedV, preventifEngagedIds, themeC }){
   const mapRef=useRef(null);
   const mapInstanceRef=useRef(null);
   const markersRef=useRef({});
@@ -1515,12 +1515,20 @@ function LiveFleetMap({ vehicles, gpsSessions, selectedV, setSelectedV, themeC }
   useEffect(()=>{
     if(!leafletReady||!mapRef.current||mapInstanceRef.current) return;
     const L=window.L;
-    const map=L.map(mapRef.current).setView([50.4542,3.9523],11); // Mons, Hainaut
+    const LEUZE=[50.6167,3.6167]; // Leuze-en-Hainaut, position de secours
+    const map=L.map(mapRef.current).setView(LEUZE,11);
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
       attribution:'&copy; OpenStreetMap contributors', maxZoom:19,
     }).addTo(map);
     mapInstanceRef.current=map;
     setTimeout(()=>map.invalidateSize(),150);
+    if(navigator.geolocation){
+      navigator.geolocation.getCurrentPosition(
+        (pos)=>{ map.setView([pos.coords.latitude,pos.coords.longitude],12); },
+        ()=>{ /* position refusée ou indisponible — on reste sur Leuze-en-Hainaut */ },
+        {enableHighAccuracy:false,timeout:8000}
+      );
+    }
   },[leafletReady]);
 
   useEffect(()=>{
@@ -1534,7 +1542,8 @@ function LiveFleetMap({ vehicles, gpsSessions, selectedV, setSelectedV, themeC }
       const key=String(v.id);
       currentIds.add(key);
       const isSelected=selectedV?.id===v.id;
-      const color=isSelected?"#22c55e":(sess.locationBlocked?"#ef4444":"#3b82f6");
+      const enPreventif=preventifEngagedIds&&preventifEngagedIds.has(v.id);
+      const color=isSelected?"#22c55e":enPreventif?"#a855f7":(sess.locationBlocked?"#ef4444":"#3b82f6");
       const icon=L.divIcon({
         className:"", html:`<div style="background:${color};color:white;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:15px;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.4);">${vIcon(v.type)}</div>`,
         iconSize:[32,32], iconAnchor:[16,16],
@@ -1545,14 +1554,14 @@ function LiveFleetMap({ vehicles, gpsSessions, selectedV, setSelectedV, themeC }
       }else{
         const marker=L.marker([sess.lat,sess.lng],{icon}).addTo(map);
         marker.on("click",()=>setSelectedV(isSelected?null:v));
-        marker.bindTooltip(v.name,{permanent:false,direction:"top"});
+        marker.bindTooltip(enPreventif?`${v.name} — Préventif`:v.name,{permanent:false,direction:"top"});
         markersRef.current[key]=marker;
       }
     });
     Object.keys(markersRef.current).forEach(key=>{
       if(!currentIds.has(key)){ map.removeLayer(markersRef.current[key]); delete markersRef.current[key]; }
     });
-  },[gpsSessions,vehicles,selectedV,setSelectedV]);
+  },[gpsSessions,vehicles,selectedV,setSelectedV,preventifEngagedIds]);
 
   return(
     <div style={{flex:1,position:"relative",overflow:"hidden",isolation:"isolate"}}>
@@ -1562,6 +1571,7 @@ function LiveFleetMap({ vehicles, gpsSessions, selectedV, setSelectedV, themeC }
       )}
       <div style={{position:"absolute",bottom:12,left:12,background:themeC.panel+"ee",border:`1px solid ${themeC.border}`,borderRadius:9,padding:"9px 13px",zIndex:1000}}>
         <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}><div style={{width:6,height:6,borderRadius:"50%",background:"#3b82f6"}}/><span style={{fontSize:10,color:themeC.mutedLight}}>Position en direct</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}><div style={{width:6,height:6,borderRadius:"50%",background:"#a855f7"}}/><span style={{fontSize:10,color:themeC.mutedLight}}>Préventif</span></div>
         <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:3}}><div style={{width:6,height:6,borderRadius:"50%",background:"#ef4444"}}/><span style={{fontSize:10,color:themeC.mutedLight}}>Localisation coupée</span></div>
         {selectedV&&<div style={{marginTop:6,paddingTop:6,borderTop:`1px solid ${themeC.border}`,fontSize:10,color:"#22c55e",fontWeight:700}}>🟢 {selectedV.name} sélectionné</div>}
       </div>
@@ -1589,6 +1599,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
     return ()=>unsub();
   },[]);
   const blockedSessions=gpsSessions.filter(s=>s.locationBlocked);
+  const preventifEngagedIds=usePreventifEngagedVehicleIds();
 
   const pendingToday=pending.filter(p=>(p.dateISO||todayISO())===todayISO());
   const coursesToday=courses.filter(c=>(c.dateISO||todayISO())===todayISO());
@@ -1600,7 +1611,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
   // Liste latérale : véhicules "en service" (checklist du jour envoyée) en
   // haut, puis les autres véhicules actifs, puis les hors service (rouge) tout en bas.
   const sidebarV=vehicles.filter(v=>filterType==="tous"?true:v.type===filterType).sort((a,b)=>{
-    const rank=v=>!v.active?2:(dailyActiveNames.has(v.name)?0:1);
+    const rank=v=>preventifEngagedIds.has(v.id)?3:!v.active?2:(dailyActiveNames.has(v.name)?0:1);
     return rank(a)-rank(b);
   });
   const vCourses=id=>coursesToday.filter(c=>c.vehicleId===id);
@@ -1693,6 +1704,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
               const cnt=vCourses(v.id).length;
               const enService=dailyActiveNames.has(v.name);
               const horsService=!v.active;
+              const enPreventif=preventifEngagedIds.has(v.id);
               return(
                 <div key={v.id} onClick={()=>{if(!horsService)setSelectedV(isSelected?null:v);}}
                   style={{background:horsService?C.dangerSoft:isSelected?C.accentSoft:C.panel2,border:`1px solid ${horsService?C.danger:isSelected?C.accent:C.border}`,borderRadius:8,padding:"9px 10px",marginBottom:5,cursor:horsService?"not-allowed":"pointer",transition:"all 0.14s",opacity:horsService?0.7:1}}>
@@ -1701,7 +1713,9 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
                       {enService&&!horsService&&<div style={{width:6,height:6,borderRadius:"50%",background:C.success,animation:"pulse 2s infinite",flexShrink:0}} title="En service"/>}
                       <span style={{fontSize:13,color:horsService?C.danger:vColor(v.type)}}>{vIcon(v.type)}</span><span style={{fontWeight:700,fontSize:12,color:horsService?C.danger:C.text}}>{v.name}</span>
                     </div>
-                    {!horsService&&<div style={{display:"flex",alignItems:"center",gap:3}}><div style={{width:5,height:5,borderRadius:"50%",background:sc.color,animation:v.status==="en_course"?"pulse 2s infinite":"none"}}/><span style={{fontSize:9,color:sc.color,fontWeight:700}}>{sc.label}</span></div>}
+                    {enPreventif?(
+                      <div style={{display:"flex",alignItems:"center",gap:3}}><div style={{width:5,height:5,borderRadius:"50%",background:C.purple}}/><span style={{fontSize:9,color:C.purple,fontWeight:700}}>Préventif</span></div>
+                    ):!horsService&&<div style={{display:"flex",alignItems:"center",gap:3}}><div style={{width:5,height:5,borderRadius:"50%",background:sc.color,animation:v.status==="en_course"?"pulse 2s infinite":"none"}}/><span style={{fontSize:9,color:sc.color,fontWeight:700}}>{sc.label}</span></div>}
                   </div>
                   {horsService?(
                     <div style={{fontSize:10,color:C.danger,fontWeight:700}}>Hors service</div>
@@ -1710,7 +1724,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
                   ):(
                     <div style={{fontSize:10,color:C.muted}}>Disponible</div>
                   )}
-                  {!horsService&&<div style={{fontSize:10,color:C.accent,fontWeight:600,marginTop:2}}>{cnt} course{cnt>1?"s":""}</div>}
+                  {!horsService&&!enPreventif&&<div style={{fontSize:10,color:C.accent,fontWeight:600,marginTop:2}}>{cnt} course{cnt>1?"s":""}</div>}
                 </div>
               );
             })}
@@ -1726,7 +1740,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
           {centerTab==="planning"?(
             <PlanningAccordion vehicles={vehicles} courses={coursesToday} vCourses={vCourses}/>
           ):(
-            <LiveFleetMap vehicles={activeVehicles} gpsSessions={gpsSessions} selectedV={selectedV} setSelectedV={setSelectedV} themeC={C}/>
+            <LiveFleetMap vehicles={activeVehicles} gpsSessions={gpsSessions} selectedV={selectedV} setSelectedV={setSelectedV} preventifEngagedIds={preventifEngagedIds} themeC={C}/>
           )}
         </div>
 
@@ -1778,7 +1792,7 @@ function DispatcherView({vehicles,setVehicles,courses,setCourses,pending,onValid
             <div style={{fontSize:12,color:C.muted,marginBottom:16}}>De : <strong style={{color:C.accent}}>{dispTransfer.fromVehicle.name}</strong></div>
             <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:10}}>Choisir un véhicule :</div>
             <div style={{overflowY:"auto",flex:1,minHeight:0}}>
-              {activeVehicles.filter(v=>v.id!==dispTransfer.fromVehicle.id).map(v=>(
+              {activeVehicles.filter(v=>v.id!==dispTransfer.fromVehicle.id && gpsSessions.some(s=>s.vehicleId===v.id) && !preventifEngagedIds.has(v.id)).map(v=>(
                 <button key={v.id} onClick={()=>setDispConfirm({course:dispTransfer.course,toVehicle:v})}
                   style={{width:"100%",background:C.panel2,border:`1px solid ${C.border}`,borderRadius:10,padding:"12px 14px",marginBottom:7,textAlign:"left",cursor:"pointer",display:"flex",alignItems:"center",gap:10}}>
                   <span style={{fontSize:16,color:vColor(v.type)}}>{vIcon(v.type)}</span>
@@ -4324,6 +4338,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
     });
     return ()=>unsub();
   },[]);
+  const preventifEngagedIds=usePreventifEngagedVehicleIds();
 
   const startGpsTracking=(sessDocId)=>{
     if(!navigator.geolocation||!sessDocId) return;
@@ -5087,7 +5102,7 @@ function ChauffeurView({driversAmb,driversTpmr,stagiairesAmb,formationTpmr,tpmrC
             <div style={{fontSize:12,color:C.muted,marginBottom:14,flexShrink:0}}>Course : <strong style={{color:C.text}}>{showTransfer.patient}</strong></div>
             <div style={{fontSize:11,fontWeight:700,color:C.muted,textTransform:"uppercase",marginBottom:10,flexShrink:0}}>Choisir un véhicule :</div>
             <div style={{overflowY:"auto",flex:1,minHeight:0}}>
-              {vehicles.filter(v=>v.id!==vehicle?.id).map(v=>(
+              {vehicles.filter(v=>v.id!==vehicle?.id && activeSessions.some(s=>s.vehicleId===v.id) && !preventifEngagedIds.has(v.id)).map(v=>(
                 <button key={v.id} onClick={()=>{if(v.active)setConfirmTransfer({course:showTransfer,vehicle:v});}} disabled={!v.active}
                   style={{width:"100%",background:v.active?C.panel2:C.dangerSoft,border:`1px solid ${v.active?C.border:C.danger}`,borderRadius:10,padding:"12px 14px",marginBottom:7,textAlign:"left",cursor:v.active?"pointer":"not-allowed",display:"flex",alignItems:"center",gap:10,opacity:v.active?1:0.7}}>
                   <span style={{fontSize:16,color:v.active?vColor(v.type):C.danger}}>{vIcon(v.type)}</span>
@@ -7665,6 +7680,26 @@ function isoToFR(iso){
 function todayISO(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+}
+
+// Renvoie l'ensemble des vehicleId engagés dans une fiche Préventif active (non terminée) aujourd'hui.
+// Lecture indépendante, ne perturbe pas l'état interne de PreventifView.
+function usePreventifEngagedVehicleIds(){
+  const [ids,setIds]=useState(new Set());
+  useEffect(()=>{
+    const ref=doc(db,"dispatchai","preventifFiches");
+    const unsub=onSnapshot(ref,(snap)=>{
+      const fiches=snap.exists()?(snap.data().data||[]):[];
+      const today=todayISO();
+      const set=new Set();
+      fiches.filter(f=>f.date===today && !f.terminee).forEach(f=>{
+        (f.vehiculesEngages||[]).forEach(v=>{ if(v.vehicleId) set.add(v.vehicleId); });
+      });
+      setIds(set);
+    },(err)=>{ console.error("Erreur lecture fiches Préventif (engagement):", err); });
+    return ()=>unsub();
+  },[]);
+  return ids;
 }
 
 function getChecklistWeekKey(){
